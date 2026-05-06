@@ -62,16 +62,73 @@ Trade decisions are made by deterministic Python in `signals/` + `risk/` + `pape
 
 **Phase 0** — skeleton + dummy strategy + dashboard. See `metadata/phase_status.md` for current phase.
 
-## Setup (placeholder — populated when implementation begins)
+## Setup (Mac mini, primary production target)
 
-Requires Python 3.11+. UK-based; broker integration via IBKR Pro UK paper account (planned, cycle 2+).
+Requires macOS 14+ and Python 3.11+. UK locale.
+
+### One-time install
 
 ```bash
-# (instructions to be added in next commit)
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
+# Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Python 3.11 + Git
+brew install python@3.11 git
+
+# Optional but recommended: Claude Code CLI for the Coder agent role
+# https://docs.anthropic.com/claude-code
 ```
+
+### Clone and bootstrap
+
+```bash
+git clone https://github.com/rafeeqinea/turbo-carnival.git trading_system
+cd trading_system
+
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+
+cp .env.example .env
+# Edit .env in your editor and add API keys when you have them.
+# .env is gitignored; never commit it.
+```
+
+### Verify install
+
+```bash
+python --version  # 3.11+
+python -c "import pandas, lightgbm, duckdb, polars, streamlit; print('OK')"
+
+# Schema check (will fail until trades table TODO is filled in sql/schema.sql)
+sqlite3 :memory: < sql/schema.sql && echo "schema OK"
+```
+
+### Daily workflow (Phase 0 Day 2+)
+
+```bash
+source .venv/bin/activate
+
+# Dashboard (once Phase 0 Day 2 lands)
+streamlit run dashboard/app.py
+
+# Tests (once they exist)
+pytest
+
+# Pull latest
+git pull origin main
+```
+
+### The Mac mini's role in this architecture
+
+The Mac mini is the **production environment** — it runs the frozen `paper/` cycle. Active development should happen elsewhere (separate machine or branch). Once `paper_v1` is frozen and deployed here:
+
+- Monitor via Streamlit dashboard at http://localhost:8501
+- SQLite database at `data/trading_system.db`
+- Logs at `logs/`
+
+Do not run development work on the Mac mini during a frozen cycle. Any code change resets the cycle clock per `metadata/strategic_lock.md`.
 
 ## Disclaimers
 
