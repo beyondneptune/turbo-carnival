@@ -13,10 +13,10 @@
 - `metadata/strategic_lock.md` — locked hybrid VRP core + earnings satellite strategy
 - `metadata/capital_policy.md` — $10k paper notional, sleeve allocation, kill switch limits
 - `sql/schema.sql` — `runs`, `gate_decisions`, `agents_log`, `trades`, `trade_legs`
+- `dashboard/app.py` — read-only Streamlit dashboard skeleton (overview, runs, gate decisions, trades, agent activity)
 
 ## Next
 
-- Phase 0 Day 2: Streamlit dashboard skeleton at `dashboard/app.py`
 - Dummy SPY-momentum paper strategy (Phase 0 demo, not a real signal)
 - Schema smoke test / minimal `pytest` coverage in `tests/`
 
