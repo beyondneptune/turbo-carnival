@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+config/polygon.yaml
+config/secrets.yaml
+config/api_keys.yaml
+*.key
+*.pem
+
+# Data lake — too large for git, regenerable from APIs
+data/options_chains/
+data/prices/
+data/earnings/
+data/_manifest.json
+*.parquet
+*.duckdb
+*.db
+*.sqlite
+*.sqlite3
+*.h5
+*.feather
+
+# Model artifacts — too large, regenerable from training
+artifacts/
+models/*.pkl
+models/*.bin
+models/*.cbm
+models/*.lgb
+
+# Run outputs — too large, organized separately
+results/runs/
+runs/
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Streamlit cache
+.streamlit/secrets.toml
+
+# Build artifacts
+dist/
+build/
+*.tar.gz
+
+# Allow these even if otherwise excluded
+!.gitignore
+!.gitkeep
