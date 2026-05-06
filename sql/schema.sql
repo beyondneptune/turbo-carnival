@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS gate_decisions (
     block_reason        TEXT,                              -- which gate blocked, human-readable
 
     -- Linked trade (NULL if blocked)
-    trade_id            INTEGER,                           -- FK to trades.trade_id, set after trade insertion
+    trade_id            INTEGER,                           -- denormalized cache; canonical audit link is trades.decision_id (one-way, no circular FK)
 
     -- Reproducibility
     feature_snapshot_path TEXT,                            -- relative path to Parquet snapshot of features used
@@ -130,67 +130,105 @@ CREATE INDEX IF NOT EXISTS idx_agents_time ON agents_log(invoked_at_utc);
 CREATE INDEX IF NOT EXISTS idx_agents_invalid ON agents_log(json_schema_valid) WHERE json_schema_valid = 0;
 
 -- ============================================================================
--- TODO(human): trades table
+-- trades + trade_legs: the trade ledger
 -- ============================================================================
--- This is the most load-bearing table in the schema — it captures the actual
--- trades the paper system places. Many valid designs exist; the right one
--- depends on what we want to query and audit later.
---
--- REQUIREMENTS (must be captured somewhere):
---   - Unique trade ID
---   - Run ID (FK to runs)
---   - Decision ID (FK to gate_decisions, since every trade comes from an
---     approved gate decision)
---   - Sleeve ('core' | 'satellite' | 'demo')
---   - Underlying ticker
---   - Strategy structure: iron_condor | long_straddle | short_straddle |
---     iron_butterfly | demo_long_equity (extensible)
---   - Position legs (multi-leg for iron condors, two for straddles, one for
---     demo equity) — each with: type (call/put/stock), strike, expiry,
---     direction (long/short), quantity, entry_fill_price, exit_fill_price
---   - Entry timestamp + intended fill + actual simulated fill
---   - Exit timestamp + intended fill + actual simulated fill (NULL if open)
---   - Greeks at entry (delta, gamma, theta, vega, rho)
---   - Greeks at exit (NULL if open)
---   - Realized P&L (NULL if open)
---   - Cost breakdown: commission + spread + slippage estimate
---   - Status: 'open' | 'closed' | 'expired' | 'force_closed'
---
--- DESIGN DECISIONS YOU MUST MAKE:
---
--- 1. LEGS: in this table (denormalized JSON column) OR separate trade_legs
---    table (normalized)? Iron condors have 4 legs; straddles have 2; demo
---    equity has 1.
---    Tradeoffs:
---      - Denormalized JSON: simpler queries for "show me this trade"; harder
---        to query across legs (e.g., "all positions short the 600 call")
---      - Normalized trade_legs table: cleaner queries; more complex inserts
---
--- 2. PRIMARY KEY: auto-incrementing INTEGER, UUID, ULID (sortable), or
---    composite (run_id, sequence_number)?
---    Tradeoffs:
---      - INTEGER: simplest, fast joins, but not globally unique across runs
---      - UUID: globally unique but unsortable, not human-friendly
---      - ULID: globally unique AND sortable by time
---      - Composite: encodes run order but more verbose in joins
---
--- 3. GREEKS REPRESENTATION: separate columns (delta REAL, gamma REAL, ...)
---    or JSON column with all Greeks?
---    Tradeoffs:
---      - Columns: indexable, queryable directly
---      - JSON: extensible, future-proof if we add second-order Greeks
---
--- 4. P&L LIFECYCLE: store realized_pnl on close OR compute on read from
---    entry/exit fills? Compute-on-read is more reproducible (no risk of
---    storing wrong value) but slower for repeated queries.
---
--- TASK: design and write the CREATE TABLE statement(s) for trades, including
--- any auxiliary tables (e.g., trade_legs) you decide to add. Add the relevant
--- indexes. Write a 1-2 sentence comment block above explaining your design
--- choices for the four decisions above.
+-- Design (Phase 0 Day 1): legs normalized into trade_legs (clean cross-leg
+-- queries), INTEGER AUTOINCREMENT PKs (simple, fast joins), Greeks as
+-- explicit REAL columns (entry+exit aggregate on trades, entry per-leg on
+-- trade_legs), and realized_pnl_usd cached on close with per-leg fills +
+-- trade-level cost breakdown retained for audit recompute. Audit link to
+-- gate_decisions is one-way via trades.decision_id → gate_decisions.decision_id;
+-- gate_decisions.trade_id stays as an unenforced convenience field to avoid
+-- a circular FK (lookup the inverse with `SELECT trade_id FROM trades WHERE
+-- decision_id = ?`).
 -- ============================================================================
+CREATE TABLE IF NOT EXISTS trades (
+    trade_id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id              TEXT NOT NULL REFERENCES runs(run_id),
+    decision_id         INTEGER NOT NULL UNIQUE REFERENCES gate_decisions(decision_id),
+    sleeve              TEXT NOT NULL CHECK(sleeve IN ('core', 'satellite', 'demo')),
+    strategy_type       TEXT NOT NULL CHECK(strategy_type IN (
+                            'iron_condor',
+                            'long_straddle',
+                            'short_straddle',
+                            'iron_butterfly',
+                            'demo_long_equity'
+                        )),
+    underlying_ticker   TEXT NOT NULL,
 
--- (your CREATE TABLE statements go here)
+    status              TEXT NOT NULL CHECK(status IN (
+                            'open', 'closed', 'expired', 'force_closed'
+                        )),
+    entry_at_utc        TEXT NOT NULL,                     -- ISO 8601 UTC
+    exit_at_utc         TEXT,                              -- NULL while open
+
+    -- Aggregate Greeks at entry (signed, contract-level)
+    entry_delta         REAL,
+    entry_gamma         REAL,
+    entry_theta         REAL,
+    entry_vega          REAL,
+    entry_rho           REAL,
+
+    -- Aggregate Greeks at exit (NULL while open)
+    exit_delta          REAL,
+    exit_gamma          REAL,
+    exit_theta          REAL,
+    exit_vega           REAL,
+    exit_rho            REAL,
+
+    -- Cost & P&L (USD). realized_pnl_usd is a cache populated on close;
+    -- per-leg fills in trade_legs plus this breakdown allow recomputation.
+    commission_usd      REAL CHECK(commission_usd >= 0),
+    spread_cost_usd     REAL CHECK(spread_cost_usd >= 0),  -- bid-ask cost estimate
+    slippage_usd        REAL,                              -- intended − actual, summed over legs
+    realized_pnl_usd    REAL,                              -- NULL while open
+
+    notes               TEXT,
+    created_at_utc      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_trades_run ON trades(run_id);
+CREATE INDEX IF NOT EXISTS idx_trades_decision ON trades(decision_id);
+CREATE INDEX IF NOT EXISTS idx_trades_underlying ON trades(underlying_ticker);
+CREATE INDEX IF NOT EXISTS idx_trades_sleeve ON trades(sleeve);
+CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
+CREATE INDEX IF NOT EXISTS idx_trades_entry ON trades(entry_at_utc);
+
+-- ----------------------------------------------------------------------------
+-- trade_legs: one row per leg. Iron condor = 4 legs, straddle = 2, demo
+-- equity = 1. Direction is encoded as a string; quantity is positive.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS trade_legs (
+    leg_id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    trade_id            INTEGER NOT NULL REFERENCES trades(trade_id),
+    leg_number          INTEGER NOT NULL,                  -- 1..N within the trade
+    instrument_type     TEXT NOT NULL CHECK(instrument_type IN ('call', 'put', 'stock')),
+    direction           TEXT NOT NULL CHECK(direction IN ('long', 'short')),
+    quantity            INTEGER NOT NULL CHECK(quantity > 0),
+    multiplier          INTEGER NOT NULL DEFAULT 100 CHECK(multiplier > 0),  -- 100 for options, 1 for stock
+    strike              REAL,                              -- NULL for stock
+    expiry              TEXT,                              -- ISO 'YYYY-MM-DD', NULL for stock
+
+    -- Fills: intended (decision-time mid) vs actual (simulated)
+    entry_intended_price REAL,
+    entry_fill_price    REAL NOT NULL,
+    exit_intended_price REAL,
+    exit_fill_price     REAL,                              -- NULL while leg open
+
+    -- Per-leg Greeks at entry (risk decomposition / audit)
+    entry_delta         REAL,
+    entry_gamma         REAL,
+    entry_theta         REAL,
+    entry_vega          REAL,
+    entry_rho           REAL,
+
+    created_at_utc      TEXT NOT NULL DEFAULT (datetime('now')),
+
+    UNIQUE(trade_id, leg_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_legs_trade ON trade_legs(trade_id);
+CREATE INDEX IF NOT EXISTS idx_legs_expiry ON trade_legs(expiry);
 
 
 -- ============================================================================
