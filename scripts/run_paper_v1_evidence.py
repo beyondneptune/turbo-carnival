@@ -27,7 +27,7 @@ import time
 import traceback
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -39,7 +39,6 @@ if str(REPO_ROOT) not in sys.path:
 from eval.baselines import (  # noqa: E402
     RISK_FREE_RATE_PAPER_V1,
     BaselineSet,
-    best_baseline_per_event,
     best_baseline_summary,
     compute_all_baselines,
 )
@@ -49,8 +48,6 @@ from eval.gates import (  # noqa: E402
     evaluate_full,
 )
 from eval.metrics import (  # noqa: E402
-    annualized_return,
-    annualized_sharpe,
     deflated_sharpe_ratio,
     evaluate_regime_stability,
     max_drawdown,
@@ -66,11 +63,8 @@ from risk.kill_switch import evaluate_kill_switch  # noqa: E402
 from signals.earnings_satellite import (  # noqa: E402
     EarningsEvent,
     build_targets,
-    compute_expected_event_risk,
-    compute_risk_floor,
 )
 from signals.paper_v1_universe import (  # noqa: E402
-    PAPER_V1_CORE,
     PAPER_V1_SATELLITE,
 )
 from signals.twin_model_trainer import (  # noqa: E402
@@ -79,7 +73,6 @@ from signals.twin_model_trainer import (  # noqa: E402
 from signals.vrp_core_spy import (  # noqa: E402
     compute_entry_credit,
     construct_iron_condor,
-    select_expiry,
 )
 
 logger = logging.getLogger("run_paper_v1_evidence")
