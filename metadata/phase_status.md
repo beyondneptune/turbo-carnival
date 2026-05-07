@@ -1,9 +1,9 @@
 # Phase Status
 
-**Phase:** All code phases complete + prereg locked at v1.0 — awaiting CEO `git tag paper_v1.0-frozen`
+**Phase:** All code phases complete + prereg v1.0 amended for held-out OOS evidence — awaiting CEO `git tag paper_v1.0-frozen`
 **Machine:** Mac mini (production target; Phase 0 development allowed)
 **Frozen cycle:** Not started — code changes are permitted
-**Last updated:** 2026-05-06
+**Last updated:** 2026-05-07
 
 ---
 
@@ -45,7 +45,7 @@
 
 ### Freeze prep
 
-- `metadata/paper_v1_prereg.md` — **pre-registration v1.0** (15 sections: now includes Annualisation Conventions, Adversarial Stress Scenarios, Gate 6 HMM specs, B0 risk-free rate snapshot, and Historical Data / Simulation Use Policy)
+- `metadata/paper_v1_prereg.md` — **pre-registration v1.0** (15 sections: Annualisation Conventions, Adversarial Stress Scenarios, Gate 6 HMM specs, B0 risk-free rate snapshot, and Historical Data / Simulation Use Policy with Year 1 train / Year 2 one-shot OOS evidence)
 
 **Total tests: 431, all passing in ~2s** under `.venv` (Python 3.11.15, libomp installed for lightgbm).
 
@@ -54,19 +54,20 @@
 | # | Decision | Locked value |
 |---|---|---|
 | 1 | B0 risk-free rate | FRED `DGS3MO` snapshot 2026-05-05 = **3.69%**, hardcoded as `eval/baselines.py::RISK_FREE_RATE_PAPER_V1`, no refetch in cycle |
-| 2 | Gate 6 HMM specs | 2-state Gaussian HMM, daily SPY returns, cycle-window fit, `random_state=42` |
+| 2 | Gate 6 HMM specs | 2-state Gaussian HMM, daily SPY returns, held-out Year 2 evidence-window fit, `random_state=42` |
 | 3 | Adversarial stress scenarios | 4 pre-registered: −5%/+10vol, **−10%/+30vol (adversarial)**, +5%/+5vol, flat/−5vol |
 | 4 | Annualisation conventions | 252 trading days for strategy/Sharpe; 252/5 events/year for twin-model; 365 calendar geometric for B0 cash |
-| 5 | Gate 7 sample-size scope | Live cycle satellite trades only — no walk-forward replay padding |
+| 5 | Gate 7 sample-size scope | Held-out Year 2 satellite trades from the frozen evidence run only — no Year 1, synthetic, or post-result replay padding |
 
 ## Next
 
 **Wall-clock and decision-bound** — coding is done.
 
 - CEO `git tag paper_v1.0-frozen && git push origin paper_v1.0-frozen` (your hand on the tag)
-- Operational prep before day 0 actually runs: Polygon Free key in `.env`, daily orchestrator script (`scripts/run_daily_paper.py`), cron / launchd schedule
-- Pre-freeze dry run on live market data Mon–Fri this week (allowed per § 13 of prereg) — plumbing verification only, NOT cycle evidence
-- Day 0 = first day daily orchestrator runs successfully; Day 90 = cycle eval via `eval/gates.py::evaluate_full`
+- After tag: run the held-out Year 2 evaluator exactly once; Year 1 remains training/calibration only
+- Optional: run a 90-day forward paper confirmation with the same frozen code/constants; report separately from the official Year 2 verdict
+- Operational prep still needed: Polygon Free key in `.env`, evidence/backtest orchestrator, daily forward orchestrator (`scripts/run_daily_paper.py`), cron / launchd schedule
+- Weekly LLM review is read-only until post-cycle: summaries/postmortems only, no model/code/threshold changes inside `paper_v1`
 
 ## Active Constraint
 
@@ -74,4 +75,4 @@ Once the `paper_v1` frozen cycle begins, **no code changes are permitted mid-cyc
 
 ---
 
-**Update rule:** Edit this file as Phase 0 milestones land. When `paper_v1` is tagged and the cycle starts, switch the heading to `Cycle: paper_v1 frozen, day N of 90`.
+**Update rule:** Edit this file as milestones land. When `paper_v1.0-frozen` is tagged, switch the heading to `Cycle: paper_v1 frozen — Year 2 OOS evidence pending/run complete`; if the optional forward confirmation starts, track day N of 90 separately.

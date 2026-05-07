@@ -3,8 +3,10 @@
 **Version:** v1.0 (frozen on tag)
 **Cycle ID:** paper_v1
 **Prereg authored:** 2026-05-06
+**Pre-freeze amendment:** 2026-05-07 — held-out Year 2 OOS evidence policy
 **Freeze tag (target):** `paper_v1.0-frozen` — set by CEO at cycle start
-**Cycle duration:** 90 calendar days from tag, frozen
+**Primary evidence window:** held-out Year 2 out-of-sample backtest, evaluated once after tag
+**Forward confirmation:** optional 90-calendar-day paper run from tag, frozen
 **Modification rule:** Once tagged, any change to this document, the strategy code, or the metadata files resets the cycle clock to day 0.
 
 ---
@@ -110,7 +112,7 @@ All seven must hold simultaneously at **Base AND +50% costs**. Verbatim from `st
 | 4 | Max drawdown | < 15% NAV | `eval/metrics.py::max_drawdown` |
 | 5 | Adversarial stress drop | < 25% relative | `risk/envelope.py::check_scenario_stress` |
 | 6 | Regime stability | no HMM partition underperforming best benchmark by >5% (boundary inclusive at exactly −5%) | `eval/metrics.py::evaluate_regime_stability` |
-| 7 | Sample size | ≥ 50 satellite events from `trades` where `sleeve='satellite'` (live cycle only — no walk-forward replay padding) | `SELECT COUNT(*) FROM trades WHERE run_id=? AND sleeve='satellite'` |
+| 7 | Sample size | ≥ 50 satellite events from the held-out Year 2 evidence run where `sleeve='satellite'`; no in-sample, synthetic, or post-result replay padding | `SELECT COUNT(*) FROM trades WHERE run_id=? AND sleeve='satellite'` |
 
 Composite evaluator: `eval/gates.py::evaluate_full`.
 
@@ -118,7 +120,7 @@ Composite evaluator: `eval/gates.py::evaluate_full`.
 
 - **Type:** 2-state Gaussian HMM (`hmmlearn.hmm.GaussianHMM`)
 - **Input feature:** 1-D series of daily SPY benchmark returns
-- **Fitting window:** the cycle's own 90-calendar-day evaluation period (NOT pre-cycle history)
+- **Fitting window:** the held-out Year 2 evidence window; optional forward confirmation fits on its own forward window if reported separately
 - **`random_state`:** 42
 
 ## 8. Baselines
@@ -184,17 +186,24 @@ Per `strategic_lock.md` § Authorization, modifications require explicit CEO ove
 
 ## 13. Historical Data and Simulation Use Policy
 
-Historical data and simulation are permitted **only** for model training, calibration, dry-run validation, and stress testing. They are **excluded from final gate evidence** except where a gate explicitly uses a historical benchmark calculation.
+Cycle 1's primary evidence is a **frozen, one-shot out-of-sample backtest** over the second year of the available historical window. The first year is training/calibration only; the second year is held out until after `paper_v1.0-frozen` is tagged.
 
-| Allowed pre-freeze | NOT allowed for cycle 1 verdict |
-|---|---|
-| Train Model A & B on 1–2 years of historical earnings events (point-in-time, no future data leakage) | Counting historical replay events toward Gate 7 sample-size floor |
-| Build vol surfaces and Greeks behaviour from historical chains | Including pre-freeze synthetic / simulated trades in the strategy P&L |
-| Estimate cost / slippage assumptions from historical fills | Using a historical backtest as the basis for promote / pivot / stop |
-| Pre-freeze plumbing dry-run on live market data ("Friday checkpoint") | Modifying any code or constants once the cycle is tagged |
-| Engineering validation: fill simulator, scenario stress, dashboard / DB dry runs | Refetching DGS3MO or any other "locked-at-freeze" constant during the window |
+| Window | Role | Evidence status |
+|---|---|---|
+| Year 1: older 12 months of the 2-year Polygon Free lookback | Train Model A and Model B, fit feature transforms, set universe construction, calibrate cost assumptions | In-sample; never counts toward final gates |
+| Year 2: most recent 12 months ending at the freeze tag timestamp | Frozen models generate predictions; deterministic gates and paper execution replay create the evidence trade log | Out-of-sample; counts toward cycle 1 gates |
+| Optional 90-day forward paper run after tag | Real-market confirmation and operational monitoring | Reported separately; not required for cycle 1 verdict |
 
-Only the **frozen 90-day forward run** decides cycle 1's verdict. If that run produces only 25–35 satellite events (the realistic upper bound at $10k notional × top-50 universe), Gate 7 fails the cycle and the cycle is declared **underpowered** — that is honest and the prereg accepts it.
+Hard evidence rules:
+
+1. **Tag first, evaluate second.** `paper_v1.0-frozen` must be created before any Year 2 gate/evidence result is inspected.
+2. **Year 2 is never used for training, model selection, threshold tuning, feature engineering, or manual strategy adjustment.** Any use of Year 2 for those purposes converts it into in-sample data and invalidates the cycle.
+3. **One-shot eval.** Run the Year 2 evaluator once. Failed gates stand. Any change after viewing Year 2 results creates `paper_v2` and resets the cycle.
+4. **Gate 7 counts only held-out Year 2 satellite trades produced by the frozen strategy.** It excludes Year 1 training trades, synthetic/demo rows, and any replay padding after results are known.
+5. **Historical simulation remains allowed for engineering validation** only when it does not touch the held-out Year 2 evidence set.
+6. **LLMs are read-only during evidence generation.** Weekly LLM analysis may summarize dashboard/results and prepare postmortems, but it may not alter models, features, thresholds, risk gates, costs, code, or metadata inside `paper_v1`.
+
+The optional forward paper run uses the same frozen code and constants. It can strengthen confidence if it agrees with the Year 2 result, but it does not rescue a failed Year 2 gate and does not change the official cycle 1 verdict.
 
 ## 14. Out of Scope for Cycle 1
 
@@ -217,11 +226,12 @@ Verbatim from `strategic_lock.md` § What's Out of Scope for Cycle 1:
 
 1. § 4.1 (NEW): pinned the 4 adversarial stress scenarios already coded in `risk/envelope.py`.
 2. § 6 (NEW): pinned the mixed annualisation conventions (252 trading days for strategy, events/year for twin-model, 365 calendar for B0 cash).
-3. § 7.1 (NEW): pinned the Gate 6 HMM specification (2-state Gaussian, SPY returns, cycle-window fit, `random_state=42`).
+3. § 7.1 (NEW): pinned the Gate 6 HMM specification (2-state Gaussian, SPY returns, held-out evidence-window fit, `random_state=42`).
 4. § 8.1 (NEW): pinned the B0 risk-free rate (FRED `DGS3MO` snapshot 2026-05-05 = 3.69%, hardcoded constant, no refetch during cycle).
-5. § 7 Gate 7 wording: explicitly excluded walk-forward / historical replay from the ≥50 events count (live cycle only).
-6. § 13 (NEW): historical-data-and-simulation use policy — clean separation between pre-freeze training/calibration and cycle 1 verdict.
+5. § 7 Gate 7 wording: counts only held-out Year 2 satellite trades from the frozen evidence run.
+6. § 13 (NEW): historical-data-and-simulation policy — Year 1 train/calibrate, Year 2 one-shot out-of-sample evidence, optional 90-day forward confirmation.
+7. § 13 explicitly bans weekly LLM/model improvements inside `paper_v1`; LLMs are read-only until post-cycle.
 
 ---
 
-**No further architecture debate.** The cycle starts when the CEO tags `paper_v1.0-frozen`. After tag, only daily orchestration (ingest → signals → gates → paper_exec → DB) runs.
+**No further architecture debate.** The evidence run starts when the CEO tags `paper_v1.0-frozen`. After tag, run the Year 2 out-of-sample evaluator once; optional forward orchestration may follow, but no model/code/threshold improvements are permitted inside `paper_v1`.
