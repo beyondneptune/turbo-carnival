@@ -128,6 +128,62 @@ def compute_greeks(option_type: OptionType, S: float, K: float, T: float, r: flo
     )
 
 
+# ----------------------------------------------------------------------------
+# Unit conversions for the risk/envelope.py boundary
+# ----------------------------------------------------------------------------
+# bs_vega(...) returns vega per 1.0 sigma (= per 100 vol points; standard
+# Black-Scholes textbook convention). risk/envelope.py expects vega per 1 vol
+# point (see test_envelope.py: vega=-100, vol_change=30 -> -$3000 P&L).
+# bs_gamma(...) returns per-share gamma in 1/$ units; risk/envelope.py expects
+# a position-level dollar gamma already pre-scaled for the 1% spot move
+# convention used in `0.5 * gamma * (spot_change_pct * notional)^2`.
+#
+# ALWAYS convert at the source-of-input boundary. Consumers populating
+# `risk.envelope.CandidatePosition.vega` and `.gamma` MUST route through
+# `vega_to_vol_point(...)` and `position_dollar_gamma(...)` respectively --
+# NOT raw `bs_vega` / `bs_gamma`. Wiring raw BS Greeks directly would be 100x
+# too large for vega and dimensionally wrong for gamma.
+
+
+def vega_to_vol_point(vega_per_sigma: float) -> float:
+    """Convert BS vega (per 1.0 sigma) to per-1-vol-point. Divide by 100.
+
+    Use to populate `risk.envelope.CandidatePosition.vega` from `bs_vega(...)`.
+    """
+    return float(vega_per_sigma) / 100.0
+
+
+def position_dollar_gamma(
+    leg_gamma_per_dollar: float,
+    spot: float,
+    quantity: int,
+    multiplier: int,
+    direction_sign: int,  # +1 long, -1 short
+) -> float:
+    """Convert per-share BS gamma (1/$) to dollar gamma at the position level.
+
+    Dollar gamma definition: 0.5 * gamma * (1% spot move)^2 in dollars.
+    Returns: direction_sign * quantity * multiplier * gamma * spot * spot * 1e-4.
+
+    The 1e-4 = (0.01)^2 = 1%-squared scaling so the result is dollars
+    of P&L per 1% spot move squared, which matches risk/envelope.py's
+    `0.5 * gamma * (spot_change_pct * notional)^2` convention only when
+    `notional == spot * quantity * multiplier`. Use this helper to
+    pre-compute the position gamma input rather than doing the math inline.
+
+    Use to populate `risk.envelope.CandidatePosition.gamma` from `bs_gamma(...)`.
+    """
+    if direction_sign not in (-1, 1):
+        raise ValueError(f"direction_sign must be +1 or -1, got {direction_sign}")
+    if quantity < 0:
+        raise ValueError(f"quantity must be non-negative, got {quantity}")
+    if multiplier <= 0:
+        raise ValueError(f"multiplier must be positive, got {multiplier}")
+    if spot <= 0:
+        raise ValueError(f"spot must be positive, got {spot}")
+    return float(direction_sign) * float(quantity) * float(multiplier) * float(leg_gamma_per_dollar) * float(spot) * float(spot) * 1e-4
+
+
 def aggregate_position_greeks(legs: list[Leg]) -> Greeks:
     """Sum signed contributions across legs (sign * quantity * multiplier * leg.greek)."""
     if not legs:

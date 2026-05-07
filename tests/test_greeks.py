@@ -16,6 +16,8 @@ from features.greeks import (
     bs_theta,
     bs_vega,
     compute_greeks,
+    position_dollar_gamma,
+    vega_to_vol_point,
 )
 
 
@@ -285,3 +287,95 @@ def test_zero_multiplier_rejected():
     leg = Leg(instrument_type="call", direction="long", quantity=1, multiplier=0, delta=0.5)
     with pytest.raises(ValueError):
         aggregate_position_greeks([leg])
+
+
+# ---------------------------------------------------------------------------
+# Unit-conversion helpers for the risk/envelope.py boundary
+# ---------------------------------------------------------------------------
+# Consumers (risk.envelope.CandidatePosition) MUST populate `.vega` and
+# `.gamma` via `vega_to_vol_point` / `position_dollar_gamma`, NOT raw
+# `bs_vega` / `bs_gamma`. Wiring raw BS values would be 100x too large for
+# vega and dimensionally wrong for gamma.
+
+
+def test_vega_to_vol_point_basic_divide_by_100():
+    assert vega_to_vol_point(19.5) == pytest.approx(0.195, abs=1e-12)
+
+
+def test_vega_to_vol_point_zero():
+    assert vega_to_vol_point(0.0) == 0.0
+
+
+def test_vega_to_vol_point_negative():
+    assert vega_to_vol_point(-50.0) == pytest.approx(-0.5, abs=1e-12)
+
+
+def test_vega_to_vol_point_envelope_boundary_atm_call():
+    """ATM call: bs_vega ~$19.5/sigma -> vega_to_vol_point ~$0.195/vol-pt.
+    Multiplied by a 30-vol-point shock should give ~-$5.85 P&L when short.
+    Mirrors the convention enforced by tests/test_envelope.py.
+    """
+    v_per_sigma = bs_vega(100.0, 100.0, 0.25, 0.05, 0.20)
+    assert 19.0 < v_per_sigma < 20.5  # ~19.6 at these params
+    v_per_vol_pt = vega_to_vol_point(v_per_sigma)
+    assert 0.190 < v_per_vol_pt < 0.205
+    # Short position: -1 * v_per_vol_pt * 30 vol points
+    pnl = -v_per_vol_pt * 30.0
+    assert -6.20 < pnl < -5.65  # ~-$5.85
+    assert math.isclose(pnl, -v_per_sigma * 30.0 / 100.0, rel_tol=1e-12)
+
+
+def test_position_dollar_gamma_short_call_hand_computation():
+    """gamma=0.001, spot=100, qty=10, mult=100, sign=-1.
+    Expected: -1 * 10 * 100 * 0.001 * 100 * 100 * 1e-4 = -1.0.
+    """
+    g = position_dollar_gamma(
+        leg_gamma_per_dollar=0.001,
+        spot=100.0,
+        quantity=10,
+        multiplier=100,
+        direction_sign=-1,
+    )
+    assert g == pytest.approx(-1.0, abs=1e-12)
+
+
+def test_position_dollar_gamma_long_sign_flips():
+    """Sign convention: +1 long, -1 short -- result flips sign only."""
+    long_g = position_dollar_gamma(0.001, 100.0, 10, 100, +1)
+    short_g = position_dollar_gamma(0.001, 100.0, 10, 100, -1)
+    assert long_g == pytest.approx(+1.0, abs=1e-12)
+    assert short_g == pytest.approx(-1.0, abs=1e-12)
+    assert long_g == -short_g
+
+
+def test_position_dollar_gamma_zero_quantity():
+    assert position_dollar_gamma(0.001, 100.0, 0, 100, +1) == 0.0
+
+
+def test_position_dollar_gamma_invalid_sign_raises():
+    with pytest.raises(ValueError):
+        position_dollar_gamma(0.001, 100.0, 1, 100, 0)
+    with pytest.raises(ValueError):
+        position_dollar_gamma(0.001, 100.0, 1, 100, 2)
+
+
+def test_position_dollar_gamma_negative_quantity_raises():
+    with pytest.raises(ValueError):
+        position_dollar_gamma(0.001, 100.0, -1, 100, +1)
+
+
+def test_position_dollar_gamma_zero_multiplier_raises():
+    with pytest.raises(ValueError):
+        position_dollar_gamma(0.001, 100.0, 1, 0, +1)
+
+
+def test_position_dollar_gamma_zero_spot_raises():
+    with pytest.raises(ValueError):
+        position_dollar_gamma(0.001, 0.0, 1, 100, +1)
+
+
+def test_position_dollar_gamma_scales_quadratically_with_spot():
+    """gamma * spot^2 scaling: doubling spot quadruples result."""
+    g_at_100 = position_dollar_gamma(0.001, 100.0, 1, 100, +1)
+    g_at_200 = position_dollar_gamma(0.001, 200.0, 1, 100, +1)
+    assert math.isclose(g_at_200, 4.0 * g_at_100, rel_tol=1e-12)

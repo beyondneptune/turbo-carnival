@@ -40,8 +40,12 @@ def test_get_api_key_returns_env_value(monkeypatch):
 
 def test_get_api_key_returns_none_when_unset(monkeypatch, tmp_path, chdir_tmp_root):
     monkeypatch.delenv("POLYGON_API_KEY", raising=False)
-    # Ensure no .env in CWD or repo root would clobber this. python-dotenv loads
-    # the path we pass; we point it at an empty tmp_path with no .env file.
+    # `get_api_key()` calls `load_dotenv()` against the repo's absolute .env
+    # path. With a real .env on disk (Polygon key lives there), monkeypatch.delenv
+    # alone isn't enough — the dotenv reload re-sets the var. Patch load_dotenv
+    # to a no-op so this test isolates env-var state from disk.
+    import dotenv
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda *a, **k: False)
     assert get_api_key() is None
 
 
