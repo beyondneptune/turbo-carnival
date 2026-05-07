@@ -1144,15 +1144,36 @@ def show_system() -> None:
 
     st.divider()
 
-    # ---- Polygon API call counter ----
+    # ---- Polygon API call / cache progress counter ----
+    # The fetcher writes per-stage `done`/`events`/`rows`/`files_written`
+    # rather than a literal `api_calls` field, so fall back to summing those
+    # if the explicit key isn't present.
     status = read_paper_v1_status()
     api_total = total_polygon_api_calls(status)
+    fallback_total = 0
+    if status and isinstance(status.get("stages"), dict):
+        for stage in status["stages"].values():
+            if not isinstance(stage, dict):
+                continue
+            for key in ("files_written", "done", "events", "rows"):
+                v = stage.get(key)
+                if isinstance(v, (int, float)):
+                    fallback_total += int(v)
     api_cols = st.columns(2)
     with api_cols[0]:
+        if api_total is not None:
+            value_str = f"{api_total:,}"
+            delta_str = "Polygon api_calls (cumulative)"
+        elif fallback_total > 0:
+            value_str = f"{fallback_total:,}"
+            delta_str = "stage progress (events + rows + done + files)"
+        else:
+            value_str = "—"
+            delta_str = "no status"
         st.metric(
-            "Polygon API calls",
-            f"{api_total:,}" if api_total is not None else "—",
-            delta="cumulative across stages" if api_total is not None else "no status",
+            "Cache progress",
+            value_str,
+            delta=delta_str,
             delta_color="off",
             border=True,
         )
