@@ -5,14 +5,13 @@ from __future__ import annotations
 
 import math
 import warnings
-from dataclasses import dataclass, field
-from typing import Literal, Iterable
+from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 import pandas as pd
-from scipy.interpolate import RegularGridInterpolator, griddata
+from scipy.interpolate import griddata
 from scipy.optimize import brentq
-from scipy.stats import norm
 
 from features.greeks import bs_price as _bs_price, bs_delta as _bs_delta
 

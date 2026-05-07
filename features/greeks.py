@@ -6,7 +6,6 @@ import math
 from dataclasses import dataclass
 from typing import Literal
 
-import numpy as np
 from scipy.stats import norm
 
 OptionType = Literal["call", "put"]

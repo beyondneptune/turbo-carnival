@@ -6,7 +6,6 @@ import pytest
 from paper_exec.simulator import (
     COMMISSION_PER_CONTRACT_USD,
     SLIPPAGE_PER_LEG_USD,
-    LegFill,
     LegOrder,
     Quote,
     TradeFill,
@@ -300,14 +299,10 @@ class TestMultiLegTrade:
         assert fill.total_commission_usd == pytest.approx(2 * 0.65)
         # Long straddle: pay both legs -> negative cash flow
         assert fill.net_credit_or_debit_usd < 0
-        # Magnitude check: roughly 2 * (5.10 + 0.01) * 100 = ~1022 paid + commissions/slip
-        # net = -2 * fill_price * 100 - commissions - slippage
+        # fill_price already includes spread + slippage; only commission is
+        # subtracted on top. expected = -2 * fill_price * 100 - commissions
         expected_paid = 2 * (5.05 + 0.05 + 0.01) * 100  # ~1022
-        expected_net = (
-            -expected_paid
-            - 2 * 0.65          # commissions
-            - 2 * 0.01 * 100    # slippage subtracted explicitly
-        )
+        expected_net = -expected_paid - 2 * 0.65        # only commission subtracted
         assert fill.net_credit_or_debit_usd == pytest.approx(expected_net)
 
     def test_iron_condor_total_spread_cost(self):

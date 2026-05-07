@@ -208,12 +208,12 @@ def simulate_trade_fill(
         signed_cash = sign * fill_price * quantity * multiplier
         where sign = +1 for SHORT (cash received), -1 for LONG (cash paid).
 
-    Then `net_credit_or_debit_usd = sum(signed_cash) - total_commission - total_slippage`.
+    Then `net_credit_or_debit_usd = sum(signed_cash) - total_commission`.
 
-    Note: spread cost is already embedded in fill_price (fill is on the
-    bad side of mid by `effective_half_spread`), so we do NOT double-subtract
-    spread_cost_usd here. Commissions and explicit slippage are subtracted
-    because they are NOT captured by the fill-price-vs-mid difference.
+    Note: BOTH spread cost AND slippage are already embedded in fill_price
+    (`fill = mid ± effective_half_spread ± slip_per_share`), so neither is
+    subtracted again here. Only commission is subtracted explicitly because
+    it is the only cost not reflected in fill_price.
     """
     if len(orders) != len(quotes):
         raise ValueError(
@@ -250,7 +250,7 @@ def simulate_trade_fill(
         sign = 1.0 if order.direction == 'short' else -1.0
         signed_cash_total += sign * leg_fill.fill_price * order.quantity * order.multiplier
 
-    net_credit_or_debit = signed_cash_total - total_commission - total_slippage
+    net_credit_or_debit = signed_cash_total - total_commission
 
     return TradeFill(
         leg_fills=leg_fills,

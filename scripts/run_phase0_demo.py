@@ -124,8 +124,7 @@ def seed_decisions_and_trades(
     cur = conn.cursor()
 
     # Force the mix to ~7 approved / ~3 blocked regardless of synthetic signal.
-    # Take indices 0..n-1; deterministically choose 3 to block (indices 1, 4, 7).
-    n = len(signals)
+    # Deterministically choose 3 indices to block (1, 4, 7) of len(signals) candidates.
     blocked_idx = {1, 4, 7}
 
     decision_records: list[tuple[int, int, float, str]] = []  # (decision_id, idx, mom, ts)
@@ -452,7 +451,7 @@ def main() -> None:
             n_dec, n_appr, n_closed, n_legs = seed_decisions_and_trades(
                 conn, RUN_ID, signals
             )
-            n_agents = seed_agents_log(conn, RUN_ID, started_at)
+            seed_agents_log(conn, RUN_ID, started_at)
 
         counts = count_rows(conn, RUN_ID)
         print(f"Phase 0 demo seed complete (run_id={RUN_ID})")

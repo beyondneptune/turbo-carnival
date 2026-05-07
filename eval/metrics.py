@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from itertools import combinations
 
 import numpy as np
-import pandas as pd
 from scipy import stats
 
 __all__ = [
@@ -461,7 +460,9 @@ def evaluate_regime_stability(
         underperf[k] = sr - br
 
     worst = float(min(underperf.values())) if underperf else 0.0
-    passed = worst > -float(threshold)
+    # Spec: "no partition underperforming by >5%". At exactly -5% the gap is
+    # not >5%, so the gate passes (boundary inclusive). Matches eval/gates.py.
+    passed = worst >= -float(threshold)
 
     return RegimeStabilityResult(
         n_states=n_states,

@@ -363,7 +363,8 @@ def test_regime_stability_state_assignments_length():
 def test_regime_stability_threshold_boundary():
     # Construct a case where worst underperformance is exactly -0.05.
     # strategy = benchmark - 0.05 in every period → gap = -0.05 in every state.
-    # passed requires worst > -threshold (strict), so should fail at threshold=0.05.
+    # Spec: "no partition underperforming by >5%". At exactly -5% the gap is
+    # not >5%, so the gate passes (boundary inclusive). Mirrors eval/gates.py.
     rng = np.random.default_rng(5)
     T = 200
     bench = np.concatenate(
@@ -376,6 +377,6 @@ def test_regime_stability_threshold_boundary():
     res = evaluate_regime_stability(
         strat, bench, n_states=2, threshold=0.05, random_state=0
     )
-    assert res.passed is False
+    assert res.passed is True
     for gap in res.underperformance_per_state.values():
         assert gap == pytest.approx(-0.05, abs=1e-12)

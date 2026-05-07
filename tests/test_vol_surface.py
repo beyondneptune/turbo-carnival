@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from features.greeks import bs_price as _bs_price, bs_delta as _bs_delta
+from features.greeks import bs_price as _bs_price
 from features.vol_surface import (
     SurfaceFit,
     fit_surface_from_chain,

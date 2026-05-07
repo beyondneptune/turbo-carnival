@@ -36,6 +36,8 @@ EARLY_STOPPING_ROUNDS = 50
 
 # Standard trading days per year for annualisation.
 TRADING_DAYS_PER_YEAR = 252
+HOLD_PERIOD_DAYS = 5  # earnings straddle hold period (T-1 to T+5)
+EVENTS_PER_YEAR = TRADING_DAYS_PER_YEAR / HOLD_PERIOD_DAYS  # ~50.4
 
 
 @dataclass(frozen=True)
@@ -192,11 +194,11 @@ def compare_twin_models(
     sharpe_a = compute_sharpe(ret_a)
     sharpe_b = compute_sharpe(ret_b)
 
-    # Net excess return annualised (per-event returns assumed to be on a
-    # roughly daily/per-event horizon — the framework's own annualisation
-    # convention applies. Here we annualise mean diff via TRADING_DAYS_PER_YEAR
-    # and convert to bps.)
-    net_excess_ann = (mean_b - mean_a) * TRADING_DAYS_PER_YEAR
+    # Net excess annualised. Each event spans HOLD_PERIOD_DAYS=5 trading days,
+    # so events-per-year = TRADING_DAYS_PER_YEAR / HOLD_PERIOD_DAYS ≈ 50.4.
+    # Multiplying mean per-event diff by 252 (as if events were daily) over-
+    # annualises by 5×.
+    net_excess_ann = (mean_b - mean_a) * EVENTS_PER_YEAR
     net_excess_bps_ann = net_excess_ann * 1e4
 
     sharpe_delta = sharpe_b - sharpe_a

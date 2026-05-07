@@ -3,13 +3,11 @@ from __future__ import annotations
 import math
 from datetime import date, timedelta
 
-import numpy as np
 import pandas as pd
 import pytest
 
 from features.greeks import bs_delta, bs_price
 from signals.vrp_core_spy import (
-    ExitDecision,
     IronCondorEntry,
     IronCondorSpec,
     compute_entry_credit,

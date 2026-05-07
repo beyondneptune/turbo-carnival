@@ -4,11 +4,10 @@ Pure functions; no I/O."""
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from datetime import date, timedelta
+from dataclasses import dataclass
+from datetime import date
 from typing import Literal
 
-import numpy as np
 import pandas as pd
 
 
