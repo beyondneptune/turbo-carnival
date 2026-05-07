@@ -14,10 +14,10 @@
 - `metadata/capital_policy.md` — $10k paper notional, sleeve allocation, kill switch limits
 - `sql/schema.sql` — `runs`, `gate_decisions`, `agents_log`, `trades`, `trade_legs`
 - `dashboard/app.py` — read-only Streamlit dashboard skeleton (overview, runs, gate decisions, trades, agent activity)
+- `scripts/run_phase0_demo.py` — synthetic SPY-momentum demo seed (idempotent; populates all 5 tables under `run_id = paper_v0_demo`)
 
 ## Next
 
-- Dummy SPY-momentum paper strategy (Phase 0 demo, not a real signal)
 - Schema smoke test / minimal `pytest` coverage in `tests/`
 
 ## Active Constraint
