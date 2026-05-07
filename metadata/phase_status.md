@@ -1,6 +1,6 @@
 # Phase Status
 
-**Phase:** Phase 0 — skeleton + dummy strategy + dashboard
+**Phase:** Phase 0 complete — awaiting Phase 1 kickoff
 **Machine:** Mac mini (production target; Phase 0 development allowed)
 **Frozen cycle:** Not started — code changes are permitted
 **Last updated:** 2026-05-06
@@ -15,10 +15,15 @@
 - `sql/schema.sql` — `runs`, `gate_decisions`, `agents_log`, `trades`, `trade_legs`
 - `dashboard/app.py` — read-only Streamlit dashboard skeleton (overview, runs, gate decisions, trades, agent activity)
 - `scripts/run_phase0_demo.py` — synthetic SPY-momentum demo seed (idempotent; populates all 5 tables under `run_id = paper_v0_demo`)
+- `tests/` + root `conftest.py` — pytest coverage for schema constraints (16 tests) and dashboard helpers (14 tests); 30 tests, all passing in <1s
 
 ## Next
 
-- Schema smoke test / minimal `pytest` coverage in `tests/`
+**Phase 0 deliverables complete.** Phase 1 begins on next CEO greenlight (weeks 3–5 per `metadata/strategic_lock.md`):
+
+- Polygon Free pipeline (`ingest/`)
+- yfinance adapter for daily SPY + Russell 1000 prices
+- Vol surface engine + Greeks aggregation (`features/`)
 
 ## Active Constraint
 
