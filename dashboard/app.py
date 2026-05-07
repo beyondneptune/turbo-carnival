@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import plotly.graph_objects as go
 import psutil
 import streamlit as st
 
@@ -28,6 +29,14 @@ DEFAULT_DB_PATH = REPO_ROOT / "data" / "trading_system.db"
 PAPER_V1_STATUS_PATH = REPO_ROOT / "data" / "paper_v1_status.json"
 STALE_THRESHOLD_SECONDS = 30 * 60  # 30 minutes
 SATELLITE_SAMPLE_TARGET = 50  # gate red/green threshold for sample size
+
+# Color palette (hex). Streamlit-friendly accent tones, work in light + dark.
+COLOR_GREEN = "#22c55e"
+COLOR_RED = "#ef4444"
+COLOR_AMBER = "#f59e0b"
+COLOR_BLUE = "#3b82f6"
+COLOR_GRAY = "#6b7280"
+COLOR_BG_MUTED = "#1f2937"
 
 TABLE_QUERIES: dict[str, str] = {
     "runs": (
@@ -276,82 +285,247 @@ def get_system_snapshot(target_path: Path | None = None) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Existing views
+# Visual primitives
+# ---------------------------------------------------------------------------
+
+
+def _render_status_pill(text: str, color: str, *, big: bool = False) -> str:
+    """Return raw HTML for a colored pill. Use with st.markdown(unsafe_allow_html=True)."""
+    font_size = "1.4rem" if big else "0.85rem"
+    padding = "0.35rem 1rem" if big else "0.15rem 0.6rem"
+    weight = "700" if big else "600"
+    return (
+        f'<span style="display:inline-block;background:{color};color:#ffffff;'
+        f'padding:{padding};border-radius:999px;font-weight:{weight};'
+        f'font-size:{font_size};letter-spacing:0.02em;">{text}</span>'
+    )
+
+
+def _render_dot(passed: bool | None) -> str:
+    """Return HTML for a small status dot (green/red/gray)."""
+    if passed is True:
+        return f'<span style="color:{COLOR_GREEN};font-size:1.2rem;">●</span>'
+    if passed is False:
+        return f'<span style="color:{COLOR_RED};font-size:1.2rem;">●</span>'
+    return f'<span style="color:{COLOR_GRAY};font-size:1.2rem;">○</span>'
+
+
+def _empty_state(icon: str, title: str, hint: str) -> None:
+    """Polished empty state — icon + title + hint."""
+    st.markdown(
+        f'<div style="text-align:center;padding:2rem 0.5rem;color:{COLOR_GRAY};">'
+        f'<div style="font-size:3rem;line-height:1;">{icon}</div>'
+        f'<div style="font-size:1.1rem;font-weight:600;margin-top:0.5rem;">{title}</div>'
+        f'<div style="font-size:0.9rem;margin-top:0.3rem;opacity:0.8;">{hint}</div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _paper_v1_health(status: dict[str, Any] | None) -> tuple[str, str, str]:
+    """Compute (label, color, css-color-band) for the top banner from status."""
+    if status is None:
+        return ("IDLE", COLOR_GRAY, COLOR_GRAY)
+    if status.get("errors"):
+        return ("ERROR", COLOR_RED, COLOR_RED)
+    if is_status_stale(status):
+        return ("STALE", COLOR_AMBER, COLOR_AMBER)
+    phase = str(status.get("phase") or "").lower()
+    if phase in {"complete", "completed", "done", "finished"}:
+        return ("HEALTHY", COLOR_GREEN, COLOR_GREEN)
+    return ("RUNNING", COLOR_BLUE, COLOR_BLUE)
+
+
+def _format_elapsed(started_at: str | None, last_update: str | None) -> str:
+    """Return a short human-readable elapsed time, or em-dash if unknown."""
+    start_dt = _parse_iso_utc(started_at)
+    end_dt = _parse_iso_utc(last_update) or datetime.now(tz=timezone.utc)
+    if start_dt is None:
+        return "—"
+    seconds = max(0.0, (end_dt - start_dt).total_seconds())
+    if seconds < 60:
+        return f"{int(seconds)}s"
+    if seconds < 3600:
+        return f"{int(seconds // 60)}m {int(seconds % 60)}s"
+    hours = int(seconds // 3600)
+    mins = int((seconds % 3600) // 60)
+    return f"{hours}h {mins}m"
+
+
+def _render_top_banner(status: dict[str, Any] | None) -> None:
+    """Banner at the top of every page: name, refresh time, LAN tip, color strip."""
+    label, color, _band = _paper_v1_health(status)
+    now_str = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    # Color band line at top.
+    st.markdown(
+        f'<div style="height:6px;background:{color};border-radius:4px;margin-bottom:0.6rem;"></div>',
+        unsafe_allow_html=True,
+    )
+
+    title_col, status_col = st.columns([3, 1])
+    with title_col:
+        st.markdown(
+            '<div style="font-size:1.6rem;font-weight:700;line-height:1.1;">'
+            "📊 turbo-carnival · paper_v1"
+            "</div>"
+            f'<div style="font-size:0.78rem;color:{COLOR_GRAY};margin-top:0.2rem;">'
+            f"Last refresh {now_str} · LAN tip: "
+            "<code>.venv/bin/streamlit run dashboard/app.py "
+            "--server.address 0.0.0.0 --server.port 8501</code>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    with status_col:
+        st.markdown(
+            '<div style="text-align:right;padding-top:0.4rem;">'
+            + _render_status_pill(label, color, big=False)
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Existing views (visually polished)
 # ---------------------------------------------------------------------------
 
 
 def show_overview(conn: sqlite3.Connection | None, db_path: Path) -> None:
-    st.subheader("Overview")
-    st.caption(f"DB path: `{db_path}`")
+    st.subheader("📊 Overview")
     if conn is None:
-        st.warning(
-            f"Database file not found at `{db_path}`. "
-            f"Initialise with `sqlite3 {db_path} < sql/schema.sql` "
-            "(create the parent directory first if needed)."
+        st.markdown(
+            f'<div style="background:#fef3c7;color:#78350f;padding:0.9rem 1rem;'
+            f'border-left:4px solid {COLOR_AMBER};border-radius:6px;">'
+            f"<b>⚠️ Database not found</b><br>"
+            f"<code>{db_path}</code><br>"
+            f"<span style='font-size:0.85rem;'>Initialise with "
+            f"<code>sqlite3 {db_path} &lt; sql/schema.sql</code> "
+            f"(create the parent directory first if needed).</span>"
+            f"</div>",
+            unsafe_allow_html=True,
         )
         return
 
+    n_runs = count_rows(conn, "runs")
+    n_gates = count_rows(conn, "gate_decisions")
+    n_trades = count_rows(conn, "trades")
+    n_open = count_rows(conn, "trades", "status = 'open'")
+
     cols = st.columns(4)
-    cols[0].metric("Runs", count_rows(conn, "runs"))
-    cols[1].metric("Gate decisions", count_rows(conn, "gate_decisions"))
-    cols[2].metric("Trades", count_rows(conn, "trades"))
-    cols[3].metric("Open trades", count_rows(conn, "trades", "status = 'open'"))
+    cols[0].metric("Runs", n_runs, border=True, help="Total run rows in the audit DB.")
+    cols[1].metric(
+        "Gate decisions",
+        n_gates,
+        border=True,
+        help="All approve/block decisions logged.",
+    )
+    cols[2].metric(
+        "Trades",
+        n_trades,
+        border=True,
+        help="All paper trades executed across runs.",
+    )
+    cols[3].metric(
+        "Open trades",
+        n_open,
+        border=True,
+        help="Trades with status = 'open'.",
+    )
+
+    st.divider()
+
+    with st.container(border=True):
+        st.markdown(
+            f'<div style="font-size:0.95rem;">'
+            f'<span style="color:{COLOR_GREEN};">✅</span> '
+            f"<b>Database connected</b> — <code>{db_path}</code>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def show_table_view(conn: sqlite3.Connection | None, label: str, table: str) -> None:
     st.subheader(label)
     if conn is None:
-        st.info("DB not available.")
+        _empty_state("🗄️", "Database not available", "Initialise the audit DB first.")
         return
     df = fetch_recent(conn, table)
     if df.empty:
-        st.info(f"No rows in `{table}` yet.")
+        _empty_state(
+            "📭",
+            f"No rows in `{table}` yet",
+            "Rows will appear here as the orchestrator records them.",
+        )
     else:
-        st.dataframe(df, use_container_width=True)
+        st.caption(f"Showing the {len(df)} most recent rows from `{table}`.")
+        st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 def show_gate_decisions(conn: sqlite3.Connection | None) -> None:
-    st.subheader("Gate Decisions")
+    st.subheader("🎯 Gate Decisions")
     if conn is None:
-        st.info("DB not available.")
+        _empty_state("🗄️", "Database not available", "Initialise the audit DB first.")
         return
 
     approved = count_rows(conn, "gate_decisions", "final_decision = 'approved'")
     blocked = count_rows(conn, "gate_decisions", "final_decision = 'blocked'")
-    if approved or blocked:
-        cols = st.columns(2)
-        cols[0].metric("Approved", approved)
-        cols[1].metric("Blocked", blocked)
+    total = approved + blocked
+
+    if total:
+        approve_rate = (approved / total) * 100.0 if total else 0.0
+        cols = st.columns(3)
+        cols[0].metric("Approved", approved, border=True)
+        cols[1].metric("Blocked", blocked, border=True)
+        cols[2].metric("Approve rate", f"{approve_rate:.0f}%", border=True)
+        st.divider()
 
     df = fetch_recent(conn, "gate_decisions")
     if df.empty:
-        st.info("No gate decisions yet.")
+        _empty_state(
+            "🎯",
+            "No gate decisions yet",
+            "Rows appear here when the gates evaluate a candidate.",
+        )
     else:
-        st.dataframe(df, use_container_width=True)
+        st.caption(f"Showing the {len(df)} most recent decisions.")
+        st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 def show_trades(conn: sqlite3.Connection | None) -> None:
-    st.subheader("Trades")
+    st.subheader("💰 Trades")
     if conn is None:
-        st.info("DB not available.")
+        _empty_state("🗄️", "Database not available", "Initialise the audit DB first.")
         return
 
-    trades = fetch_recent(conn, "trades")
-    if trades.empty:
-        st.info("No trades yet.")
-    else:
-        st.dataframe(trades, use_container_width=True)
+    tab_trades, tab_legs = st.tabs(["💼 Trades", "🦴 Legs"])
 
-    st.subheader("Recent legs")
-    legs = fetch_recent(conn, "trade_legs")
-    if legs.empty:
-        st.info("No trade legs yet.")
-    else:
-        st.dataframe(legs, use_container_width=True)
+    with tab_trades:
+        trades = fetch_recent(conn, "trades")
+        if trades.empty:
+            _empty_state(
+                "💼",
+                "No trades yet",
+                "Approved gate decisions become trades here.",
+            )
+        else:
+            st.caption(f"Showing the {len(trades)} most recent trades.")
+            st.dataframe(trades, use_container_width=True, hide_index=True)
+
+    with tab_legs:
+        legs = fetch_recent(conn, "trade_legs")
+        if legs.empty:
+            _empty_state(
+                "🦴",
+                "No trade legs yet",
+                "Each multi-leg trade records its individual legs here.",
+            )
+        else:
+            st.caption(f"Showing the {len(legs)} most recent legs.")
+            st.dataframe(legs, use_container_width=True, hide_index=True)
 
 
 # ---------------------------------------------------------------------------
-# New views: Paper v1 Run + System
+# Paper v1 Run + System
 # ---------------------------------------------------------------------------
 
 
@@ -415,13 +589,251 @@ def _gates_to_dataframe(gates: Any) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _stage_status_icon(status: str) -> str:
+    s = (status or "").lower()
+    if s in {"complete", "completed", "done", "finished", "ok"}:
+        return "✅"
+    if s in {"running", "in_progress", "active"}:
+        return "🔄"
+    if s in {"error", "failed", "fail"}:
+        return "❌"
+    if s in {"pending", "queued", "waiting"}:
+        return "⏸️"
+    return "•"
+
+
+def _render_stage_progress(stages: dict[str, Any]) -> None:
+    """Render each stage with a progress bar (if events_total) or status row."""
+    for name, payload in stages.items():
+        if not isinstance(payload, dict):
+            with st.container(border=True):
+                st.markdown(f"**{_stage_status_icon('')} {name}** — {payload}")
+            continue
+        status = str(payload.get("status") or "")
+        icon = _stage_status_icon(status)
+        events_total = payload.get("events_total")
+        events_processed = payload.get("events_processed")
+
+        with st.container(border=True):
+            head_cols = st.columns([3, 1])
+            with head_cols[0]:
+                st.markdown(f"**{icon} {name}** &nbsp; <span style='color:{COLOR_GRAY};font-size:0.85rem;'>{status}</span>", unsafe_allow_html=True)
+            with head_cols[1]:
+                api_calls = payload.get("api_calls")
+                if isinstance(api_calls, (int, float)):
+                    st.markdown(
+                        f"<div style='text-align:right;font-size:0.8rem;color:{COLOR_GRAY};'>"
+                        f"📡 {int(api_calls):,} api calls</div>",
+                        unsafe_allow_html=True,
+                    )
+
+            if (
+                isinstance(events_total, (int, float))
+                and events_total > 0
+                and isinstance(events_processed, (int, float))
+            ):
+                pct = max(0.0, min(1.0, float(events_processed) / float(events_total)))
+                st.progress(pct, text=f"{int(events_processed)} / {int(events_total)} events ({pct*100:.0f}%)")
+
+            # Compact key/value strip for other useful fields.
+            extras: list[str] = []
+            for key in ("trades_placed", "trades_blocked", "cache_hits"):
+                v = payload.get(key)
+                if isinstance(v, (int, float)):
+                    extras.append(f"<b>{key.replace('_',' ')}</b>: {int(v):,}")
+            for key in ("model_a_val_mse", "model_b_val_mse"):
+                v = payload.get(key)
+                if isinstance(v, (int, float)):
+                    extras.append(f"<b>{key}</b>: {v:.4g}")
+            if extras:
+                st.markdown(
+                    f"<div style='font-size:0.82rem;color:{COLOR_GRAY};'>"
+                    + " &nbsp;·&nbsp; ".join(extras)
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
+
+
+def _render_twin_model(twin: dict[str, Any]) -> None:
+    """Twin-model verdict — three metric cards + verdict banner."""
+
+    def _num(v: Any) -> float | None:
+        if isinstance(v, (int, float)):
+            return float(v)
+        return None
+
+    excess = _num(twin.get("net_excess_bps_ann"))
+    sharpe = _num(twin.get("sharpe_delta"))
+    tstat = _num(twin.get("paired_t_stat"))
+
+    # Common gate thresholds for verdict cues.
+    excess_ok = excess is not None and excess > 0
+    sharpe_ok = sharpe is not None and sharpe > 0
+    tstat_ok = tstat is not None and tstat >= 1.96
+
+    cols = st.columns(3)
+    cols[0].metric(
+        "Net excess (bps/yr)",
+        f"{excess:+.1f}" if excess is not None else "—",
+        delta=("✅ positive" if excess_ok else ("❌ ≤ 0" if excess is not None else None)),
+        delta_color="off",
+        border=True,
+        help="Annualised net excess return of B over A in bps.",
+    )
+    cols[1].metric(
+        "Sharpe Δ",
+        f"{sharpe:+.3f}" if sharpe is not None else "—",
+        delta=("✅ positive" if sharpe_ok else ("❌ ≤ 0" if sharpe is not None else None)),
+        delta_color="off",
+        border=True,
+        help="Difference in Sharpe ratio (B − A).",
+    )
+    cols[2].metric(
+        "Paired t-stat",
+        f"{tstat:+.2f}" if tstat is not None else "—",
+        delta=("✅ ≥ 1.96" if tstat_ok else ("❌ < 1.96" if tstat is not None else None)),
+        delta_color="off",
+        border=True,
+        help="Two-sided significance threshold ≈ 1.96.",
+    )
+
+    verdict = twin.get("b_beats_a")
+    if verdict is True:
+        st.success("✅ **B beats A — adopt Model B**", icon=None)
+    elif verdict is False:
+        st.error("❌ **B does not beat A — falsified**", icon=None)
+    else:
+        st.info("⏳ Verdict pending — awaiting full evaluation.")
+
+
+def _render_gate_cards(gates_payload: dict[str, Any]) -> None:
+    """Render each of the 7 gates as a compact pill row (gate name + base/+50% dots)."""
+    df = _gates_to_dataframe(gates_payload)
+    if df.empty:
+        st.json(gates_payload)
+        return
+
+    # Header row.
+    st.markdown(
+        f'<div style="display:flex;align-items:center;font-size:0.78rem;color:{COLOR_GRAY};'
+        f'padding:0 0.4rem 0.4rem 0.4rem;letter-spacing:0.04em;">'
+        f'<div style="flex:2;">GATE</div>'
+        f'<div style="flex:1;text-align:center;">BASE</div>'
+        f'<div style="flex:1;text-align:center;">+50%</div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    rows_html: list[str] = []
+    for _, row in df.iterrows():
+        gate_name = str(row["gate"])
+        base_pass = row.get("base_pass")
+        plus_pass = row.get("plus50_pass")
+
+        # Choose pill color from base+plus50 combined state.
+        if base_pass is True and plus_pass is True:
+            pill_bg = COLOR_GREEN
+        elif base_pass is False or plus_pass is False:
+            pill_bg = COLOR_RED
+        else:
+            pill_bg = COLOR_GRAY
+
+        rows_html.append(
+            f'<div style="display:flex;align-items:center;'
+            f'background:{pill_bg}22;border-left:4px solid {pill_bg};'
+            f'border-radius:6px;padding:0.45rem 0.6rem;margin-bottom:0.3rem;">'
+            f'<div style="flex:2;font-weight:600;font-size:0.92rem;">{gate_name}</div>'
+            f'<div style="flex:1;text-align:center;">{_render_dot(base_pass)}</div>'
+            f'<div style="flex:1;text-align:center;">{_render_dot(plus_pass)}</div>'
+            f"</div>"
+        )
+    st.markdown("\n".join(rows_html), unsafe_allow_html=True)
+
+    overall = gates_payload.get("overall_pass")
+    if overall is True:
+        st.success("✅ All 7 gates pass in BOTH base and +50% cost regimes.")
+    elif overall is False:
+        failed = gates_payload.get("failed_gates_summary") or []
+        if failed:
+            st.error(f"❌ Overall: FAIL — {', '.join(failed)}")
+        else:
+            st.error("❌ Overall: FAIL")
+
+
+def _render_equity_curve(equity_df: pd.DataFrame) -> None:
+    """Plotly line chart with gradient fill, hover, terminal-P&L coloring."""
+    if equity_df.empty:
+        return
+    cum = equity_df["cumulative_pnl_usd"].astype(float)
+    terminal = float(cum.iloc[-1])
+    line_color = COLOR_GREEN if terminal >= 0 else COLOR_RED
+    fill_rgba = "rgba(34,197,94,0.20)" if terminal >= 0 else "rgba(239,68,68,0.20)"
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=equity_df["entry_at_utc"],
+            y=cum,
+            mode="lines+markers",
+            line={"color": line_color, "width": 2.5},
+            marker={"size": 5, "color": line_color},
+            fill="tozeroy",
+            fillcolor=fill_rgba,
+            name="Cumulative P&L",
+            hovertemplate="<b>%{x}</b><br>Cum P&L: $%{y:,.2f}<extra></extra>",
+        )
+    )
+    fig.add_hline(y=0, line_dash="dot", line_color=COLOR_GRAY, opacity=0.5)
+    fig.update_layout(
+        template="plotly_dark",
+        margin={"l": 10, "r": 10, "t": 10, "b": 10},
+        height=300,
+        xaxis={"title": None, "showgrid": True, "gridcolor": "rgba(255,255,255,0.06)"},
+        yaxis={
+            "title": "Cumulative P&L (USD)",
+            "showgrid": True,
+            "gridcolor": "rgba(255,255,255,0.06)",
+            "zeroline": False,
+        },
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_sample_size_pill(n: int, target: int = SATELLITE_SAMPLE_TARGET) -> None:
+    """Big pill showing satellite sample-size progress."""
+    pct = min(1.0, n / target) if target else 1.0
+    color = COLOR_GREEN if n >= target else COLOR_RED
+    label = "✅ TARGET REACHED" if n >= target else f"NEED {target - n} MORE"
+    cols = st.columns([1, 2])
+    with cols[0]:
+        st.markdown(
+            f'<div style="text-align:center;padding:0.6rem;'
+            f"background:{color}22;border:2px solid {color};"
+            f"border-radius:12px;\">"
+            f'<div style="font-size:2.4rem;font-weight:800;color:{color};line-height:1;">{n}</div>'
+            f'<div style="font-size:0.75rem;color:{COLOR_GRAY};margin-top:0.2rem;">'
+            f"of {target} satellite trades"
+            f"</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    with cols[1]:
+        st.progress(pct, text=label)
+
+
 def show_paper_v1_run(conn: sqlite3.Connection | None) -> None:
-    st.subheader("Paper v1 Run")
+    st.subheader("🚀 Paper v1 Run")
     status_path = get_paper_v1_status_path()
-    st.caption(f"Status file: `{status_path}`")
     status = read_paper_v1_status(status_path)
     if status is None:
-        st.info("No paper_v1 run in progress (status file not found).")
+        _empty_state(
+            "🚀",
+            "No paper_v1 run in progress",
+            f"Status file not found at `{status_path}`. "
+            "Start a run to populate this view.",
+        )
         return
 
     run_id = str(status.get("run_id") or "")
@@ -429,173 +841,358 @@ def show_paper_v1_run(conn: sqlite3.Connection | None) -> None:
     started_at = status.get("started_at_utc") or "—"
     last_update = status.get("last_update_utc") or "—"
     stale = is_status_stale(status)
+    elapsed = _format_elapsed(status.get("started_at_utc"), status.get("last_update_utc"))
 
-    header_cols = st.columns(4)
-    header_cols[0].metric("Run ID", run_id or "—")
-    header_cols[1].metric("Phase", phase)
-    header_cols[2].metric("Started (UTC)", started_at)
-    header_cols[3].metric("Last update (UTC)", last_update)
-    if stale:
-        st.warning(
-            f"Status is stale (no update in > {STALE_THRESHOLD_SECONDS // 60} min). "
-            "The orchestrator may be hung."
-        )
+    # ---- Top status banner (big pill + meta strip) ----
+    label, color, _band = _paper_v1_health(status)
+    with st.container(border=True):
+        head_cols = st.columns([1, 2])
+        with head_cols[0]:
+            st.markdown(
+                '<div style="text-align:center;padding:0.4rem;">'
+                + _render_status_pill(label, color, big=True)
+                + "</div>",
+                unsafe_allow_html=True,
+            )
+        with head_cols[1]:
+            meta_cols = st.columns(2)
+            meta_cols[0].markdown(
+                f'<div style="font-size:0.78rem;color:{COLOR_GRAY};">RUN ID</div>'
+                f'<div style="font-size:0.95rem;font-weight:600;word-break:break-all;">{run_id or "—"}</div>'
+                f'<div style="font-size:0.78rem;color:{COLOR_GRAY};margin-top:0.5rem;">PHASE</div>'
+                f'<div style="font-size:0.95rem;font-weight:600;">{phase}</div>',
+                unsafe_allow_html=True,
+            )
+            meta_cols[1].markdown(
+                f'<div style="font-size:0.78rem;color:{COLOR_GRAY};">STARTED (UTC)</div>'
+                f'<div style="font-size:0.85rem;font-family:monospace;">{started_at}</div>'
+                f'<div style="font-size:0.78rem;color:{COLOR_GRAY};margin-top:0.5rem;">ELAPSED</div>'
+                f'<div style="font-size:0.95rem;font-weight:600;">{elapsed}</div>',
+                unsafe_allow_html=True,
+            )
+        if stale:
+            st.warning(
+                f"⚠️ Status is stale (no update in > {STALE_THRESHOLD_SECONDS // 60} min). "
+                f"Last update: `{last_update}`. The orchestrator may be hung."
+            )
+        else:
+            st.caption(f"Last update {last_update} · status file `{status_path.name}`")
 
-    # Stage table
+    st.divider()
+
+    # ---- Stages ----
     stages = status.get("stages") or {}
+    st.markdown("### 🧭 Stages")
     if isinstance(stages, dict) and stages:
-        st.markdown("**Stages**")
-        st.dataframe(_stages_to_dataframe(stages), use_container_width=True)
+        _render_stage_progress(stages)
     else:
-        st.info("No stage records yet.")
+        _empty_state("🧭", "No stage records yet", "Stages appear once the orchestrator boots.")
 
-    # Twin-model comparison
+    st.divider()
+
+    # ---- Twin-model comparison ----
+    st.markdown("### 🤝 Twin-model verdict (B vs A)")
     twin = status.get("twin_model_comparison")
     if isinstance(twin, dict):
-        st.markdown("**Twin-model comparison (B vs A)**")
-        cols = st.columns(4)
-        cols[0].metric("Net excess (bps/yr)", twin.get("net_excess_bps_ann", "—"))
-        cols[1].metric("Sharpe Δ", twin.get("sharpe_delta", "—"))
-        cols[2].metric("Paired t-stat", twin.get("paired_t_stat", "—"))
-        verdict = twin.get("b_beats_a")
-        if verdict is True:
-            cols[3].markdown(":green[**PASS — B beats A**]")
-        elif verdict is False:
-            cols[3].markdown(":red[**FAIL — B does not beat A**]")
-        else:
-            cols[3].markdown("**verdict: pending**")
+        _render_twin_model(twin)
+    else:
+        _empty_state(
+            "🤝",
+            "No twin-model comparison yet",
+            "Verdict appears after model B finishes year-2 replay.",
+        )
 
-    # 7-gate evaluation
+    st.divider()
+
+    # ---- 7-Gate evaluation ----
+    st.markdown("### 🛡️ 7-Gate evaluation (base vs +50% costs)")
     gates_payload = status.get("gates")
-    if gates_payload:
-        st.markdown("**7-Gate evaluation (base vs +50% costs)**")
-        gates_df = _gates_to_dataframe(gates_payload)
-        if not gates_df.empty:
-            st.dataframe(gates_df, use_container_width=True)
-            overall = gates_payload.get("overall_pass") if isinstance(gates_payload, dict) else None
-            if overall is True:
-                st.success("Overall: ALL GATES PASS in base AND +50% regimes")
-            elif overall is False:
-                failed = gates_payload.get("failed_gates_summary") or []
-                if failed:
-                    st.error(f"Overall: FAIL — {', '.join(failed)}")
-                else:
-                    st.error("Overall: FAIL")
-        else:
-            st.json(gates_payload)
+    if isinstance(gates_payload, dict) and gates_payload:
+        _render_gate_cards(gates_payload)
+    else:
+        _empty_state(
+            "🛡️",
+            "Gate evaluation pending",
+            "Gates run after the twin-model comparison completes.",
+        )
 
-    # Live equity curve
-    st.markdown("**Live equity curve (cumulative realised P&L)**")
+    st.divider()
+
+    # ---- Live equity curve ----
+    st.markdown("### 📈 Live equity curve (cumulative realised P&L)")
     if conn is None:
-        st.info("DB not available — cannot draw equity curve.")
+        _empty_state("🗄️", "DB not available", "Cannot draw equity curve without the audit DB.")
     elif not run_id:
-        st.info("No run_id in status payload.")
+        _empty_state("📈", "No run_id in status payload", "Set `run_id` in the status JSON.")
     else:
         equity_df = fetch_run_equity_curve(conn, run_id)
         if equity_df.empty:
-            st.info("No closed trades yet for this run.")
+            _empty_state(
+                "📈",
+                "No closed trades yet",
+                "The curve appears once at least one trade has realised P&L.",
+            )
         else:
-            chart_df = equity_df.set_index("entry_at_utc")[["cumulative_pnl_usd"]]
-            st.line_chart(chart_df)
+            terminal = float(equity_df["cumulative_pnl_usd"].iloc[-1])
+            cols_top = st.columns(3)
+            cols_top[0].metric(
+                "Closed trades",
+                len(equity_df),
+                border=True,
+            )
+            cols_top[1].metric(
+                "Terminal P&L",
+                f"${terminal:,.2f}",
+                delta=f"{'positive' if terminal >= 0 else 'negative'}",
+                delta_color="normal" if terminal >= 0 else "inverse",
+                border=True,
+            )
+            wins = int((equity_df["realized_pnl_usd"].astype(float) > 0).sum())
+            cols_top[2].metric(
+                "Win count",
+                f"{wins} / {len(equity_df)}",
+                border=True,
+            )
+            _render_equity_curve(equity_df)
 
-    # Sample-size counter
-    st.markdown("**Satellite sample size**")
+    st.divider()
+
+    # ---- Sample-size counter ----
+    st.markdown("### 🎯 Satellite sample size")
     n_satellite = count_satellite_events(conn, run_id) if run_id else 0
-    if n_satellite >= SATELLITE_SAMPLE_TARGET:
-        st.markdown(f":green[**{n_satellite}** satellite trades (target ≥ {SATELLITE_SAMPLE_TARGET})]")
-    else:
-        st.markdown(f":red[**{n_satellite}** satellite trades (target ≥ {SATELLITE_SAMPLE_TARGET})]")
+    _render_sample_size_pill(n_satellite, SATELLITE_SAMPLE_TARGET)
 
-    # Errors
+    # ---- Errors ----
     errors = status.get("errors") or []
     if isinstance(errors, list) and errors:
-        st.markdown("**Errors**")
+        st.divider()
+        st.markdown("### 🚨 Errors")
         err_rows: list[dict[str, Any]] = []
         for err in errors:
             if isinstance(err, dict):
                 err_rows.append(err)
             else:
                 err_rows.append({"message": str(err)})
-        st.dataframe(pd.DataFrame(err_rows), use_container_width=True)
+        st.dataframe(pd.DataFrame(err_rows), use_container_width=True, hide_index=True)
+
+
+def _cpu_load_color(pct: float) -> str:
+    if pct < 50:
+        return COLOR_GREEN
+    if pct < 80:
+        return COLOR_AMBER
+    return COLOR_RED
+
+
+def _render_cpu_per_core(cpu_per_core: list[float]) -> None:
+    if not cpu_per_core:
+        return
+    labels = [f"core {i}" for i in range(len(cpu_per_core))]
+    colors = [_cpu_load_color(v) for v in cpu_per_core]
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=cpu_per_core,
+            marker={"color": colors},
+            text=[f"{v:.0f}%" for v in cpu_per_core],
+            textposition="outside",
+            hovertemplate="<b>%{x}</b><br>%{y:.1f}%<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        template="plotly_dark",
+        margin={"l": 10, "r": 10, "t": 24, "b": 10},
+        height=240,
+        yaxis={
+            "range": [0, max(100, max(cpu_per_core) + 8)],
+            "title": "%",
+            "gridcolor": "rgba(255,255,255,0.06)",
+        },
+        xaxis={"title": None},
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_donut(used_pct: float, label: str, used_text: str, free_text: str) -> None:
+    """Render a single small donut indicator with center text."""
+    color = _cpu_load_color(used_pct)
+    fig = go.Figure(
+        data=[
+            go.Pie(
+                values=[used_pct, max(0.0, 100.0 - used_pct)],
+                hole=0.66,
+                marker={"colors": [color, "rgba(255,255,255,0.08)"]},
+                textinfo="none",
+                hoverinfo="skip",
+                sort=False,
+                direction="clockwise",
+                showlegend=False,
+            )
+        ]
+    )
+    fig.update_layout(
+        template="plotly_dark",
+        margin={"l": 6, "r": 6, "t": 6, "b": 6},
+        height=180,
+        annotations=[
+            {
+                "text": f"<b>{used_pct:.0f}%</b>",
+                "x": 0.5,
+                "y": 0.5,
+                "font": {"size": 22, "color": color},
+                "showarrow": False,
+            }
+        ],
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    st.markdown(
+        f'<div style="text-align:center;font-size:0.85rem;font-weight:600;'
+        f'margin-bottom:0.2rem;">{label}</div>',
+        unsafe_allow_html=True,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.markdown(
+        f'<div style="text-align:center;font-size:0.78rem;color:{COLOR_GRAY};">'
+        f"used {used_text} · free {free_text}"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def show_system() -> None:
-    st.subheader("System")
+    st.subheader("🖥️ System")
     snap = get_system_snapshot()
 
-    # CPU total + delta
+    # ---- Top metric row ----
     prev_cpu = st.session_state.get("system_cpu_prev")
     delta = None
     if prev_cpu is not None:
         delta = snap["cpu_percent"] - prev_cpu
     st.session_state["system_cpu_prev"] = snap["cpu_percent"]
 
+    procs = snap.get("processes") or []
+    n_procs = len(procs)
+
     cols = st.columns(4)
     cols[0].metric(
-        "CPU total %",
-        f"{snap['cpu_percent']:.1f}",
-        delta=f"{delta:+.1f}" if delta is not None else None,
+        "CPU total",
+        f"{snap['cpu_percent']:.1f}%",
+        delta=f"{delta:+.1f}%" if delta is not None else None,
+        border=True,
     )
-    cols[1].metric("Memory used (GiB)", f"{snap['memory_used_gb']:.1f}")
-    cols[2].metric("Memory free (GiB)", f"{snap['memory_free_gb']:.1f}")
-    cols[3].metric("Disk free (GiB)", f"{snap['disk_free_gb']:.1f}")
+    cols[1].metric(
+        "Memory used",
+        f"{snap['memory_used_gb']:.1f} GiB",
+        delta=f"{snap['memory_percent']:.0f}% of total",
+        delta_color="off",
+        border=True,
+    )
+    cols[2].metric(
+        "Disk free",
+        f"{snap['disk_free_gb']:.1f} GiB",
+        delta=f"of {snap['disk_total_gb']:.0f} GiB",
+        delta_color="off",
+        border=True,
+    )
+    cols[3].metric(
+        "Python procs",
+        n_procs,
+        delta="active",
+        delta_color="off",
+        border=True,
+    )
 
-    # CPU per core
-    st.markdown("**CPU per core (%)**")
+    st.divider()
+
+    # ---- CPU per core (plotly bar, color-coded) ----
+    st.markdown("### 🧠 CPU per core")
     cpu_per_core = snap.get("cpu_per_core") or []
     if cpu_per_core:
-        per_core_df = pd.DataFrame({
-            "core": [f"core{i}" for i in range(len(cpu_per_core))],
-            "cpu_percent": cpu_per_core,
-        }).set_index("core")
-        st.bar_chart(per_core_df)
-
-    # Memory + disk detail
-    mem_disk_df = pd.DataFrame([
-        {
-            "resource": "memory",
-            "total_gb": round(snap["memory_total_gb"], 2),
-            "used_gb": round(snap["memory_used_gb"], 2),
-            "free_gb": round(snap["memory_free_gb"], 2),
-            "percent": round(snap["memory_percent"], 1),
-        },
-        {
-            "resource": "disk(/Users/weeoto/turbo-carnival/data)",
-            "total_gb": round(snap["disk_total_gb"], 2),
-            "used_gb": round(snap["disk_used_gb"], 2),
-            "free_gb": round(snap["disk_free_gb"], 2),
-            "percent": (
-                round(100 * snap["disk_used_gb"] / snap["disk_total_gb"], 1)
-                if snap["disk_total_gb"]
-                else 0.0
-            ),
-        },
-    ])
-    st.markdown("**Memory & disk**")
-    st.dataframe(mem_disk_df, use_container_width=True)
-
-    # Process tree
-    st.markdown("**Python / Streamlit processes**")
-    procs = snap.get("processes") or []
-    if procs:
-        proc_df = pd.DataFrame(procs).sort_values("cpu_percent", ascending=False)
-        st.dataframe(proc_df, use_container_width=True)
+        _render_cpu_per_core(cpu_per_core)
     else:
-        st.info("No matching python/streamlit processes found.")
+        st.info("No per-core CPU data available.")
 
-    # Polygon API call counter
+    st.divider()
+
+    # ---- Memory + Disk donuts side-by-side ----
+    st.markdown("### 💾 Memory & disk")
+    donut_cols = st.columns(2)
+    with donut_cols[0]:
+        _render_donut(
+            snap["memory_percent"],
+            "Memory",
+            f"{snap['memory_used_gb']:.1f} GiB",
+            f"{snap['memory_free_gb']:.1f} GiB",
+        )
+    with donut_cols[1]:
+        disk_used_pct = (
+            (100.0 * snap["disk_used_gb"] / snap["disk_total_gb"])
+            if snap["disk_total_gb"]
+            else 0.0
+        )
+        _render_donut(
+            disk_used_pct,
+            "Disk (data/)",
+            f"{snap['disk_used_gb']:.1f} GiB",
+            f"{snap['disk_free_gb']:.1f} GiB",
+        )
+
+    st.divider()
+
+    # ---- Polygon API call counter ----
     status = read_paper_v1_status()
     api_total = total_polygon_api_calls(status)
-    if api_total is None:
-        st.markdown("**Polygon API calls**: N/A (no status file or no api_calls in stages)")
-    else:
-        st.markdown(f"**Polygon API calls (cumulative across stages)**: {api_total:,}")
+    api_cols = st.columns(2)
+    with api_cols[0]:
+        st.metric(
+            "Polygon API calls",
+            f"{api_total:,}" if api_total is not None else "—",
+            delta="cumulative across stages" if api_total is not None else "no status",
+            delta_color="off",
+            border=True,
+        )
+    with api_cols[1]:
+        st.markdown(
+            f'<div style="border:1px solid rgba(255,255,255,0.1);padding:0.7rem;border-radius:8px;">'
+            f'<div style="font-size:0.85rem;font-weight:600;">📊 Snapshot age</div>'
+            f'<div style="font-size:0.78rem;color:{COLOR_GRAY};margin-top:0.3rem;">'
+            f"{snap['timestamp_utc']}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
-    # GPU placeholder
-    st.markdown(
-        "**GPU**: monitoring not available on macOS without `sudo powermetrics`. "
-        "Run `sudo powermetrics --samplers gpu_power -n 1` separately if needed."
-    )
+    st.divider()
+
+    # ---- Process tree (compact) ----
+    st.markdown("### 🐍 Python / Streamlit processes")
+    if procs:
+        proc_df = pd.DataFrame(procs).sort_values("cpu_percent", ascending=False).reset_index(drop=True)
+        st.dataframe(
+            proc_df,
+            use_container_width=True,
+            hide_index=True,
+            height=min(360, 40 + 32 * len(proc_df)),
+        )
+    else:
+        _empty_state(
+            "🐍",
+            "No matching processes",
+            "Run an orchestrator and refresh to see live python procs.",
+        )
+
+    # ---- GPU placeholder (expander) ----
+    with st.expander("🎮 GPU monitoring (macOS)"):
+        st.markdown(
+            "macOS does not expose GPU metrics through `psutil`. To peek at GPU power draw "
+            "manually, run:\n\n"
+            "```sh\nsudo powermetrics --samplers gpu_power -n 1\n```\n\n"
+            "This dashboard intentionally avoids `sudo` calls — keep GPU monitoring out-of-band."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -604,54 +1201,112 @@ def show_system() -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="trading_system — Phase 0", layout="wide")
-    st.title("trading_system — Phase 0 dashboard")
-    st.caption("Read-only view of the paper trading audit DB. No trade execution.")
-    st.caption(
-        "Tip: serve on LAN with `.venv/bin/streamlit run dashboard/app.py "
-        "--server.address 0.0.0.0 --server.port 8501` — then access from "
-        "phone at http://<mac-ip>:8501."
+    st.set_page_config(
+        page_title="turbo-carnival paper_v1",
+        page_icon="📊",
+        layout="wide",
+        initial_sidebar_state="expanded",
     )
 
     db_path = get_db_path()
     conn = connect_readonly(db_path)
+    status = read_paper_v1_status()
 
-    view = st.sidebar.radio(
-        "View",
+    # ---- Top banner with health color strip ----
+    _render_top_banner(status)
+
+    # ---- Sidebar: grouped views ----
+    st.sidebar.markdown("### 🔍 Audit")
+    audit_view = st.sidebar.radio(
+        "Audit views",
         [
-            "Overview",
-            "Runs",
-            "Gate Decisions",
-            "Trades",
-            "Agent Activity",
-            "Paper v1 Run",
-            "System",
+            "📊 Overview",
+            "📋 Runs",
+            "🎯 Gate Decisions",
+            "💰 Trades",
+            "🤖 Agent Activity",
         ],
+        label_visibility="collapsed",
+        key="audit_view",
     )
+
+    st.sidebar.markdown("### 📡 Live")
+    live_view = st.sidebar.radio(
+        "Live views",
+        [
+            "🚀 Paper v1 Run",
+            "🖥️ System",
+        ],
+        label_visibility="collapsed",
+        key="live_view",
+    )
+
+    # Determine the active view from the most-recently-clicked group.
+    last_group = st.session_state.get("last_group", "live")
+    # Detect change in either radio.
+    last_audit = st.session_state.get("_last_audit_value")
+    last_live = st.session_state.get("_last_live_value")
+    if audit_view != last_audit and last_audit is not None:
+        last_group = "audit"
+    elif live_view != last_live and last_live is not None:
+        last_group = "live"
+    st.session_state["_last_audit_value"] = audit_view
+    st.session_state["_last_live_value"] = live_view
+    st.session_state["last_group"] = last_group
+    active = audit_view if last_group == "audit" else live_view
+
+    st.sidebar.divider()
+
+    # ---- Sidebar: refresh controls ----
+    st.sidebar.markdown("### ⚙️ Refresh")
     refresh_interval = int(
         st.sidebar.number_input(
-            "Refresh interval (s)",
+            "Auto-refresh (s)",
             min_value=0,
             max_value=300,
             value=5,
             step=1,
             help="0 disables auto-refresh.",
+            key="refresh_interval_seconds",
         )
     )
+    if st.sidebar.button("🔄 Refresh now", use_container_width=True):
+        st.rerun()
 
-    if view == "Overview":
+    # Auto-refresh badge near the top.
+    if refresh_interval > 0:
+        st.markdown(
+            f'<div style="display:inline-block;background:{COLOR_BLUE}22;color:{COLOR_BLUE};'
+            f'padding:0.2rem 0.7rem;border-radius:999px;font-size:0.75rem;font-weight:600;'
+            f'border:1px solid {COLOR_BLUE}66;margin-bottom:0.5rem;">'
+            f"⏱️ Auto-refresh: {refresh_interval}s"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f'<div style="display:inline-block;background:{COLOR_GRAY}22;color:{COLOR_GRAY};'
+            f'padding:0.2rem 0.7rem;border-radius:999px;font-size:0.75rem;font-weight:600;'
+            f'border:1px solid {COLOR_GRAY}66;margin-bottom:0.5rem;">'
+            "⏸️ Auto-refresh paused"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    # ---- Route to view by suffix-match (icon prefixes are decorative) ----
+    if "Overview" in active:
         show_overview(conn, db_path)
-    elif view == "Runs":
-        show_table_view(conn, "Runs", "runs")
-    elif view == "Gate Decisions":
+    elif "Runs" in active:
+        show_table_view(conn, "📋 Runs", "runs")
+    elif "Gate Decisions" in active:
         show_gate_decisions(conn)
-    elif view == "Trades":
+    elif "Trades" in active:
         show_trades(conn)
-    elif view == "Agent Activity":
-        show_table_view(conn, "Agent activity", "agents_log")
-    elif view == "Paper v1 Run":
+    elif "Agent Activity" in active:
+        show_table_view(conn, "🤖 Agent activity", "agents_log")
+    elif "Paper v1 Run" in active:
         show_paper_v1_run(conn)
-    elif view == "System":
+    elif "System" in active:
         show_system()
 
     if refresh_interval > 0:
