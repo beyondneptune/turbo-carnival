@@ -37,6 +37,15 @@ from sklearn.linear_model import LogisticRegression
 
 
 # ---------------------------------------------------------------------------
+# Locked at freeze for paper_v1: 3-month T-bill (FRED DGS3MO) secondary-market
+# rate snapshot from 2026-05-05 = 3.69% annual. Hardcoded for the duration of
+# the frozen cycle; never refetch during the 90-day window per the prereg
+# (`metadata/paper_v1_prereg.md` § 8 Baselines).
+# ---------------------------------------------------------------------------
+RISK_FREE_RATE_PAPER_V1: float = 0.0369
+
+
+# ---------------------------------------------------------------------------
 # B0 -- no-trade (cash at risk-free rate)
 # ---------------------------------------------------------------------------
 
@@ -44,13 +53,14 @@ from sklearn.linear_model import LogisticRegression
 def baseline_b0_no_trade(
     n_events: int,
     *,
-    risk_free_rate_annual: float = 0.04,
+    risk_free_rate_annual: float = RISK_FREE_RATE_PAPER_V1,
     holding_days: int = 5,
 ) -> np.ndarray:
     """B0: cash held at risk-free rate over the holding period.
 
-    Returns array of per-event returns, all equal to (1 + r)^(d / 365) - 1.
-    With r = 0.04 and d = 5, this is approx 0.000538 per event.
+    Returns array of per-event returns, all equal to (1 + r)^(d / 365) - 1
+    (calendar-day compounding, since cash sits in collateral every day, not
+    only trading days). Default rate is the locked paper_v1 snapshot.
     """
     if n_events < 0:
         raise ValueError(f"n_events must be non-negative, got {n_events}")

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import sqlite3
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -13,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = REPO_ROOT / "data" / "trading_system.db"
 SCHEMA_PATH = REPO_ROOT / "sql" / "schema.sql"
 
-RUN_ID = "paper_v0_demo"
+DEFAULT_RUN_ID_PREFIX = "paper_v0_demo"
 PREREG_VERSION = "phase0_demo_v1"
 MODEL_VERSION = "phase0_dummy_momentum_v1"
 SLEEVE = "demo"
@@ -435,7 +437,46 @@ def count_rows(conn: sqlite3.Connection, run_id: str) -> dict[str, int]:
     return counts
 
 
-def main() -> None:
+def generate_run_id() -> str:
+    """Auto-generated unique run ID: paper_v0_demo_<UTC timestamp>."""
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"{DEFAULT_RUN_ID_PREFIX}_{ts}"
+
+
+def run_id_exists(conn: sqlite3.Connection, run_id: str) -> bool:
+    cur = conn.execute("SELECT 1 FROM runs WHERE run_id = ? LIMIT 1", (run_id,))
+    return cur.fetchone() is not None
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Phase 0 demo seed — exercises the full audit path. "
+        "Append-only by default; refuses to overwrite existing runs.",
+    )
+    p.add_argument(
+        "--run-id",
+        default=None,
+        help=(
+            "Run ID for this seed. Default: auto-generated "
+            f"`{DEFAULT_RUN_ID_PREFIX}_<UTC timestamp>` (always unique)."
+        ),
+    )
+    p.add_argument(
+        "--reset-demo",
+        action="store_true",
+        help=(
+            "DELETE existing rows for this run_id before inserting. "
+            "Without this flag, the script REFUSES to overwrite an existing run "
+            "(append-only safeguard)."
+        ),
+    )
+    return p.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    run_id = args.run_id or generate_run_id()
+
     conn = init_db(DB_PATH, SCHEMA_PATH)
     try:
         prices = synth_spy_prices(N_DAYS, SEED)
@@ -445,25 +486,37 @@ def main() -> None:
         started_at = datetime(2026, 5, 1, 13, 30, tzinfo=timezone.utc)
         ended_at = datetime(2026, 5, 6, 21, 0, tzinfo=timezone.utc)
 
-        with conn:  # single transaction
-            cleanup_existing(conn, RUN_ID)
-            seed_run(conn, RUN_ID, started_at, ended_at)
-            n_dec, n_appr, n_closed, n_legs = seed_decisions_and_trades(
-                conn, RUN_ID, signals
-            )
-            seed_agents_log(conn, RUN_ID, started_at)
+        if run_id_exists(conn, run_id):
+            if args.reset_demo:
+                with conn:
+                    cleanup_existing(conn, run_id)
+            else:
+                print(
+                    f"ERROR: run_id '{run_id}' already exists in `runs` table. "
+                    f"Pick a different --run-id or pass --reset-demo to overwrite.",
+                    file=sys.stderr,
+                )
+                return 1
 
-        counts = count_rows(conn, RUN_ID)
-        print(f"Phase 0 demo seed complete (run_id={RUN_ID})")
+        with conn:  # single transaction for the seed
+            seed_run(conn, run_id, started_at, ended_at)
+            n_dec, n_appr, n_closed, n_legs = seed_decisions_and_trades(
+                conn, run_id, signals
+            )
+            seed_agents_log(conn, run_id, started_at)
+
+        counts = count_rows(conn, run_id)
+        print(f"Phase 0 demo seed complete (run_id={run_id})")
         print(f"  runs:            {counts['runs']}")
         print(f"  gate_decisions:  {counts['gate_decisions']}")
         print(f"  trades:          {counts['trades']}")
         print(f"  trade_legs:      {counts['trade_legs']}")
         print(f"  agents_log:      {counts['agents_log']}")
         print(f"DB: {DB_PATH}")
+        return 0
     finally:
         conn.close()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

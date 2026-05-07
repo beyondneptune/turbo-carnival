@@ -1,6 +1,6 @@
 # Phase Status
 
-**Phase:** All code phases complete (0–3 + eval framework + prereg draft) — awaiting CEO sign-off + freeze tag
+**Phase:** All code phases complete + prereg locked at v1.0 — awaiting CEO `git tag paper_v1.0-frozen`
 **Machine:** Mac mini (production target; Phase 0 development allowed)
 **Frozen cycle:** Not started — code changes are permitted
 **Last updated:** 2026-05-06
@@ -14,7 +14,7 @@
 - `metadata/capital_policy.md` — $10k paper notional, sleeve allocation, kill switch limits
 - `sql/schema.sql` — `runs`, `gate_decisions`, `agents_log`, `trades`, `trade_legs`
 - `dashboard/app.py` — read-only Streamlit dashboard skeleton (overview, runs, gate decisions, trades, agent activity)
-- `scripts/run_phase0_demo.py` — synthetic SPY-momentum demo seed (idempotent; populates all 5 tables under `run_id = paper_v0_demo`)
+- `scripts/run_phase0_demo.py` — synthetic SPY-momentum demo seed; **append-only by default** (auto-generated unique `run_id`; `--run-id <id>` and `--reset-demo` flags); populates all 5 tables for one demo run
 - `tests/` + root `conftest.py` — pytest coverage for schema constraints (16 tests) and dashboard helpers (14 tests)
 
 ### Phase 1 (ingest + features)
@@ -45,28 +45,28 @@
 
 ### Freeze prep
 
-- `metadata/paper_v1_prereg.md` — pre-registration draft v0.1 (13 sections: hypothesis, sizing, sleeves, risk, costs, gates, baselines, twin-model decision rule, audit data model, LLM roles, decision framework, out-of-scope, sign-off)
+- `metadata/paper_v1_prereg.md` — **pre-registration v1.0** (15 sections: now includes Annualisation Conventions, Adversarial Stress Scenarios, Gate 6 HMM specs, B0 risk-free rate snapshot, and Historical Data / Simulation Use Policy)
 
 **Total tests: 431, all passing in ~2s** under `.venv` (Python 3.11.15, libomp installed for lightgbm).
 
-## Open questions before freeze
+## Locked at v1.0 (CEO has the prereg)
 
-Flagged by the prereg agent — these need CEO answers before tagging `paper_v1.0-frozen`:
-
-1. **Risk-free rate for B0** — 3-month T-bill, Fed funds, or SOFR? Data source?
-2. **HMM regime fit specs** — number of regimes, feature inputs, fitting window for Gate 6?
-3. **Adversarial stress scenarios** — explicit list (vol shock, gap, liquidity withdrawal)?
-4. **Annualisation convention** — 252 trading days vs 365 calendar; arithmetic vs geometric?
-5. **Sample-size scope for Gate 7** — does the ≥50 events floor include walk-forward replays, or only live-cycle trades? (Implication: 90-day cycle × 50 names × ~1 earnings/quarter ≈ 25–35 events per cycle; floor likely requires augmentation.)
+| # | Decision | Locked value |
+|---|---|---|
+| 1 | B0 risk-free rate | FRED `DGS3MO` snapshot 2026-05-05 = **3.69%**, hardcoded as `eval/baselines.py::RISK_FREE_RATE_PAPER_V1`, no refetch in cycle |
+| 2 | Gate 6 HMM specs | 2-state Gaussian HMM, daily SPY returns, cycle-window fit, `random_state=42` |
+| 3 | Adversarial stress scenarios | 4 pre-registered: −5%/+10vol, **−10%/+30vol (adversarial)**, +5%/+5vol, flat/−5vol |
+| 4 | Annualisation conventions | 252 trading days for strategy/Sharpe; 252/5 events/year for twin-model; 365 calendar geometric for B0 cash |
+| 5 | Gate 7 sample-size scope | Live cycle satellite trades only — no walk-forward replay padding |
 
 ## Next
 
 **Wall-clock and decision-bound** — coding is done.
 
-- CEO sign-off on prereg + answers to the 5 open questions above
-- Bump `metadata/paper_v1_prereg.md` to v1.0, lock, `git tag paper_v1.0-frozen`
-- Start the 90-day frozen cycle (week 12 onward)
-- Week 25: run `eval/gates.py::evaluate_full` against cycle data → promote / pivot / stop
+- CEO `git tag paper_v1.0-frozen && git push origin paper_v1.0-frozen` (your hand on the tag)
+- Operational prep before day 0 actually runs: Polygon Free key in `.env`, daily orchestrator script (`scripts/run_daily_paper.py`), cron / launchd schedule
+- Pre-freeze dry run on live market data Mon–Fri this week (allowed per § 13 of prereg) — plumbing verification only, NOT cycle evidence
+- Day 0 = first day daily orchestrator runs successfully; Day 90 = cycle eval via `eval/gates.py::evaluate_full`
 
 ## Active Constraint
 
