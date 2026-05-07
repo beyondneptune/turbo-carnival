@@ -11,7 +11,8 @@ import requests
 
 BASE_URL = "https://api.polygon.io"
 FREE_TIER_RPM = 5  # requests per minute on the free tier
-DEFAULT_TIMEOUT_S = 30.0
+DEFAULT_TIMEOUT_S = 90.0  # bumped from 30 — Polygon Free occasionally takes >30s
+MAX_TIMEOUT_RETRIES = 3   # transient ReadTimeout: retry with backoff before giving up
 
 _AGG_COLUMNS = ["open", "high", "low", "close", "volume", "vwap", "transactions"]
 _AGG_FIELD_MAP = {
@@ -99,7 +100,23 @@ class PolygonFreeClient:
             for k, v in params.items():
                 if v is not None:
                     merged_params[k] = v
-        response = self._session.get(url, params=merged_params, timeout=self._timeout_s)
+        # Retry transient ReadTimeouts (Polygon Free occasionally hangs);
+        # exponential backoff 5s, 15s, 45s. After MAX_TIMEOUT_RETRIES, propagate.
+        last_exc: Exception | None = None
+        for attempt in range(MAX_TIMEOUT_RETRIES + 1):
+            try:
+                response = self._session.get(url, params=merged_params, timeout=self._timeout_s)
+                break
+            except requests.exceptions.ReadTimeout as exc:
+                last_exc = exc
+                if attempt >= MAX_TIMEOUT_RETRIES:
+                    raise PolygonError(
+                        f"Polygon ReadTimeout on {endpoint} after "
+                        f"{MAX_TIMEOUT_RETRIES + 1} attempts (timeout={self._timeout_s}s)"
+                    ) from exc
+                time.sleep(5 * (3 ** attempt))  # 5, 15, 45 seconds
+        else:  # pragma: no cover  (loop always breaks or raises)
+            raise PolygonError(f"Unreachable retry exit on {endpoint}") from last_exc
         status = response.status_code
         if status == 429:
             raise PolygonRateLimitError(
