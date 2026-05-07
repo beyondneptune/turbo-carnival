@@ -5,7 +5,9 @@
 **Prereg authored:** 2026-05-06
 **Pre-freeze amendment:** 2026-05-07 — held-out Year 2 OOS evidence policy
 **Freeze tag (target):** `paper_v1.0-frozen` — set by CEO at cycle start
-**Primary evidence window:** held-out Year 2 out-of-sample backtest, evaluated once after tag
+**Year 1 (training, in-sample):** 2024-05-07 → 2025-05-06 inclusive
+**Year 2 (held-out OOS evidence):** 2025-05-07 → 2026-05-06 inclusive
+**Primary evidence window:** Year 2, evaluated once after tag
 **Forward confirmation:** optional 90-calendar-day paper run from tag, frozen
 **Modification rule:** Once tagged, any change to this document, the strategy code, or the metadata files resets the cycle clock to day 0.
 
@@ -190,8 +192,8 @@ Cycle 1's primary evidence is a **frozen, one-shot out-of-sample backtest** over
 
 | Window | Role | Evidence status |
 |---|---|---|
-| Year 1: older 12 months of the 2-year Polygon Free lookback | Train Model A and Model B, fit feature transforms, set universe construction, calibrate cost assumptions | In-sample; never counts toward final gates |
-| Year 2: most recent 12 months ending at the freeze tag timestamp | Frozen models generate predictions; deterministic gates and paper execution replay create the evidence trade log | Out-of-sample; counts toward cycle 1 gates |
+| Year 1: **2024-05-07 → 2025-05-06 inclusive** | Train Model A and Model B, fit feature transforms, set universe construction, calibrate cost assumptions | In-sample; never counts toward final gates |
+| Year 2: **2025-05-07 → 2026-05-06 inclusive** | Frozen models generate predictions; deterministic gates and paper execution replay create the evidence trade log | Out-of-sample; counts toward cycle 1 gates |
 | Optional 90-day forward paper run after tag | Real-market confirmation and operational monitoring | Reported separately; not required for cycle 1 verdict |
 
 Hard evidence rules:
