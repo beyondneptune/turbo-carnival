@@ -1,6 +1,6 @@
 # Phase Status
 
-**Phase:** Phase 2 complete — Phase 3 (earnings satellite) + eval framework + freeze prep next
+**Phase:** All code phases complete (0–3 + eval framework + prereg draft) — awaiting CEO sign-off + freeze tag
 **Machine:** Mac mini (production target; Phase 0 development allowed)
 **Frozen cycle:** Not started — code changes are permitted
 **Last updated:** 2026-05-06
@@ -31,20 +31,42 @@
 - `risk/kill_switch.py` — deterministic kill switch (intraday loss, cycle DD, cash buffer) (20 tests)
 - `paper_exec/simulator.py` — fill simulator with slippage + commission (42 tests)
 
-**Total tests: 243, all passing in <2s** under `.venv` (Python 3.11.15, libomp installed for lightgbm).
+### Phase 3 (earnings satellite)
+
+- `signals/earnings_universe.py` — Russell 1000 liquidity filter, top-50 by options ADV (25 tests)
+- `signals/earnings_satellite.py` — twin-model targets + ATM straddle structurer (41 tests)
+- `signals/twin_model_trainer.py` — LightGBM A/B trainer with paired-t evaluation (19 tests)
+
+### Eval framework
+
+- `eval/baselines.py` — B0 (cash@rf), B1 (long straddle), B2 (iron butterfly), B3 (dumb logistic) (33 tests)
+- `eval/metrics.py` — DSR, PBO via CSCV, Sharpe, max DD, HMM regime stability (38 tests)
+- `eval/gates.py` — the 7 pre-registered gate evaluator at base + 50% costs (32 tests)
+
+### Freeze prep
+
+- `metadata/paper_v1_prereg.md` — pre-registration draft v0.1 (13 sections: hypothesis, sizing, sleeves, risk, costs, gates, baselines, twin-model decision rule, audit data model, LLM roles, decision framework, out-of-scope, sign-off)
+
+**Total tests: 431, all passing in ~2s** under `.venv` (Python 3.11.15, libomp installed for lightgbm).
+
+## Open questions before freeze
+
+Flagged by the prereg agent — these need CEO answers before tagging `paper_v1.0-frozen`:
+
+1. **Risk-free rate for B0** — 3-month T-bill, Fed funds, or SOFR? Data source?
+2. **HMM regime fit specs** — number of regimes, feature inputs, fitting window for Gate 6?
+3. **Adversarial stress scenarios** — explicit list (vol shock, gap, liquidity withdrawal)?
+4. **Annualisation convention** — 252 trading days vs 365 calendar; arithmetic vs geometric?
+5. **Sample-size scope for Gate 7** — does the ≥50 events floor include walk-forward replays, or only live-cycle trades? (Implication: 90-day cycle × 50 names × ~1 earnings/quarter ≈ 25–35 events per cycle; floor likely requires augmentation.)
 
 ## Next
 
-**Phase 3 + eval + freeze** (weeks 9–11 per `metadata/strategic_lock.md`):
+**Wall-clock and decision-bound** — coding is done.
 
-- `signals/earnings_universe.py` — Russell 1000 universe filter by options ADV
-- `signals/earnings_satellite.py` — twin-model A/B framework (return target vs condition-aligned target)
-- `signals/twin_model_trainer.py` — LightGBM training + paired-t evaluation harness
-- `eval/baselines.py` — B0 (no-trade), B1 (long straddle), B2 (iron butterfly), B3 (dumb logistic)
-- `eval/metrics.py` — DSR, PBO, Sharpe, max DD, regime stability
-- `eval/gates.py` — the 7 pre-registered gate evaluator
-- `metadata/paper_v1_prereg.md` — pre-registration document for the frozen cycle
-- (Wall-clock dependent: 90-day frozen cycle and final eval cannot be fast-forwarded)
+- CEO sign-off on prereg + answers to the 5 open questions above
+- Bump `metadata/paper_v1_prereg.md` to v1.0, lock, `git tag paper_v1.0-frozen`
+- Start the 90-day frozen cycle (week 12 onward)
+- Week 25: run `eval/gates.py::evaluate_full` against cycle data → promote / pivot / stop
 
 ## Active Constraint
 
