@@ -18,7 +18,10 @@ from dashboard.app import (
     filter_paper_v1_processes,
     get_system_snapshot,
     is_status_stale,
+    read_offline_context_manifest,
+    read_offline_context_status,
     read_paper_v1_status,
+    summarize_offline_context_cache,
     tail_text_file,
     total_polygon_api_calls,
 )
@@ -125,6 +128,69 @@ def _sample_status_payload() -> dict:
     }
 
 
+def _sample_offline_manifest() -> dict:
+    return {
+        "generated_at_utc": "2026-05-09T20:29:08+00:00",
+        "output_dir": "/tmp/offline_context",
+        "file_count": 6,
+        "total_bytes": 1536,
+        "summaries": {
+            "yfinance_daily": {
+                "written": 2,
+                "skipped": 3,
+                "failures": {"BAD": "empty"},
+            },
+            "yfinance_actions": {
+                "written": 5,
+                "skipped": 0,
+                "failures": {},
+            },
+            "fred": {
+                "written": 4,
+                "skipped": 1,
+                "failures": {"DGS10": "timeout"},
+            },
+        },
+    }
+
+
+def _sample_offline_status() -> dict:
+    return {
+        "phase": "offline_context",
+        "started_at_utc": "2026-05-09T20:27:25+00:00",
+        "last_update_utc": "2026-05-09T20:29:08+00:00",
+        "stages": {
+            "yfinance_daily": {
+                "status": "complete",
+                "written": 2,
+                "skipped": 3,
+                "failures": {"BAD": "empty"},
+            },
+            "yfinance_actions": {
+                "status": "running",
+                "done": 2,
+                "total": 5,
+                "written": 2,
+                "skipped": 0,
+                "failures": {},
+            },
+            "fred": {
+                "status": "complete",
+                "done": 5,
+                "total": 5,
+                "written": 4,
+                "skipped": 1,
+                "failures": {"DGS10": "timeout"},
+            },
+            "complete": {
+                "status": "complete",
+                "file_count": 5,
+                "total_bytes": 1024,
+            },
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # read_paper_v1_status
 # ---------------------------------------------------------------------------
@@ -156,6 +222,107 @@ def test_read_paper_v1_status_non_dict_root(tmp_path):
     target = tmp_path / "list.json"
     target.write_text(json.dumps([1, 2, 3]))
     assert read_paper_v1_status(target) is None
+
+
+# ---------------------------------------------------------------------------
+# offline context cache helpers
+# ---------------------------------------------------------------------------
+
+
+def test_read_offline_context_manifest_missing(tmp_path):
+    assert read_offline_context_manifest(tmp_path / "not_there.json") is None
+
+
+def test_read_offline_context_status_invalid_json(tmp_path):
+    target = tmp_path / "offline_context_status.json"
+    target.write_text("{not valid json")
+    assert read_offline_context_status(target) is None
+
+
+def test_summarize_offline_context_cache_from_manifest_and_status(tmp_path):
+    manifest_path = tmp_path / "manifest.json"
+    status_path = tmp_path / "offline_context_status.json"
+    manifest_path.write_text(json.dumps(_sample_offline_manifest()))
+    status_path.write_text(json.dumps(_sample_offline_status()))
+
+    summary = summarize_offline_context_cache(manifest_path, status_path)
+
+    assert summary["manifest_present"] is True
+    assert summary["status_present"] is True
+    assert summary["file_count"] == 6
+    assert summary["total_bytes"] == 1536
+    assert summary["size_label"] == "1.5 KB"
+    assert summary["status_label"] == "running"
+    assert summary["stage_summary"] == "running: YF actions"
+    assert summary["generated_at_utc"] == "2026-05-09T20:29:08+00:00"
+    assert summary["last_update_utc"] == "2026-05-09T20:29:08+00:00"
+
+    daily = summary["sources"]["yfinance_daily"]
+    assert daily["label"] == "YF daily"
+    assert daily["count"] == 5
+    assert daily["written"] == 2
+    assert daily["skipped"] == 3
+    assert daily["failures"] == 1
+    assert daily["status"] == "complete"
+
+    actions = summary["sources"]["yfinance_actions"]
+    assert actions["count"] == 5
+    assert actions["failures"] == 0
+    assert actions["status"] == "running"
+
+    fred = summary["sources"]["fred"]
+    assert fred["label"] == "FRED"
+    assert fred["count"] == 5
+    assert fred["failures"] == 1
+
+
+def test_summarize_offline_context_cache_falls_back_to_status(tmp_path):
+    status_path = tmp_path / "offline_context_status.json"
+    status = {
+        "phase": "offline_context",
+        "last_update_utc": "2026-05-09T20:29:08+00:00",
+        "stages": {
+            "fred": {
+                "status": "complete",
+                "total": 17,
+                "written": 0,
+                "skipped": 17,
+                "failures": {},
+            },
+            "complete": {
+                "status": "complete",
+                "file_count": 18,
+                "total_bytes": 2048,
+            },
+        },
+    }
+    status_path.write_text(json.dumps(status))
+
+    summary = summarize_offline_context_cache(tmp_path / "missing.json", status_path)
+
+    assert summary["manifest_present"] is False
+    assert summary["status_present"] is True
+    assert summary["file_count"] == 18
+    assert summary["total_bytes"] == 2048
+    assert summary["size_label"] == "2.0 KB"
+    assert summary["status_label"] == "complete"
+    assert summary["sources"]["fred"]["count"] == 17
+    assert summary["sources"]["fred"]["failures"] == 0
+
+
+def test_summarize_offline_context_cache_missing_files(tmp_path):
+    summary = summarize_offline_context_cache(
+        tmp_path / "missing_manifest.json",
+        tmp_path / "missing_status.json",
+    )
+
+    assert summary["manifest_present"] is False
+    assert summary["status_present"] is False
+    assert summary["file_count"] is None
+    assert summary["total_bytes"] is None
+    assert summary["size_label"] == "—"
+    assert summary["status_label"] == "missing"
+    assert summary["stage_summary"] == "—"
 
 
 # ---------------------------------------------------------------------------

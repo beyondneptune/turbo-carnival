@@ -28,6 +28,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = REPO_ROOT / "data" / "trading_system.db"
 PAPER_V1_STATUS_PATH = REPO_ROOT / "data" / "paper_v1_status.json"
 PAPER_V1_LOG_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_augment.log"
+OFFLINE_CONTEXT_DIR = REPO_ROOT / "data" / "offline_context"
+OFFLINE_CONTEXT_MANIFEST_PATH = OFFLINE_CONTEXT_DIR / "manifest.json"
+OFFLINE_CONTEXT_STATUS_PATH = REPO_ROOT / "data" / "offline_context_status.json"
 STALE_THRESHOLD_SECONDS = 30 * 60  # 30 minutes
 SATELLITE_SAMPLE_TARGET = 50  # gate red/green threshold for sample size
 
@@ -107,6 +110,22 @@ def fetch_recent(conn: sqlite3.Connection, table: str, limit: int = 50) -> pd.Da
 # ---------------------------------------------------------------------------
 
 
+def _read_json_object(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        raw = path.read_text()
+    except OSError:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
 def get_paper_v1_status_path() -> Path:
     """Return the configured paper_v1 status path (env override allowed)."""
     override = os.environ.get("PAPER_V1_STATUS_PATH")
@@ -126,19 +145,35 @@ def get_paper_v1_log_path() -> Path:
 def read_paper_v1_status(path: Path | None = None) -> dict[str, Any] | None:
     """Read the paper_v1 status JSON file. Returns None if absent or unreadable."""
     target = path if path is not None else get_paper_v1_status_path()
-    if not target.exists():
-        return None
-    try:
-        raw = target.read_text()
-    except OSError:
-        return None
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(data, dict):
-        return None
-    return data
+    return _read_json_object(target)
+
+
+def get_offline_context_manifest_path() -> Path:
+    """Return the offline context manifest path (env override allowed)."""
+    override = os.environ.get("OFFLINE_CONTEXT_MANIFEST_PATH")
+    if override:
+        return Path(override).expanduser().resolve()
+    return OFFLINE_CONTEXT_MANIFEST_PATH
+
+
+def get_offline_context_status_path() -> Path:
+    """Return the offline context status path (env override allowed)."""
+    override = os.environ.get("OFFLINE_CONTEXT_STATUS_PATH")
+    if override:
+        return Path(override).expanduser().resolve()
+    return OFFLINE_CONTEXT_STATUS_PATH
+
+
+def read_offline_context_manifest(path: Path | None = None) -> dict[str, Any] | None:
+    """Read the offline context manifest JSON file, if available."""
+    target = path if path is not None else get_offline_context_manifest_path()
+    return _read_json_object(target)
+
+
+def read_offline_context_status(path: Path | None = None) -> dict[str, Any] | None:
+    """Read the offline context status JSON file, if available."""
+    target = path if path is not None else get_offline_context_status_path()
+    return _read_json_object(target)
 
 
 def _parse_iso_utc(value: str | None) -> datetime | None:
@@ -250,6 +285,195 @@ def count_priced_chain_files(cache_root: Path | None = None) -> dict[str, int]:
         total += count
     out["total"] = total
     return out
+
+
+OFFLINE_CONTEXT_SOURCE_LABELS = {
+    "yfinance_daily": "YF daily",
+    "yfinance_actions": "YF actions",
+    "fred": "FRED",
+}
+
+
+def _as_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    return None
+
+
+def _format_cache_size(total_bytes: int | None) -> str:
+    if total_bytes is None:
+        return "—"
+    value = float(total_bytes)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if value < 1024.0 or unit == "TB":
+            if unit == "B":
+                return f"{int(value):,} {unit}"
+            return f"{value:.1f} {unit}"
+        value /= 1024.0
+    return "—"
+
+
+def _format_optional_int(value: int | None) -> str:
+    return f"{value:,}" if value is not None else "—"
+
+
+def _failure_count(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return len(value)
+    if isinstance(value, list | tuple | set):
+        return len(value)
+    return _as_int(value)
+
+
+def _optional_sum(*values: int | None) -> int | None:
+    known = [value for value in values if value is not None]
+    if not known:
+        return None
+    return sum(known)
+
+
+def _offline_context_stage(status: dict[str, Any] | None, name: str) -> dict[str, Any]:
+    if not isinstance(status, dict):
+        return {}
+    stages = status.get("stages")
+    if not isinstance(stages, dict):
+        return {}
+    payload = stages.get(name)
+    return payload if isinstance(payload, dict) else {}
+
+
+def _offline_context_summary_payload(
+    manifest: dict[str, Any] | None,
+    name: str,
+) -> dict[str, Any]:
+    if not isinstance(manifest, dict):
+        return {}
+    summaries = manifest.get("summaries")
+    if not isinstance(summaries, dict):
+        return {}
+    payload = summaries.get(name)
+    return payload if isinstance(payload, dict) else {}
+
+
+def _offline_context_source_summary(
+    manifest: dict[str, Any] | None,
+    status: dict[str, Any] | None,
+    name: str,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    payload.update(_offline_context_summary_payload(manifest, name))
+    payload.update(_offline_context_stage(status, name))
+
+    written = _as_int(payload.get("written"))
+    skipped = _as_int(payload.get("skipped"))
+    failures = _failure_count(payload.get("failures"))
+    total = _as_int(payload.get("total"))
+    count = total if total is not None else _optional_sum(written, skipped)
+
+    return {
+        "label": OFFLINE_CONTEXT_SOURCE_LABELS.get(name, name),
+        "status": str(payload.get("status") or "—"),
+        "count": count,
+        "written": written,
+        "skipped": skipped,
+        "failures": failures,
+    }
+
+
+def _offline_context_stage_summary(status: dict[str, Any] | None) -> str:
+    if not isinstance(status, dict):
+        return "—"
+    stages = status.get("stages")
+    if not isinstance(stages, dict) or not stages:
+        return str(status.get("phase") or "—")
+
+    running: list[str] = []
+    failed: list[str] = []
+    parts: list[str] = []
+    for name in ("yfinance_daily", "yfinance_actions", "fred", "complete"):
+        payload = stages.get(name)
+        if not isinstance(payload, dict):
+            continue
+        stage_status = str(payload.get("status") or "").strip()
+        if not stage_status:
+            continue
+        label = OFFLINE_CONTEXT_SOURCE_LABELS.get(name, name)
+        lowered = stage_status.lower()
+        if lowered in {"running", "in_progress", "active"}:
+            running.append(label)
+        if lowered in {"error", "failed", "fail"}:
+            failed.append(label)
+        parts.append(f"{label}={stage_status}")
+
+    if running:
+        return "running: " + ", ".join(running)
+    if failed:
+        return "failed: " + ", ".join(failed)
+    if parts:
+        return " · ".join(parts)
+    return str(status.get("phase") or "—")
+
+
+def _offline_context_status_label(status: dict[str, Any] | None) -> str:
+    if not isinstance(status, dict):
+        return "missing"
+    stages = status.get("stages")
+    if isinstance(stages, dict):
+        for payload in stages.values():
+            if not isinstance(payload, dict):
+                continue
+            stage_status = str(payload.get("status") or "").lower()
+            if stage_status in {"error", "failed", "fail"}:
+                return "failed"
+        for payload in stages.values():
+            if not isinstance(payload, dict):
+                continue
+            stage_status = str(payload.get("status") or "").lower()
+            if stage_status in {"running", "in_progress", "active"}:
+                return "running"
+        complete = stages.get("complete")
+        if isinstance(complete, dict) and complete.get("status") == "complete":
+            return "complete"
+    return str(status.get("phase") or "present")
+
+
+def summarize_offline_context_cache(
+    manifest_path: Path | None = None,
+    status_path: Path | None = None,
+) -> dict[str, Any]:
+    """Summarize the offline context cache from read-only JSON metadata."""
+    manifest = read_offline_context_manifest(manifest_path)
+    status = read_offline_context_status(status_path)
+    complete = _offline_context_stage(status, "complete")
+
+    file_count = _as_int(manifest.get("file_count")) if manifest else None
+    if file_count is None:
+        file_count = _as_int(complete.get("file_count"))
+
+    total_bytes = _as_int(manifest.get("total_bytes")) if manifest else None
+    if total_bytes is None:
+        total_bytes = _as_int(complete.get("total_bytes"))
+
+    sources = {
+        name: _offline_context_source_summary(manifest, status, name)
+        for name in OFFLINE_CONTEXT_SOURCE_LABELS
+    }
+    return {
+        "manifest_present": manifest is not None,
+        "status_present": status is not None,
+        "file_count": file_count,
+        "total_bytes": total_bytes,
+        "size_label": _format_cache_size(total_bytes),
+        "status_label": _offline_context_status_label(status),
+        "stage_summary": _offline_context_stage_summary(status),
+        "generated_at_utc": manifest.get("generated_at_utc") if manifest else None,
+        "last_update_utc": status.get("last_update_utc") if status else None,
+        "sources": sources,
+    }
 
 
 def tail_text_file(
@@ -834,6 +1058,70 @@ def _render_behind_the_scenes(status: dict[str, Any], status_path: Path) -> None
         st.json(status)
 
 
+def _render_offline_context_cache() -> None:
+    """Render a compact read-only snapshot of the offline context cache."""
+    summary = summarize_offline_context_cache()
+    manifest_path = get_offline_context_manifest_path()
+    status_path = get_offline_context_status_path()
+
+    st.markdown("### 🗂️ Offline context cache")
+    with st.container(border=True):
+        if not summary["manifest_present"] and not summary["status_present"]:
+            st.info(
+                "No offline context manifest or status file found. "
+                f"Expected `{manifest_path}` and `{status_path}`."
+            )
+            return
+
+        metric_cols = st.columns(4)
+        metric_cols[0].metric(
+            "Files",
+            _format_optional_int(summary["file_count"]),
+            border=True,
+        )
+        metric_cols[1].metric(
+            "Size",
+            summary["size_label"],
+            border=True,
+        )
+        metric_cols[2].metric(
+            "Status",
+            str(summary["status_label"]),
+            border=True,
+        )
+        metric_cols[3].metric(
+            "Updated",
+            str(summary["last_update_utc"] or summary["generated_at_utc"] or "—")[:19],
+            border=True,
+        )
+
+        st.caption(f"Stages: {summary['stage_summary']}")
+
+        source_cols = st.columns(3)
+        for col, source_key in zip(source_cols, OFFLINE_CONTEXT_SOURCE_LABELS, strict=True):
+            source = summary["sources"][source_key]
+            failures = source["failures"]
+            delta = (
+                f"{failures:,} failures"
+                if failures is not None
+                else str(source["status"])
+            )
+            col.metric(
+                source["label"],
+                _format_optional_int(source["count"]),
+                delta=delta,
+                delta_color="inverse" if failures else "off",
+                border=True,
+                help=(
+                    f"written={_format_optional_int(source['written'])}, "
+                    f"skipped={_format_optional_int(source['skipped'])}, "
+                    f"status={source['status']}"
+                ),
+            )
+
+        st.caption(f"Manifest `{manifest_path}` · status `{status_path}`")
+
+
 def _render_twin_model(twin: dict[str, Any]) -> None:
     """Twin-model verdict — three metric cards + verdict banner."""
 
@@ -1014,6 +1302,8 @@ def show_paper_v1_run(conn: sqlite3.Connection | None) -> None:
             f"Status file not found at `{status_path}`. "
             "Start a run to populate this view.",
         )
+        st.divider()
+        _render_offline_context_cache()
         return
 
     run_id = str(status.get("run_id") or "")
@@ -1067,6 +1357,10 @@ def show_paper_v1_run(conn: sqlite3.Connection | None) -> None:
         _render_stage_progress(stages)
     else:
         _empty_state("🧭", "No stage records yet", "Stages appear once the orchestrator boots.")
+
+    st.divider()
+
+    _render_offline_context_cache()
 
     st.divider()
 
