@@ -178,6 +178,26 @@ def test_is_status_stale_missing_field():
     assert is_status_stale({}) is True
 
 
+def test_is_status_stale_terminal_phase_never_stale():
+    """Terminal phases (cache_complete, complete, error, interrupted) are never
+    stale — they're done; old timestamps are expected. Per the dashboard rules."""
+    now = datetime(2026, 5, 9, 17, 0, 0, tzinfo=timezone.utc)
+    very_old = (now - timedelta(days=2)).isoformat().replace("+00:00", "Z")
+    for phase in ("cache_complete", "complete", "error", "interrupted"):
+        payload = {"phase": phase, "last_update_utc": very_old}
+        assert is_status_stale(payload, now=now) is False, (
+            f"phase={phase!r} should not be stale even at 2 days old"
+        )
+
+
+def test_is_status_stale_running_phase_old_update_is_stale():
+    """Non-terminal phases still go stale on old timestamps (regression check)."""
+    now = datetime(2026, 5, 9, 17, 0, 0, tzinfo=timezone.utc)
+    very_old = (now - timedelta(hours=2)).isoformat().replace("+00:00", "Z")
+    payload = {"phase": "year2_replay", "last_update_utc": very_old}
+    assert is_status_stale(payload, now=now) is True
+
+
 # ---------------------------------------------------------------------------
 # count_satellite_events
 # ---------------------------------------------------------------------------

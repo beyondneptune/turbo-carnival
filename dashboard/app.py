@@ -147,13 +147,23 @@ def _parse_iso_utc(value: str | None) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+TERMINAL_PHASES = frozenset({"cache_complete", "complete", "error", "interrupted"})
+
+
 def is_status_stale(
     status: dict[str, Any],
     *,
     now: datetime | None = None,
     threshold_seconds: int = STALE_THRESHOLD_SECONDS,
 ) -> bool:
-    """True if `last_update_utc` is older than `threshold_seconds` (or missing)."""
+    """True if `last_update_utc` is older than `threshold_seconds` (or missing).
+
+    Terminal phases listed in TERMINAL_PHASES are never stale — those runs are
+    done; an old `last_update_utc` is the expected end-state, not a hang.
+    Per `.claude/rules/dashboard-status.md`.
+    """
+    if status.get("phase") in TERMINAL_PHASES:
+        return False
     last = _parse_iso_utc(status.get("last_update_utc"))
     if last is None:
         return True
