@@ -740,6 +740,45 @@ def test_load_year_cache_prefers_priced_over_metadata(mod, tmp_path):
     # Normalized columns should be present.
     for col in ("strike", "expiry", "option_type", "bid", "ask", "mid", "atm_iv"):
         assert col in chain.columns, f"missing col {col}"
+    assert "exit_mid" in chain.columns
+    assert np.isfinite(pd.to_numeric(chain["exit_mid"], errors="coerce")).any()
+
+
+def test_build_year1_training_frame_uses_real_exit_mids_in_strict_mode(mod):
+    """Strict training targets come from priced entry/exit mids, not RNG."""
+    ev = date(2024, 8, 1)
+    raw = _build_priced_parquet_rows(
+        ticker="AAPL",
+        event_date=ev,
+        expiry=(pd.Timestamp(ev) + pd.Timedelta(days=9)).date(),
+        strikes=(100.0,),
+        atm_strike=100.0,
+    )
+    raw.loc[raw["timing"] == "entry", "mid"] = 1.0
+    raw.loc[raw["timing"] == "exit", "mid"] = 2.0
+    chain = mod._normalize_priced_chain(raw)
+    key = ("AAPL", ev)
+    cache = {
+        "year": "year1",
+        "window": (mod.YEAR1_START, mod.YEAR1_END),
+        "spy_daily": pd.DataFrame(),
+        "spy_iv_daily": pd.DataFrame(),
+        "earnings_dates": {"AAPL": [ev]},
+        "chains": {key: chain},
+        "chain_sources": {key: "priced"},
+        "events_dropped": [],
+    }
+
+    X, y_a, y_b, realized = mod.build_year1_training_frame(
+        cache,
+        rng=np.random.default_rng(123),
+        allow_synthetic=False,
+    )
+
+    assert len(X) == 1
+    assert realized[0] == pytest.approx(1.0)
+    assert y_a[0] == pytest.approx(1.0)
+    assert np.isfinite(y_b[0])
 
 
 def test_load_year_cache_falls_back_to_metadata_when_allow_synthetic(mod, tmp_path):
@@ -879,6 +918,76 @@ def test_strict_mode_year2_replay_drops_events_without_pricing(mod, tmp_path):
     # Status JSON: events_dropped_no_pricing must surface to the loader summary.
     summary = mod.cache_summary(cache)
     assert summary["events_dropped_no_pricing"] >= 1
+
+
+def test_replay_year2_uses_model_signal_to_block_satellite_trade(mod, tmp_path):
+    """Year 2 replay must use the frozen model prediction, not premium alone."""
+    ev = date(2025, 7, 15)
+    raw = _build_priced_parquet_rows(
+        ticker="AAPL",
+        event_date=ev,
+        expiry=(pd.Timestamp(ev) + pd.Timedelta(days=9)).date(),
+        strikes=(100.0,),
+        atm_strike=100.0,
+    )
+    raw.loc[raw["timing"] == "entry", "mid"] = 1.0
+    raw.loc[raw["timing"] == "exit", "mid"] = 2.0
+    chain = mod._normalize_priced_chain(raw)
+    key = ("AAPL", ev)
+    cache = {
+        "year": "year2",
+        "window": (mod.YEAR2_START, mod.YEAR2_END),
+        "spy_daily": pd.DataFrame(),
+        "spy_iv_daily": pd.DataFrame(),
+        "earnings_dates": {"AAPL": [ev]},
+        "chains": {key: chain},
+        "chain_sources": {key: "priced"},
+        "events_dropped": [],
+    }
+
+    class NegativeBooster:
+        def predict(self, X, num_iteration=None):  # noqa: N803, ARG002
+            return np.full(len(X), -0.01)
+
+    class NegativeModel:
+        booster = NegativeBooster()
+        best_iteration = 1
+        feature_names = [
+            "pre_event_atm_iv_5d",
+            "log_spot",
+            "dte",
+            "atm_premium",
+            "chain_width",
+        ]
+
+    conn = mod.open_db(tmp_path / "evidence.db")
+    try:
+        mod.insert_run_row(conn, "run_model_signal")
+        status = mod.StatusWriter(tmp_path / "status.json", run_id="run_model_signal")
+        replay = mod.replay_year2(
+            conn=conn,
+            run_id="run_model_signal",
+            cache=cache,
+            status=status,
+            rng=np.random.default_rng(1),
+            synthetic_spy_chains=True,
+            allow_synthetic=False,
+            satellite_model=NegativeModel(),
+        )
+        decision = conn.execute(
+            "SELECT final_decision, signal_score, signal_pass FROM gate_decisions"
+        ).fetchone()
+        trades = conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
+    finally:
+        conn.close()
+
+    assert replay["trades_blocked"] == 1
+    assert replay["trades_placed"] == 0
+    assert replay["strategy_returns"].tolist() == [0.0]
+    assert decision[0] == "blocked"
+    assert float(decision[1]) == pytest.approx(-0.01)
+    assert int(decision[2]) == 0
+    assert trades == 0
 
 
 def test_compute_gate_data_source_priced_when_all_priced(mod):

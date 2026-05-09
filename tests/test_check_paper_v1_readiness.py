@@ -54,29 +54,48 @@ def _priced_df(
     underlying_close: float = 100.0,
     atm_iv: float = 0.30,
 ) -> pd.DataFrame:
+    expiry = (pd.Timestamp(event_date) + pd.Timedelta(days=9)).date().isoformat()
+    exit_date = (pd.Timestamp(event_date) + pd.Timedelta(days=5)).date().isoformat()
+    rows = []
+    for timing, as_of in (("entry", event_date.isoformat()), ("exit", exit_date)):
+        rows.extend(
+            [
+                {
+                    "ticker": f"O:{ticker}{event_date.strftime('%y%m%d')}C00100000",
+                    "underlying_ticker": ticker,
+                    "contract_type": "call",
+                    "strike_price": 100.0,
+                    "expiration_date": expiry,
+                    "as_of_date": as_of,
+                    "timing": timing,
+                    "event_date": event_date.isoformat(),
+                    "bid": mid - 0.05,
+                    "ask": mid + 0.05,
+                    "mid": mid,
+                    "underlying_close": underlying_close,
+                    "is_atm": True,
+                    "atm_iv": atm_iv,
+                },
+                {
+                    "ticker": f"O:{ticker}{event_date.strftime('%y%m%d')}P00100000",
+                    "underlying_ticker": ticker,
+                    "contract_type": "put",
+                    "strike_price": 100.0,
+                    "expiration_date": expiry,
+                    "as_of_date": as_of,
+                    "timing": timing,
+                    "event_date": event_date.isoformat(),
+                    "bid": mid - 0.05,
+                    "ask": mid + 0.05,
+                    "mid": mid,
+                    "underlying_close": underlying_close,
+                    "is_atm": True,
+                    "atm_iv": atm_iv,
+                },
+            ]
+        )
     return pd.DataFrame(
-        {
-            "ticker": [
-                f"O:{ticker}{event_date.strftime('%y%m%d')}C00100000",
-                f"O:{ticker}{event_date.strftime('%y%m%d')}P00100000",
-            ],
-            "underlying_ticker": [ticker, ticker],
-            "contract_type": ["call", "put"],
-            "strike_price": [100.0, 100.0],
-            "expiration_date": [
-                (pd.Timestamp(event_date) + pd.Timedelta(days=9)).date().isoformat(),
-                (pd.Timestamp(event_date) + pd.Timedelta(days=9)).date().isoformat(),
-            ],
-            "as_of_date": [event_date.isoformat(), event_date.isoformat()],
-            "timing": ["entry", "entry"],
-            "event_date": [event_date.isoformat(), event_date.isoformat()],
-            "bid": [mid - 0.05, mid - 0.05],
-            "ask": [mid + 0.05, mid + 0.05],
-            "mid": [mid, mid],
-            "underlying_close": [underlying_close, underlying_close],
-            "is_atm": [True, True],
-            "atm_iv": [atm_iv, atm_iv],
-        }
+        rows
     )
 
 
@@ -183,7 +202,8 @@ def test_check_readiness_requires_finite_mid_and_underlying_close(mod, tmp_path)
     summary = mod.check_readiness(tmp_path, universe=("AAPL",))
     codes = {b["code"] for b in summary["blockers"]}
 
-    assert "no_finite_mid" in codes
+    assert "no_finite_entry_mid" in codes
+    assert "no_finite_exit_mid" in codes
     assert "no_finite_underlying_close" in codes
 
 

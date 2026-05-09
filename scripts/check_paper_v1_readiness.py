@@ -6,7 +6,8 @@ in strict mode:
 
 * Year 1 and Year 2 earnings events have matching ``chains_priced`` parquets.
 * Priced parquets include the columns the evidence runner requires.
-* Priced parquets have at least one finite ``mid`` and ``underlying_close``.
+* Priced parquets have finite entry and exit ``mid`` values plus finite
+  ``underlying_close`` and ``atm_iv``.
 * SPY core priced files are counted and reported separately.
 """
 from __future__ import annotations
@@ -42,6 +43,8 @@ REQUIRED_PRICED_COLUMNS = (
     "mid",
     "underlying_close",
     "atm_iv",
+    "timing",
+    "is_atm",
 )
 
 
@@ -183,6 +186,18 @@ def _finite_count(series: pd.Series) -> int:
     return int(np.isfinite(values).sum())
 
 
+def _timing_slice(df: pd.DataFrame, timing: str) -> pd.DataFrame:
+    if "timing" not in df.columns:
+        return pd.DataFrame()
+    return df[df["timing"] == timing]
+
+
+def _atm_slice(df: pd.DataFrame) -> pd.DataFrame:
+    if "is_atm" not in df.columns or df.empty:
+        return pd.DataFrame()
+    return df[df["is_atm"].astype(bool)]
+
+
 def _validate_priced_parquet(path: Path, *, year: str, ticker: str) -> list[Finding]:
     findings: list[Finding] = []
     try:
@@ -228,12 +243,52 @@ def _validate_priced_parquet(path: Path, *, year: str, ticker: str) -> list[Find
         )
         return findings
 
-    if _finite_count(df["mid"]) == 0:
+    entry = _timing_slice(df, "entry")
+    exit_rows = _timing_slice(df, "exit")
+    if entry.empty:
         findings.append(
             Finding(
                 level="blocker",
-                code="no_finite_mid",
-                message="priced parquet has no finite mid values",
+                code="missing_entry_rows",
+                message="priced parquet has no entry timing rows",
+                year=year,
+                ticker=ticker,
+                event_date=path.stem,
+                path=str(path),
+            )
+        )
+    if exit_rows.empty:
+        findings.append(
+            Finding(
+                level="blocker",
+                code="missing_exit_rows",
+                message="priced parquet has no exit timing rows",
+                year=year,
+                ticker=ticker,
+                event_date=path.stem,
+                path=str(path),
+            )
+        )
+
+    if entry.empty or _finite_count(entry["mid"]) == 0:
+        findings.append(
+            Finding(
+                level="blocker",
+                code="no_finite_entry_mid",
+                message="priced parquet has no finite entry mid values",
+                year=year,
+                ticker=ticker,
+                event_date=path.stem,
+                path=str(path),
+            )
+        )
+
+    if exit_rows.empty or _finite_count(exit_rows["mid"]) == 0:
+        findings.append(
+            Finding(
+                level="blocker",
+                code="no_finite_exit_mid",
+                message="priced parquet has no finite exit mid values",
                 year=year,
                 ticker=ticker,
                 event_date=path.stem,
@@ -254,12 +309,27 @@ def _validate_priced_parquet(path: Path, *, year: str, ticker: str) -> list[Find
             )
         )
 
-    if _finite_count(df["atm_iv"]) == 0:
+    atm_entry = _atm_slice(entry)
+    atm_exit = _atm_slice(exit_rows)
+    if atm_entry.empty or atm_exit.empty:
+        findings.append(
+            Finding(
+                level="blocker",
+                code="missing_atm_rows",
+                message="priced parquet needs ATM rows at entry and exit",
+                year=year,
+                ticker=ticker,
+                event_date=path.stem,
+                path=str(path),
+            )
+        )
+
+    if atm_entry.empty or _finite_count(atm_entry["atm_iv"]) == 0:
         findings.append(
             Finding(
                 level="blocker",
                 code="no_finite_atm_iv",
-                message="priced parquet has no finite atm_iv values",
+                message="priced parquet has no finite ATM entry atm_iv values",
                 year=year,
                 ticker=ticker,
                 event_date=path.stem,
@@ -431,9 +501,12 @@ def _summarize_year(
         if ticker in universe:
             findings.append(
                 Finding(
-                    level="warning",
+                    level="blocker",
                     code="extra_satellite_priced_file",
-                    message="priced satellite file is not listed in earnings_dates",
+                    message=(
+                        "priced satellite file is not listed in earnings_dates; "
+                        "official sample must not be padded by orphan chains"
+                    ),
                     year=year,
                     ticker=ticker,
                     event_date=path.stem,

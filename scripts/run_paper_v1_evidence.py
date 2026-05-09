@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import sqlite3
+import subprocess
 import sys
 import time
 import traceback
@@ -68,10 +69,11 @@ from signals.paper_v1_universe import (  # noqa: E402
     PAPER_V1_SATELLITE,
 )
 from signals.twin_model_trainer import (  # noqa: E402
+    TrainedModel,
     train_and_compare,
 )
 from signals.vrp_core_spy import (  # noqa: E402
-    compute_entry_credit,
+    IronCondorSpec,
     construct_iron_condor,
 )
 
@@ -118,6 +120,7 @@ STATUS_UPDATE_EVERY_N_EVENTS = 5
 
 # RNG seed for synthetic data generation (deterministic).
 SYNTHETIC_SEED = 7
+SATELLITE_SIGNAL_THRESHOLD = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +329,52 @@ def _normalize_priced_chain(df: pd.DataFrame) -> pd.DataFrame:
             return v
         entry["option_type"] = entry["option_type"].map(_norm_otype)
 
+    # Preserve real exit marks from the long-format parquet. The entry rows are
+    # what strategy construction consumes, but official evidence must compute
+    # realised P&L from the paired exit rows instead of synthetic moves.
+    if "timing" in df.columns and (df["timing"] == "exit").any():
+        exit_rows = df[df["timing"] == "exit"].copy()
+        for src, dst in rename_map.items():
+            if src in exit_rows.columns and dst not in exit_rows.columns:
+                exit_rows[dst] = exit_rows[src]
+        if "expiry" in exit_rows.columns:
+            exit_rows["expiry"] = exit_rows["expiry"].map(_to_date)
+        if "option_type" in exit_rows.columns:
+            exit_rows["option_type"] = exit_rows["option_type"].map(_norm_otype)
+
+        for col in ("exit_mid", "exit_bid", "exit_ask", "exit_underlying_close"):
+            if col not in entry.columns:
+                entry[col] = np.nan
+        if "exit_as_of_date" not in entry.columns:
+            entry["exit_as_of_date"] = None
+
+        for idx, row in entry.iterrows():
+            matches = exit_rows[
+                (exit_rows.get("strike") == row.get("strike"))
+                & (exit_rows.get("option_type") == row.get("option_type"))
+                & (exit_rows.get("expiry") == row.get("expiry"))
+            ]
+            if "ticker" in entry.columns and "ticker" in exit_rows.columns:
+                same_contract = matches[matches["ticker"] == row.get("ticker")]
+                if not same_contract.empty:
+                    matches = same_contract
+            if matches.empty:
+                continue
+            exit_row = matches.iloc[0]
+            entry.at[idx, "exit_mid"] = exit_row.get("mid", np.nan)
+            entry.at[idx, "exit_bid"] = exit_row.get("bid", np.nan)
+            entry.at[idx, "exit_ask"] = exit_row.get("ask", np.nan)
+            entry.at[idx, "exit_underlying_close"] = exit_row.get(
+                "underlying_close", np.nan
+            )
+            if "as_of_date" in exit_row:
+                try:
+                    entry.at[idx, "exit_as_of_date"] = pd.Timestamp(
+                        exit_row["as_of_date"]
+                    ).date()
+                except (TypeError, ValueError):
+                    entry.at[idx, "exit_as_of_date"] = None
+
     # Compute expiry_days for any code that wants it (event_date is typically
     # the entry decision day).
     if "expiry" in entry.columns and "event_date" in entry.columns:
@@ -350,12 +399,13 @@ def _normalize_priced_chain(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _atm_pricing_is_valid(df: pd.DataFrame) -> tuple[bool, str | None]:
-    """Check the priced (and normalized) chain has finite ATM IV + entry mid.
+    """Check the priced chain has finite ATM IV plus entry and exit mids.
 
     Returns (ok, drop_reason). drop_reason is one of:
       None              -- ok
       'no_atm_iv'       -- ATM straddle row has NaN atm_iv
       'no_entry_price'  -- ATM straddle row has NaN mid
+      'no_exit_price'   -- ATM straddle row has NaN exit_mid
     """
     if df is None or df.empty:
         return False, "no_entry_price"
@@ -371,6 +421,8 @@ def _atm_pricing_is_valid(df: pd.DataFrame) -> tuple[bool, str | None]:
         return False, "no_atm_iv"
     if "mid" not in atm_rows.columns or atm_rows["mid"].isna().all():
         return False, "no_entry_price"
+    if "exit_mid" not in atm_rows.columns or atm_rows["exit_mid"].isna().all():
+        return False, "no_exit_price"
     return True, None
 
 
@@ -425,15 +477,17 @@ def load_year_cache(
 
     Loader behavior (per .claude/rules/paper-v1-evidence.md):
       * Prefers `chains_priced/{TICKER}/{event_date}.parquet` when present and
-        valid (all pricing columns present, ATM straddle has finite atm_iv and
-        mid). Loaded chain is normalized to the legacy in-memory schema used
-        downstream (strike/expiry/option_type/bid/ask/mid/atm_iv/underlying_close).
+        valid (all pricing columns present, ATM straddle has finite atm_iv,
+        entry mid, and exit mid). Loaded chain is normalized to the legacy
+        in-memory schema used downstream
+        (strike/expiry/option_type/bid/ask/mid/atm_iv/underlying_close).
       * Falls back to `chains/{TICKER}/{event_date}.parquet` (metadata only)
         ONLY when ``allow_synthetic=True``. In strict mode (default) the event
         is dropped with reason='no_pricing'.
-      * If a priced parquet exists but its ATM row lacks atm_iv or mid, the
-        event is dropped with reason='no_atm_iv' or 'no_entry_price'. Strict
-        mode dropped events do not appear in ``chains``.
+      * If a priced parquet exists but its ATM row lacks atm_iv, entry mid, or
+        exit mid, the event is dropped with reason='no_atm_iv',
+        'no_entry_price', or 'no_exit_price'. Strict mode dropped events do not
+        appear in ``chains``.
     """
     yd = cache_year_dir(Path(base_dir), year)
     out: dict[str, Any] = {
@@ -483,24 +537,25 @@ def load_year_cache(
         for ev in ev_dates:
             candidate_keys.add((ticker, ev))
 
-    # Also pick up any parquets present on disk under the requested universe
-    # that weren't enumerated via earnings_dates -- this preserves backward-compat
-    # for callers/tests that drop chain parquets without writing earnings_dates.
-    for src_dir in (priced_dir, chains_dir):
-        if not src_dir.exists():
-            continue
-        for ticker_dir in sorted(src_dir.iterdir()):
-            if not ticker_dir.is_dir():
+    # If no earnings date files exist (legacy smoke fixtures), fall back to
+    # enumerating parquets. In official caches, earnings_dates is the sample
+    # definition; extra chain files must not pad the held-out replay.
+    if not candidate_keys:
+        for src_dir in (priced_dir, chains_dir):
+            if not src_dir.exists():
                 continue
-            ticker = ticker_dir.name
-            if ticker not in universe:
-                continue
-            for chain_path in sorted(ticker_dir.glob("*.parquet")):
-                try:
-                    event_date = date.fromisoformat(chain_path.stem)
-                except ValueError:
+            for ticker_dir in sorted(src_dir.iterdir()):
+                if not ticker_dir.is_dir():
                     continue
-                candidate_keys.add((ticker, event_date))
+                ticker = ticker_dir.name
+                if ticker not in universe:
+                    continue
+                for chain_path in sorted(ticker_dir.glob("*.parquet")):
+                    try:
+                        event_date = date.fromisoformat(chain_path.stem)
+                    except ValueError:
+                        continue
+                    candidate_keys.add((ticker, event_date))
 
     for ticker, event_date in sorted(candidate_keys):
         priced_path = priced_dir / ticker / f"{event_date.isoformat()}.parquet"
@@ -1000,18 +1055,35 @@ def open_db(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _current_methodology_commit() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    sha = result.stdout.strip()
+    return sha or None
+
+
 def insert_run_row(conn: sqlite3.Connection, run_id: str) -> None:
+    methodology_commit = _current_methodology_commit()
     conn.execute(
         """
         INSERT INTO runs (
             run_id, run_type, prereg_version, methodology_commit,
             started_at_utc, ended_at_utc, status, initial_nav_usd, notes
-        ) VALUES (?, ?, ?, NULL, ?, NULL, 'running', ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, NULL, 'running', ?, ?)
         """,
         (
             run_id,
             RUN_TYPE,
             PREREG_VERSION,
+            methodology_commit,
             _utc_now_iso(),
             INITIAL_NAV_USD,
             "paper_v1 evidence orchestrator (held-out Year 2 replay)",
@@ -1207,14 +1279,213 @@ def build_satellite_legs_and_quotes(
         raise ValueError(f"missing call+put rows at strike {strike}")
     call = call_rows.iloc[0]
     put = put_rows.iloc[0]
-    call_q = Quote(bid=float(call["bid"]), ask=float(call["ask"]))
-    put_q = Quote(bid=float(put["bid"]), ask=float(put["ask"]))
+    call_q = _quote_from_row(call, label=f"call {strike:g}")
+    put_q = _quote_from_row(put, label=f"put {strike:g}")
     orders = [
         LegOrder("call", "long", quantity, multiplier, call_q.mid),
         LegOrder("put", "long", quantity, multiplier, put_q.mid),
     ]
     quotes = [call_q, put_q]
     return orders, quotes, call_q.mid, put_q.mid
+
+
+def _finite_float(value: Any) -> float | None:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(out):
+        return None
+    return out
+
+
+def _quote_from_row(row: pd.Series, *, label: str) -> Quote:
+    """Return a quote, using real bid/ask when present and mid-as-fill otherwise.
+
+    Polygon Free aggregate bars expose OHLC, not NBBO bid/ask. The augment
+    script stores close as ``mid`` and NaN bid/ask. For those priced rows we use
+    a zero-width quote at the real mid; slippage still applies in
+    ``simulate_trade_fill``. This is an explicit mid-as-fill policy, not a
+    synthetic price fallback.
+    """
+    bid = _finite_float(row.get("bid"))
+    ask = _finite_float(row.get("ask"))
+    if bid is not None and ask is not None:
+        if bid < 0 or ask < 0 or ask < bid:
+            raise ValueError(f"invalid bid/ask for {label}: bid={bid} ask={ask}")
+        return Quote(bid=bid, ask=ask)
+
+    mid = _finite_float(row.get("mid"))
+    if mid is None or mid < 0:
+        raise ValueError(f"missing finite mid for {label}")
+    return Quote(bid=mid, ask=mid)
+
+
+def _option_row(
+    chain: pd.DataFrame,
+    *,
+    expiry: date,
+    strike: float,
+    option_type: str,
+) -> pd.Series:
+    rows = chain[
+        (chain["expiry"] == expiry)
+        & (chain["strike"] == strike)
+        & (chain["option_type"] == option_type)
+    ]
+    if rows.empty:
+        raise ValueError(f"missing {option_type} row at strike {strike}")
+    return rows.iloc[0]
+
+
+def _realized_satellite_outcome(
+    event: EarningsEvent,
+    chain: pd.DataFrame,
+    *,
+    strike: float,
+    call_entry_mid: float,
+    put_entry_mid: float,
+) -> dict[str, float]:
+    """Compute real held-period outcome from the priced parquet entry/exit mids."""
+    call = _option_row(chain, expiry=event.nearest_expiry, strike=strike, option_type="call")
+    put = _option_row(chain, expiry=event.nearest_expiry, strike=strike, option_type="put")
+    call_exit = _finite_float(call.get("exit_mid"))
+    put_exit = _finite_float(put.get("exit_mid"))
+    if call_exit is None or put_exit is None:
+        raise ValueError(f"missing finite exit mid for {event.ticker} {event.event_date}")
+
+    entry_value = float(call_entry_mid + put_entry_mid)
+    exit_value = float(call_exit + put_exit)
+    if entry_value <= 0:
+        raise ValueError(f"non-positive entry straddle value for {event.ticker}")
+
+    exit_spot = _finite_float(call.get("exit_underlying_close"))
+    if exit_spot is None:
+        exit_spot = _finite_float(put.get("exit_underlying_close"))
+    if exit_spot is None:
+        raise ValueError(f"missing finite exit underlying for {event.ticker}")
+
+    spot = max(1e-9, float(event.spot_at_decision))
+    realized_move = float((exit_spot - spot) / spot)
+    straddle_return = float((exit_value - entry_value) / entry_value)
+    return {
+        "realized_5d_return": realized_move,
+        "realized_5d_straddle_return": straddle_return,
+        "exit_straddle_value": exit_value,
+    }
+
+
+def _predict_signal_score(model: TrainedModel, feature_row: dict[str, float]) -> float:
+    X = pd.DataFrame([feature_row], columns=model.feature_names)
+    pred = model.booster.predict(X, num_iteration=model.best_iteration)
+    return float(np.asarray(pred, dtype=float).ravel()[0])
+
+
+def _construct_priced_spy_condor(chain: pd.DataFrame) -> IronCondorSpec:
+    """Infer the pre-priced SPY condor from its four entry legs.
+
+    The augment script already selected the 4 legs because Polygon Free does
+    not provide full greeks/deltas in the priced output. For a priced parquet,
+    two puts imply lower=long put and higher=short put; two calls imply
+    lower=short call and higher=long call.
+    """
+    expiry_values = sorted({pd.Timestamp(e).date() for e in chain["expiry"].dropna()})
+    if not expiry_values:
+        raise ValueError("SPY priced chain has no expiry")
+    expiry = expiry_values[0]
+    puts = sorted(
+        {
+            float(row["strike"])
+            for _, row in chain[chain["option_type"] == "put"].iterrows()
+            if _finite_float(row.get("mid")) is not None
+        }
+    )
+    calls = sorted(
+        {
+            float(row["strike"])
+            for _, row in chain[chain["option_type"] == "call"].iterrows()
+            if _finite_float(row.get("mid")) is not None
+        }
+    )
+    if len(puts) < 2 or len(calls) < 2:
+        raise ValueError("SPY priced chain does not have two put and two call legs")
+    spec = IronCondorSpec(
+        underlying="SPY",
+        expiry=expiry,
+        short_call_strike=calls[0],
+        long_call_strike=calls[-1],
+        short_put_strike=puts[-1],
+        long_put_strike=puts[0],
+        quantity=CORE_QUANTITY,
+        multiplier=CORE_MULTIPLIER,
+    )
+    if not spec.is_valid():
+        raise ValueError(f"invalid priced SPY condor spec: {spec}")
+    return spec
+
+
+def _compute_condor_entry_credit(chain: pd.DataFrame, spec: IronCondorSpec) -> float:
+    short_call = _quote_from_row(
+        _option_row(
+            chain,
+            expiry=spec.expiry,
+            strike=spec.short_call_strike,
+            option_type="call",
+        ),
+        label="SPY short call",
+    ).mid
+    long_call = _quote_from_row(
+        _option_row(
+            chain,
+            expiry=spec.expiry,
+            strike=spec.long_call_strike,
+            option_type="call",
+        ),
+        label="SPY long call",
+    ).mid
+    short_put = _quote_from_row(
+        _option_row(
+            chain,
+            expiry=spec.expiry,
+            strike=spec.short_put_strike,
+            option_type="put",
+        ),
+        label="SPY short put",
+    ).mid
+    long_put = _quote_from_row(
+        _option_row(
+            chain,
+            expiry=spec.expiry,
+            strike=spec.long_put_strike,
+            option_type="put",
+        ),
+        label="SPY long put",
+    ).mid
+    return float(short_call + short_put - long_call - long_put)
+
+
+def _realized_condor_pnl_usd(
+    chain: pd.DataFrame,
+    legs_meta: tuple[tuple[str, str, float], ...],
+    fill: Any,
+) -> float:
+    pnl = 0.0
+    for (kind, direction, strike), leg_fill in zip(legs_meta, fill.leg_fills):
+        row = _option_row(
+            chain,
+            expiry=pd.Timestamp(chain["expiry"].dropna().iloc[0]).date(),
+            strike=float(strike),
+            option_type=kind,
+        )
+        exit_mid = _finite_float(row.get("exit_mid"))
+        if exit_mid is None:
+            raise ValueError(f"missing SPY exit mid for {kind} {strike:g}")
+        units = CORE_QUANTITY * CORE_MULTIPLIER
+        if direction == "long":
+            pnl += (exit_mid - leg_fill.fill_price) * units
+        else:
+            pnl += (leg_fill.fill_price - exit_mid) * units
+    return float(pnl - fill.total_commission_usd)
 
 
 # ---------------------------------------------------------------------------
@@ -1226,19 +1497,20 @@ def build_year1_training_frame(
     cache: dict[str, Any],
     *,
     rng: np.random.Generator | None = None,
+    allow_synthetic: bool = True,
 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray]:
     """Construct (X_features, y_a, y_b, realized_returns) from the Year-1 cache.
 
     For each Year-1 satellite event:
       1) Build feature row from the cached chain.
-      2) Simulate the realized outcome (synthetic) so we have a target.
+      2) Compute the realized outcome from real entry/exit mids when available.
       3) Compute Model A target (raw straddle return) and Model B target
          (return / max(expected_event_risk, risk_floor)).
 
-    The synthetic outcome generator is deterministic given a seed so the
-    twin-model verdict is reproducible. In a production run with real
-    realized returns, the same (X, y_a, y_b, realized) shape applies; the
-    synthetic step is gated by --allow-empty-cache.
+    The synthetic outcome generator is only used when ``allow_synthetic=True``
+    (smoke tests / empty-cache mode). Official strict runs train from real
+    priced entry/exit mids and silently skip rows that cannot produce a real
+    outcome.
     """
     rng = rng if rng is not None else np.random.default_rng(SYNTHETIC_SEED)
     events = build_earnings_events(cache)
@@ -1247,16 +1519,30 @@ def build_year1_training_frame(
 
     rows: list[dict[str, float]] = []
     realized: list[float] = []
-    iv_series: list[float] = []
     payload: list[dict[str, Any]] = []
     for ev in events:
         chain = cache["chains"].get((ev.ticker, ev.event_date))
         if chain is None:
             continue
-        feats = build_feature_row(ev, chain)
-        outcome = synth_realized_outcome(ev, rng)
+        try:
+            feats = build_feature_row(ev, chain)
+            strike = _select_atm_strike(chain, ev.spot_at_decision)
+            _orders, _quotes, call_mid, put_mid = build_satellite_legs_and_quotes(
+                chain, ev.nearest_expiry, strike
+            )
+            outcome = _realized_satellite_outcome(
+                ev,
+                chain,
+                strike=strike,
+                call_entry_mid=call_mid,
+                put_entry_mid=put_mid,
+            )
+        except (KeyError, ValueError):
+            if not allow_synthetic:
+                continue
+            feats = build_feature_row(ev, chain)
+            outcome = synth_realized_outcome(ev, rng)
         rows.append(feats)
-        iv_series.append(ev.pre_event_atm_iv_5d)
         realized.append(outcome["realized_5d_straddle_return"])
         payload.append({
             "ticker": ev.ticker,
@@ -1291,6 +1577,9 @@ def replay_year2(
     synthetic_spy_chains: bool = True,
     allow_synthetic: bool = False,
     spy_priced_dir: Path | None = None,
+    satellite_model: TrainedModel | None = None,
+    satellite_model_version: str = MODEL_VERSION,
+    satellite_signal_threshold: float = SATELLITE_SIGNAL_THRESHOLD,
 ) -> dict[str, Any]:
     """Walk every Year 2 candidate event, write rows, return per-event arrays.
 
@@ -1387,20 +1676,53 @@ def replay_year2(
             continue
         try:
             feats = build_feature_row(ev, chain)
+            strike = _select_atm_strike(chain, ev.spot_at_decision)
+            orders, quotes, call_mid, put_mid = build_satellite_legs_and_quotes(
+                chain, ev.nearest_expiry, strike
+            )
         except Exception:
             continue
-        outcome = synth_realized_outcome(ev, rng)
-        feature_rows.append(feats)
-
-        # Build long-straddle position.
         try:
-            orders, quotes, call_mid, put_mid = build_satellite_legs_and_quotes(
-                chain, ev.nearest_expiry, _select_atm_strike(chain, ev.spot_at_decision)
+            outcome = _realized_satellite_outcome(
+                ev,
+                chain,
+                strike=strike,
+                call_entry_mid=call_mid,
+                put_entry_mid=put_mid,
             )
         except ValueError:
-            continue
+            if allow_synthetic:
+                outcome = synth_realized_outcome(ev, rng)
+            else:
+                dropped.append(
+                    {
+                        "ticker": ev.ticker,
+                        "event_date": ev.event_date,
+                        "reason": "no_exit_price",
+                        "source": chain_sources_map.get(
+                            (ev.ticker, ev.event_date), "priced"
+                        ),
+                    }
+                )
+                _maybe_update_progress(
+                    status, idx, n_events, trades_placed, trades_blocked
+                )
+                continue
+        feature_rows.append(feats)
+
         premium = call_mid + put_mid
         max_loss = premium * SATELLITE_MULTIPLIER * SATELLITE_QUANTITY
+
+        if satellite_model is not None:
+            signal_score = _predict_signal_score(satellite_model, feats)
+            signal_threshold = satellite_signal_threshold
+            signal_pass = signal_score > satellite_signal_threshold
+            model_version = satellite_model_version
+        else:
+            signal_score = premium
+            signal_threshold = 0.0
+            signal_pass = True
+            model_version = MODEL_VERSION
 
         # Crude Greeks for risk envelope (long ATM straddle: delta~0, gamma+, vega+).
         candidate = CandidatePosition(
@@ -1415,10 +1737,20 @@ def replay_year2(
             max_loss_usd=max_loss,
         )
         risk = evaluate_envelope(candidate, portfolio_state)
+        approved = bool(signal_pass and risk.passed)
+        if not signal_pass:
+            block_reason = (
+                f"model signal {signal_score:.6g} <= threshold "
+                f"{signal_threshold:.6g}"
+            )
+        elif not risk.passed:
+            block_reason = f"risk gates failed: {risk.failed_gates}"
+        else:
+            block_reason = None
         decision_at_utc = _decision_iso(ev.decision_date)
         summary_str = (
             f"ENTRY:long_straddle {ev.ticker} {candidate.notional_usd:.0f} "
-            f"strike={orders[0].intended_mid_price + orders[1].intended_mid_price:.2f}premium "
+            f"premium={premium:.2f} "
             f"exp={ev.nearest_expiry.isoformat()}"
         )
         decision_id = insert_gate_decision(
@@ -1429,18 +1761,19 @@ def replay_year2(
             sleeve="satellite",
             candidate_summary=summary_str,
             risk_pass=risk.passed,
-            block_reason=None if risk.passed else f"risk gates failed: {risk.failed_gates}",
-            final_decision="approved" if risk.passed else "blocked",
-            model_version=MODEL_VERSION,
-            signal_score=premium,
-            signal_threshold=0.0,
+            block_reason=block_reason,
+            final_decision="approved" if approved else "blocked",
+            model_version=model_version,
+            signal_score=signal_score,
+            signal_threshold=signal_threshold,
+            signal_pass=1 if signal_pass else 0,
         )
 
         # Per-event chain source: priced when augment-script parquet was loaded,
         # synthetic otherwise (i.e. synthesize_year_cache or metadata fallback).
         ev_chain_source = chain_sources_map.get((ev.ticker, ev.event_date), "synthetic")
 
-        if not risk.passed:
+        if not approved:
             trades_blocked += 1
             strat_returns.append(0.0)
             underlying_moves.append(outcome["realized_5d_return"])
@@ -1456,14 +1789,11 @@ def replay_year2(
             orders, quotes, cost_stress_multiplier=cost_stress_multiplier
         )
         net_debit = -fill.net_credit_or_debit_usd  # long straddle pays a debit
-        # Realized P&L: payoff at expiry/exit minus debit. We approximate the
-        # exit using the synthetic underlying move and treat the straddle as a
-        # proxy whose P&L = max(0, |move|*spot_qty*mult) - debit_at_entry.
-        spot = float(ev.spot_at_decision)
-        move_abs = abs(outcome["realized_5d_return"]) * spot
-        payoff = max(0.0, move_abs) * SATELLITE_QUANTITY * SATELLITE_MULTIPLIER * 0.6
-        realized_pnl = payoff - max(0.0, net_debit)
-        strat_returns.append(payoff / max(1.0, max_loss) - net_debit / max(1.0, max_loss))
+        exit_value = float(outcome.get("exit_straddle_value", premium)) * (
+            SATELLITE_QUANTITY * SATELLITE_MULTIPLIER
+        )
+        realized_pnl = exit_value - max(0.0, net_debit)
+        strat_returns.append(realized_pnl / max(1.0, max_loss))
         underlying_moves.append(outcome["realized_5d_return"])
         pre_iv.append(ev.pre_event_atm_iv_5d)
         trade_sources.append(ev_chain_source)
@@ -1479,12 +1809,22 @@ def replay_year2(
                     "direction": order.direction,
                     "quantity": order.quantity,
                     "multiplier": order.multiplier,
-                    "strike": _select_atm_strike(chain, spot),
+                    "strike": strike,
                     "expiry": ev.nearest_expiry.isoformat(),
                     "entry_intended_price": order.intended_mid_price,
                     "entry_fill_price": leg_fill.fill_price,
-                    "exit_intended_price": order.intended_mid_price,
-                    "exit_fill_price": order.intended_mid_price,  # neutral exit at mid
+                    "exit_intended_price": _option_row(
+                        chain,
+                        expiry=ev.nearest_expiry,
+                        strike=strike,
+                        option_type=order.instrument_type,
+                    ).get("exit_mid"),
+                    "exit_fill_price": _option_row(
+                        chain,
+                        expiry=ev.nearest_expiry,
+                        strike=strike,
+                        option_type=order.instrument_type,
+                    ).get("exit_mid"),
                 }
             )
         exit_iso = _decision_iso(
@@ -1564,17 +1904,20 @@ def replay_year2(
             continue
 
         try:
-            spec = construct_iron_condor(
-                spy_chain,
-                underlying="SPY",
-                expiry=entry_day + timedelta(days=37),
-                target_short_delta=CORE_TARGET_SHORT_DELTA,
-                wing_width=CORE_WING_WIDTH_USD,
-            )
+            if spy_source == "priced":
+                spec = _construct_priced_spy_condor(spy_chain)
+            else:
+                spec = construct_iron_condor(
+                    spy_chain,
+                    underlying="SPY",
+                    expiry=entry_day + timedelta(days=37),
+                    target_short_delta=CORE_TARGET_SHORT_DELTA,
+                    wing_width=CORE_WING_WIDTH_USD,
+                )
         except ValueError:
             continue
         try:
-            credit = compute_entry_credit(spy_chain, spec)
+            credit = _compute_condor_entry_credit(spy_chain, spec)
         except ValueError:
             continue
 
@@ -1631,7 +1974,8 @@ def replay_year2(
                 orders = []
                 break
             row = sub.iloc[0]
-            mid = 0.5 * (float(row["bid"]) + float(row["ask"]))
+            quote = _quote_from_row(row, label=f"SPY {kind} {strike:g}")
+            mid = quote.mid
             orders.append(
                 LegOrder(
                     instrument_type=kind,
@@ -1641,21 +1985,49 @@ def replay_year2(
                     intended_mid_price=mid,
                 )
             )
-            quotes.append(Quote(bid=float(row["bid"]), ask=float(row["ask"])))
+            quotes.append(quote)
         if not orders:
             continue
         fill = simulate_trade_fill(
             orders, quotes, cost_stress_multiplier=cost_stress_multiplier
         )
-        # Realized P&L: take credit, hold to expiry. Approx outcome: a fraction
-        # of credit captured = 50% on average for an IC at 12-delta with 30-45 DTE.
-        captured = float(rng.uniform(-2.0, 1.0)) * credit * spec.multiplier * spec.quantity / 4.0
-        realized_pnl = captured - fill.total_commission_usd
+        if spy_source == "priced":
+            try:
+                realized_pnl = _realized_condor_pnl_usd(spy_chain, legs_meta, fill)
+            except ValueError:
+                dropped.append(
+                    {
+                        "ticker": "SPY",
+                        "event_date": entry_day,
+                        "reason": "no_exit_price",
+                        "source": "priced",
+                    }
+                )
+                continue
+        else:
+            # Synthetic smoke-test fallback only.
+            captured = (
+                float(rng.uniform(-2.0, 1.0))
+                * credit
+                * spec.multiplier
+                * spec.quantity
+                / 4.0
+            )
+            realized_pnl = captured - fill.total_commission_usd
 
         legs = []
         for leg_no, ((kind, direction, strike), order, leg_fill) in enumerate(
             zip(legs_meta, orders, fill.leg_fills), start=1
         ):
+            if spy_source == "priced":
+                exit_price = _option_row(
+                    spy_chain,
+                    expiry=spec.expiry,
+                    strike=float(strike),
+                    option_type=kind,
+                ).get("exit_mid")
+            else:
+                exit_price = order.intended_mid_price
             legs.append(
                 {
                     "leg_number": leg_no,
@@ -1667,8 +2039,8 @@ def replay_year2(
                     "expiry": spec.expiry.isoformat(),
                     "entry_intended_price": order.intended_mid_price,
                     "entry_fill_price": leg_fill.fill_price,
-                    "exit_intended_price": order.intended_mid_price,
-                    "exit_fill_price": order.intended_mid_price,
+                    "exit_intended_price": exit_price,
+                    "exit_fill_price": exit_price,
                 }
             )
         exit_iso = _decision_iso(spec.expiry)
@@ -2049,7 +2421,11 @@ def main(argv: list[str] | None = None) -> int:
         # --- Train models on Year 1 ---
         status.set_phase("train")
         status.set_stage("train_models", "running")
-        X, y_a, y_b, realized = build_year1_training_frame(year1, rng=rng)
+        X, y_a, y_b, realized = build_year1_training_frame(
+            year1,
+            rng=rng,
+            allow_synthetic=effective_allow_synthetic,
+        )
         if len(X) < 8:
             raise RuntimeError(
                 f"insufficient Year 1 events to train ({len(X)} rows). "
@@ -2118,7 +2494,18 @@ def main(argv: list[str] | None = None) -> int:
                 synthetic_spy_chains=synthetic_spy_chains,
                 allow_synthetic=effective_allow_synthetic,
                 spy_priced_dir=spy_priced_dir if spy_priced_dir.exists() else None,
+                satellite_model=model_b if comparison.b_beats_a else model_a,
+                satellite_model_version=(
+                    MODEL_VERSION if comparison.b_beats_a else "lightgbm_modelA_paper_v1_evidence"
+                ),
+                satellite_signal_threshold=SATELLITE_SIGNAL_THRESHOLD,
             )
+            n_dropped = int(replay.get("events_dropped_no_pricing", 0))
+            if n_dropped > 0 and not effective_allow_synthetic:
+                raise RuntimeError(
+                    "official paper_v1 verdict requires a complete priced Year 2 "
+                    f"sample; {n_dropped} candidate event(s) were dropped"
+                )
 
             # --- Compute gates ---
             status.set_phase("compute")
@@ -2139,7 +2526,6 @@ def main(argv: list[str] | None = None) -> int:
             report = evaluate_full(base_inputs, plus50_inputs)
             gate_data_source = _compute_gate_data_source(replay.get("trade_sources", []))
             sample_warning: str | None = None
-            n_dropped = int(replay.get("events_dropped_no_pricing", 0))
             if n_dropped > 0:
                 sample_warning = (
                     f"verdict computed on a reduced sample: "
