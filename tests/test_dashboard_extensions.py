@@ -13,10 +13,13 @@ from pathlib import Path
 
 from dashboard.app import (
     count_satellite_events,
+    count_priced_chain_files,
     fetch_run_equity_curve,
+    filter_paper_v1_processes,
     get_system_snapshot,
     is_status_stale,
     read_paper_v1_status,
+    tail_text_file,
     total_polygon_api_calls,
 )
 
@@ -281,6 +284,44 @@ def test_total_polygon_api_calls_returns_none_when_absent():
     assert total_polygon_api_calls(None) is None
     assert total_polygon_api_calls({}) is None
     assert total_polygon_api_calls({"stages": {"x": {"status": "ok"}}}) is None
+
+
+# ---------------------------------------------------------------------------
+# Behind-the-scenes helpers
+# ---------------------------------------------------------------------------
+
+
+def test_count_priced_chain_files_by_year(tmp_path):
+    for path in (
+        tmp_path / "year1" / "chains_priced" / "AAPL" / "2024-08-01.parquet",
+        tmp_path / "year1" / "chains_priced" / "MSFT" / "2024-10-24.parquet",
+        tmp_path / "year2" / "chains_priced" / "NVDA" / "2025-08-27.parquet",
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"marker")
+
+    out = count_priced_chain_files(tmp_path)
+    assert out == {"year1": 2, "year2": 1, "total": 3}
+
+
+def test_tail_text_file_returns_last_lines(tmp_path):
+    log = tmp_path / "paper_v1_augment.log"
+    log.write_text("\n".join(f"line {i}" for i in range(10)))
+
+    assert tail_text_file(log, max_lines=3) == ["line 7", "line 8", "line 9"]
+    assert tail_text_file(tmp_path / "missing.log", max_lines=3) == []
+
+
+def test_filter_paper_v1_processes_keeps_relevant_commands():
+    processes = [
+        {"pid": 1, "cmdline": "python scripts/augment_chain_pricing.py"},
+        {"pid": 2, "cmdline": "python scripts/run_paper_v1_evidence.py"},
+        {"pid": 3, "cmdline": "python worker.py"},
+        {"pid": 4, "cmdline": "streamlit run dashboard/app.py"},
+    ]
+
+    out = filter_paper_v1_processes(processes)
+    assert [p["pid"] for p in out] == [1, 2, 4]
 
 
 # ---------------------------------------------------------------------------

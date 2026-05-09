@@ -35,6 +35,7 @@ def mod(monkeypatch, tmp_path):
     m = _import_module()
     monkeypatch.setattr(m, "STATUS_FILE", tmp_path / "status.json")
     monkeypatch.setattr(m, "DEFAULT_CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(m, "DEFAULT_LOG_FILE", tmp_path / "paper_v1_augment.log")
     return m
 
 
@@ -558,6 +559,7 @@ def test_parse_args_defaults(mod):
     assert ns.year == "both"
     assert ns.max_events is None
     assert ns.skip_spy_core is False
+    assert ns.log_file == mod.DEFAULT_LOG_FILE
 
 
 def test_parse_args_year(mod):
@@ -575,9 +577,24 @@ def test_parse_args_skip_spy_core(mod):
     assert ns.skip_spy_core is True
 
 
+def test_parse_args_log_file(mod, tmp_path):
+    log_file = tmp_path / "custom.log"
+    ns = mod.parse_args(["--log-file", str(log_file)])
+    assert ns.log_file == log_file
+
+
 def test_parse_args_invalid_year(mod):
     with pytest.raises(SystemExit):
         mod.parse_args(["--year", "year3"])
+
+
+def test_configure_logging_writes_log_file(mod, tmp_path):
+    log_file = tmp_path / "logs" / "augment.log"
+    mod.configure_logging(log_file)
+    mod.logger.info("hello augment log")
+
+    text = log_file.read_text()
+    assert "hello augment log" in text
 
 
 # ---------------------------------------------------------------------------
@@ -666,6 +683,8 @@ def test_main_end_to_end_synthetic(tmp_path, mod, monkeypatch):
         "--skip-spy-core",
     ])
     assert rc == 0
+    assert mod.DEFAULT_LOG_FILE.exists()
+    assert "starting chain pricing augment" in mod.DEFAULT_LOG_FILE.read_text()
 
     # 3 priced parquets.
     out_dir = cache_dir / "year1" / "chains_priced" / "AAPL"
@@ -681,6 +700,7 @@ def test_main_end_to_end_synthetic(tmp_path, mod, monkeypatch):
     assert stage["done"] == 3
     assert stage["total"] == 3
     assert stage["files_written"] == 3
+    assert stage["current_substage"] == "year_complete"
 
 
 def test_main_resume_skips_already_priced(tmp_path, mod, monkeypatch):

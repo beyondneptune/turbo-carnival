@@ -27,6 +27,7 @@ import streamlit as st
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = REPO_ROOT / "data" / "trading_system.db"
 PAPER_V1_STATUS_PATH = REPO_ROOT / "data" / "paper_v1_status.json"
+PAPER_V1_LOG_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_augment.log"
 STALE_THRESHOLD_SECONDS = 30 * 60  # 30 minutes
 SATELLITE_SAMPLE_TARGET = 50  # gate red/green threshold for sample size
 
@@ -112,6 +113,14 @@ def get_paper_v1_status_path() -> Path:
     if override:
         return Path(override).expanduser().resolve()
     return PAPER_V1_STATUS_PATH
+
+
+def get_paper_v1_log_path() -> Path:
+    """Return the configured paper_v1 augment log path (env override allowed)."""
+    override = os.environ.get("PAPER_V1_LOG_PATH")
+    if override:
+        return Path(override).expanduser().resolve()
+    return PAPER_V1_LOG_PATH
 
 
 def read_paper_v1_status(path: Path | None = None) -> dict[str, Any] | None:
@@ -225,6 +234,71 @@ def total_polygon_api_calls(status: dict[str, Any] | None) -> int | None:
             total += int(api_calls)
             found_any = True
     return total if found_any else None
+
+
+def count_priced_chain_files(cache_root: Path | None = None) -> dict[str, int]:
+    """Count priced chain parquet files by paper_v1 year."""
+    root = cache_root if cache_root is not None else (REPO_ROOT / "data" / "cache")
+    out: dict[str, int] = {}
+    total = 0
+    for year in ("year1", "year2"):
+        chain_dir = root / year / "chains_priced"
+        count = 0
+        if chain_dir.exists():
+            count = sum(1 for p in chain_dir.glob("*/*.parquet") if p.is_file())
+        out[year] = count
+        total += count
+    out["total"] = total
+    return out
+
+
+def tail_text_file(
+    path: Path,
+    *,
+    max_lines: int = 100,
+    max_bytes: int = 200_000,
+) -> list[str]:
+    """Return the last lines of a text file without loading a huge log."""
+    if max_lines <= 0 or max_bytes <= 0 or not path.exists():
+        return []
+    try:
+        with path.open("rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            size = fh.tell()
+            fh.seek(max(0, size - max_bytes))
+            data = fh.read()
+    except OSError:
+        return []
+    text = data.decode("utf-8", errors="replace")
+    lines = text.splitlines()
+    return lines[-max_lines:]
+
+
+def filter_paper_v1_processes(processes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return process rows that belong to the paper_v1 fetch/augment/run stack."""
+    needles = (
+        "augment_chain_pricing.py",
+        "run_paper_v1_evidence.py",
+        "fetch_paper_v1_data.py",
+        "streamlit run dashboard/app.py",
+    )
+    out: list[dict[str, Any]] = []
+    for proc in processes:
+        cmdline = str(proc.get("cmdline") or "")
+        if any(needle in cmdline for needle in needles):
+            out.append(proc)
+    return out
+
+
+def _running_stage_payload(status: dict[str, Any]) -> tuple[str, dict[str, Any]] | tuple[None, None]:
+    """Return the first running stage payload, if any."""
+    stages = status.get("stages")
+    if not isinstance(stages, dict):
+        return None, None
+    for name, payload in stages.items():
+        if isinstance(payload, dict) and payload.get("status") == "running":
+            return str(name), payload
+    return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -664,6 +738,102 @@ def _render_stage_progress(stages: dict[str, Any]) -> None:
                 )
 
 
+def _render_behind_the_scenes(status: dict[str, Any], status_path: Path) -> None:
+    """Render live observability for the current paper_v1 background process."""
+    st.markdown("### 🔬 Behind the scenes")
+
+    stage_name, stage = _running_stage_payload(status)
+    stage = stage or {}
+    priced_counts = count_priced_chain_files()
+
+    substage = (
+        stage.get("current_substage")
+        or stage.get("substage")
+        or status.get("current_substage")
+        or "—"
+    )
+    current_ticker = stage.get("current_ticker") or status.get("current_ticker") or "—"
+    current_event = (
+        stage.get("current_event_date")
+        or stage.get("current_entry_date")
+        or status.get("current_event_date")
+        or "—"
+    )
+    done = stage.get("done")
+    total = stage.get("total")
+    files_written = stage.get("files_written")
+
+    metric_cols = st.columns(4)
+    metric_cols[0].metric(
+        "Active stage",
+        stage_name or str(status.get("phase") or "—"),
+        delta=str(stage.get("status") or status.get("phase") or "—"),
+        delta_color="off",
+        border=True,
+    )
+    metric_cols[1].metric(
+        "Substage",
+        str(substage),
+        delta=f"{current_ticker} {current_event}".strip(),
+        delta_color="off",
+        border=True,
+    )
+    metric_cols[2].metric(
+        "Progress",
+        f"{int(done):,} / {int(total):,}" if isinstance(done, (int, float)) and isinstance(total, (int, float)) else "—",
+        delta=f"{int(files_written):,} files written" if isinstance(files_written, (int, float)) else None,
+        delta_color="off",
+        border=True,
+    )
+    metric_cols[3].metric(
+        "Priced chain files",
+        f"{priced_counts['total']:,}",
+        delta=f"Y1 {priced_counts['year1']:,} · Y2 {priced_counts['year2']:,}",
+        delta_color="off",
+        border=True,
+    )
+
+    if isinstance(done, (int, float)) and isinstance(total, (int, float)) and total > 0:
+        pct = max(0.0, min(1.0, float(done) / float(total)))
+        st.progress(pct, text=f"{int(done):,} / {int(total):,} current-stage items ({pct*100:.0f}%)")
+
+    snap = get_system_snapshot()
+    procs = filter_paper_v1_processes(snap.get("processes") or [])
+    proc_cols = st.columns(2)
+    with proc_cols[0]:
+        st.markdown("#### Python processes")
+        if procs:
+            proc_df = pd.DataFrame(procs).sort_values("pid").reset_index(drop=True)
+            st.dataframe(
+                proc_df,
+                use_container_width=True,
+                hide_index=True,
+                height=min(220, 40 + 32 * len(proc_df)),
+            )
+        else:
+            _empty_state("🐍", "No paper_v1 process found", "The process may have exited or be outside psutil visibility.")
+    with proc_cols[1]:
+        st.markdown("#### Files")
+        st.markdown(
+            f"`{status_path}`\n\n"
+            f"`{get_paper_v1_log_path()}`\n\n"
+            f"Snapshot: `{snap['timestamp_utc']}`"
+        )
+
+    log_lines = tail_text_file(get_paper_v1_log_path(), max_lines=120)
+    st.markdown("#### Live log tail")
+    if log_lines:
+        st.code("\n".join(log_lines), language="text")
+    else:
+        st.info(
+            "No augment log file yet. The dashboard can still show status/process/file counts; "
+            "line-by-line logs appear after the upgraded augment script is used on the next run."
+        )
+
+    with st.expander("Raw status JSON"):
+        st.json(status)
+
+
 def _render_twin_model(twin: dict[str, Any]) -> None:
     """Twin-model verdict — three metric cards + verdict banner."""
 
@@ -897,6 +1067,10 @@ def show_paper_v1_run(conn: sqlite3.Connection | None) -> None:
         _render_stage_progress(stages)
     else:
         _empty_state("🧭", "No stage records yet", "Stages appear once the orchestrator boots.")
+
+    st.divider()
+
+    _render_behind_the_scenes(status, status_path)
 
     st.divider()
 

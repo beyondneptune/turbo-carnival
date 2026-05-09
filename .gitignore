@@ -24,6 +24,8 @@ config/api_keys.yaml
 *.pem
 
 # Data lake — too large for git, regenerable from APIs
+data/
+!data/.gitkeep
 data/options_chains/
 data/prices/
 data/earnings/

@@ -62,6 +62,7 @@ logger = logging.getLogger("augment_chain_pricing")
 
 DEFAULT_CACHE_DIR = REPO_ROOT / "data" / "cache"
 STATUS_FILE = REPO_ROOT / "data" / "paper_v1_status.json"
+DEFAULT_LOG_FILE = REPO_ROOT / "data" / "logs" / "paper_v1_augment.log"
 
 # Year windows must match scripts/fetch_paper_v1_data.py and
 # scripts/run_paper_v1_evidence.py — keep these constants in sync if the
@@ -129,6 +130,20 @@ def _read_json(target: Path) -> dict:
     except (OSError, ValueError):
         logger.warning("status file %s unreadable; starting fresh", target)
         return {}
+
+
+def configure_logging(log_file: Path | None = DEFAULT_LOG_FILE) -> None:
+    """Send augment logs to stderr and, when configured, a persistent log file."""
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if log_file is not None:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        handlers=handlers,
+        force=True,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -862,17 +877,41 @@ def _augment_year(
         "running",
         status_file=status_file,
         phase="augmenting",
+        current_substage="satellite_daily_preload",
         done=0,
         total=len(work),
         pending=len(pending),
         files_written=0,
+        daily_done=0,
+        daily_total=len({t for (t, _d, _p) in pending}),
     )
 
     # Per-ticker daily caches — one Polygon call per ticker, idempotent.
     tickers_in_play = sorted({t for (t, _d, _p) in pending})
     daily_by_ticker: dict[str, pd.DataFrame] = {}
-    for ticker in tickers_in_play:
+    for daily_done, ticker in enumerate(tickers_in_play, start=1):
         target = cache_path_underlying_daily(ticker, year=year, base_dir=base_dir)
+        write_status(
+            stage,
+            "running",
+            status_file=status_file,
+            phase="augmenting",
+            current_substage="satellite_daily_preload",
+            current_ticker=ticker,
+            done=0,
+            total=len(work),
+            pending=len(pending),
+            files_written=0,
+            daily_done=daily_done - 1,
+            daily_total=len(tickers_in_play),
+        )
+        logger.info(
+            "%s daily preload %s/%s ticker=%s",
+            year,
+            daily_done,
+            len(tickers_in_play),
+            ticker,
+        )
         try:
             daily_by_ticker[ticker] = fetch_underlying_daily(
                 client, ticker,
@@ -883,23 +922,100 @@ def _augment_year(
         except PolygonError as exc:
             logger.warning("daily fetch failed for %s: %s", ticker, exc)
             daily_by_ticker[ticker] = pd.DataFrame()
+        write_status(
+            stage,
+            "running",
+            status_file=status_file,
+            phase="augmenting",
+            current_substage="satellite_daily_preload",
+            current_ticker=ticker,
+            done=0,
+            total=len(work),
+            pending=len(pending),
+            files_written=0,
+            daily_done=daily_done,
+            daily_total=len(tickers_in_play),
+        )
 
     files_written = 0
     done = 0
     for ticker, event_date, target_path in work:
         if target_path.exists():
             done += 1
+            if done % 5 == 0 or done == len(work):
+                write_status(
+                    stage,
+                    "running",
+                    status_file=status_file,
+                    phase="augmenting",
+                    current_substage="satellite_event_pricing",
+                    current_ticker=ticker,
+                    current_event_date=event_date.isoformat(),
+                    done=done,
+                    total=len(work),
+                    pending=max(0, len(work) - done),
+                    files_written=files_written,
+                )
             continue
+        write_status(
+            stage,
+            "running",
+            status_file=status_file,
+            phase="augmenting",
+            current_substage="satellite_event_pricing",
+            current_ticker=ticker,
+            current_event_date=event_date.isoformat(),
+            done=done,
+            total=len(work),
+            pending=max(0, len(work) - done),
+            files_written=files_written,
+        )
+        logger.info(
+            "%s satellite pricing %s/%s ticker=%s event_date=%s",
+            year,
+            done + 1,
+            len(work),
+            ticker,
+            event_date,
+        )
         chain_path = cache_path_chain(ticker, event_date, year=year, base_dir=base_dir)
         if not chain_path.exists():
             logger.info("no chain metadata for %s %s; skipping", ticker, event_date)
             done += 1
+            if done % 5 == 0 or done == len(work):
+                write_status(
+                    stage,
+                    "running",
+                    status_file=status_file,
+                    phase="augmenting",
+                    current_substage="satellite_event_pricing",
+                    current_ticker=ticker,
+                    current_event_date=event_date.isoformat(),
+                    done=done,
+                    total=len(work),
+                    pending=max(0, len(work) - done),
+                    files_written=files_written,
+                )
             continue
         try:
             chain_metadata = pd.read_parquet(chain_path)
         except Exception as exc:  # pragma: no cover — defensive
             logger.warning("unreadable chain %s: %s", chain_path, exc)
             done += 1
+            if done % 5 == 0 or done == len(work):
+                write_status(
+                    stage,
+                    "running",
+                    status_file=status_file,
+                    phase="augmenting",
+                    current_substage="satellite_event_pricing",
+                    current_ticker=ticker,
+                    current_event_date=event_date.isoformat(),
+                    done=done,
+                    total=len(work),
+                    pending=max(0, len(work) - done),
+                    files_written=files_written,
+                )
             continue
         underlying_daily = daily_by_ticker.get(ticker, pd.DataFrame())
         try:
@@ -926,8 +1042,12 @@ def _augment_year(
                 "running",
                 status_file=status_file,
                 phase="augmenting",
+                current_substage="satellite_event_pricing",
+                current_ticker=ticker,
+                current_event_date=event_date.isoformat(),
                 done=done,
                 total=len(work),
+                pending=max(0, len(work) - done),
                 files_written=files_written,
             )
 
@@ -947,8 +1067,10 @@ def _augment_year(
         "complete",
         status_file=status_file,
         phase="augmenting",
+        current_substage="year_complete",
         done=done,
         total=len(work),
+        pending=0,
         files_written=files_written,
         spy_core=spy_core_summary,
     )
@@ -971,6 +1093,7 @@ def _augment_spy_core_for_year(
     year_end: date,
 ) -> dict:
     """Iterate every Monday entry; price the 4 IC legs entry+exit."""
+    stage = _stage_key(year)
     yd = Path(base_dir) / year
     spy_daily_path = yd / "spy_daily.parquet"
     spy_daily = pd.read_parquet(spy_daily_path) if spy_daily_path.exists() else pd.DataFrame()
@@ -1012,12 +1135,52 @@ def _augment_spy_core_for_year(
 
     files_written = 0
     total = len(entry_dates)
-    for ed in entry_dates:
+    write_status(
+        stage,
+        "running",
+        status_file=status_file,
+        phase="augmenting",
+        current_substage="spy_core_pricing",
+        current_ticker="SPY",
+        done=0,
+        total=total,
+        files_written=0,
+    )
+    for done, ed in enumerate(entry_dates, start=1):
         target = cache_path_priced("SPY", ed, year=year, base_dir=base_dir)
+        logger.info("%s SPY core pricing %s/%s entry_date=%s", year, done, total, ed)
         if target.exists():
+            if done % 5 == 0 or done == total:
+                write_status(
+                    stage,
+                    "running",
+                    status_file=status_file,
+                    phase="augmenting",
+                    current_substage="spy_core_pricing",
+                    current_ticker="SPY",
+                    current_entry_date=ed.isoformat(),
+                    done=done,
+                    total=total,
+                    pending=max(0, total - done),
+                    files_written=files_written,
+                )
             continue
         chain = _spy_chain_for(ed)
         if chain is None or chain.empty:
+            if done % 5 == 0 or done == total:
+                write_status(
+                    stage,
+                    "running",
+                    status_file=status_file,
+                    phase="augmenting",
+                    current_substage="spy_core_pricing",
+                    current_ticker="SPY",
+                    current_entry_date=ed.isoformat(),
+                    done=done,
+                    total=total,
+                    pending=max(0, total - done),
+                    files_written=files_written,
+                )
             continue
         try:
             wrote = augment_spy_core_entry(
@@ -1035,6 +1198,20 @@ def _augment_spy_core_for_year(
             wrote = False
         if wrote:
             files_written += 1
+        if done % 5 == 0 or done == total:
+            write_status(
+                stage,
+                "running",
+                status_file=status_file,
+                phase="augmenting",
+                current_substage="spy_core_pricing",
+                current_ticker="SPY",
+                current_entry_date=ed.isoformat(),
+                done=done,
+                total=total,
+                pending=max(0, total - done),
+                files_written=files_written,
+            )
 
     return {
         "skipped": False,
@@ -1081,6 +1258,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=f"Status JSON path (default: {STATUS_FILE}).",
     )
     p.add_argument(
+        "--log-file",
+        type=Path,
+        default=DEFAULT_LOG_FILE,
+        help=f"Persistent log path (default: {DEFAULT_LOG_FILE}).",
+    )
+    p.add_argument(
         "--skip-spy-core",
         action="store_true",
         help="Debug: only run satellite augmentation; skip SPY core legs.",
@@ -1089,11 +1272,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
     args = parse_args(argv)
+    configure_logging(args.log_file)
     started = time.monotonic()
 
     write_status(
@@ -1105,6 +1285,14 @@ def main(argv: list[str] | None = None) -> int:
         year_choice=args.year,
         max_events=args.max_events,
         skip_spy_core=bool(args.skip_spy_core),
+        log_file=str(args.log_file),
+    )
+    logger.info(
+        "starting chain pricing augment year=%s cache_dir=%s status_file=%s log_file=%s",
+        args.year,
+        args.cache_dir,
+        args.status_file,
+        args.log_file,
     )
 
     try:
