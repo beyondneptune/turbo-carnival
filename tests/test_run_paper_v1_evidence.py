@@ -61,7 +61,16 @@ def test_parse_args_defaults(mod):
     assert ns.db_path == mod.DEFAULT_DB_PATH
     assert ns.run_id is None
     assert ns.allow_empty_cache is False
+    assert ns.allow_synthetic is False  # strict / fail-closed by default
     assert ns.cost_stress_multiplier == 1.0
+
+
+def test_parse_args_allow_synthetic_flag(mod):
+    """The new opt-in --allow-synthetic flag must be off by default and
+    settable on the command line."""
+    ns = mod.parse_args(["--allow-synthetic"])
+    assert ns.allow_synthetic is True
+    assert ns.allow_empty_cache is False
 
 
 def test_parse_args_custom(mod, tmp_path):
@@ -168,7 +177,11 @@ def test_synthesize_year_cache_year2_distinct_from_year1(mod):
 
 
 def test_load_year_cache_with_synthetic_files(mod, tmp_path):
-    """Round-trip: write synthetic parquets to disk, then load_year_cache reads."""
+    """Round-trip: write a legacy chains/ parquet to disk and load it.
+
+    Strict mode drops the metadata-only event; this test exercises the
+    `--allow-synthetic` fallback that the smoke-test cohort uses.
+    """
     # Write a tiny "year1" parquet layout.
     yd = tmp_path / "year1"
     (yd / "earnings_dates").mkdir(parents=True)
@@ -190,9 +203,13 @@ def test_load_year_cache_with_synthetic_files(mod, tmp_path):
     )
     sample.to_parquet(yd / "chains" / "AAPL" / "2024-08-01.parquet", index=False)
 
-    cache = mod.load_year_cache(tmp_path, "year1", universe=("AAPL",))
+    cache = mod.load_year_cache(
+        tmp_path, "year1", universe=("AAPL",), allow_synthetic=True
+    )
     assert cache["earnings_dates"]["AAPL"] == [date(2024, 8, 1)]
     assert ("AAPL", date(2024, 8, 1)) in cache["chains"]
+    # Source is metadata since it sits in chains/ rather than chains_priced/.
+    assert cache["chain_sources"][("AAPL", date(2024, 8, 1))] == "metadata"
 
 
 def test_cache_summary_zero_when_empty(mod, tmp_path):
@@ -556,3 +573,410 @@ def test_build_cost_regime_inputs_with_data(mod):
     assert inp.n_events == n
     assert np.isfinite(inp.dsr)
     assert 0.0 <= inp.pbo <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Priced cache wiring (chains_priced/) -- new tests for fail-closed behavior
+# ---------------------------------------------------------------------------
+
+
+def _build_priced_parquet_rows(
+    *,
+    ticker: str,
+    event_date: date,
+    spot: float = 100.0,
+    iv: float = 0.30,
+    expiry: date | None = None,
+    strikes: tuple[float, ...] = (95.0, 100.0, 105.0),
+    atm_strike: float = 100.0,
+    atm_iv_value: float | None = None,
+    atm_mid_value: float | None = None,
+    include_exit: bool = True,
+) -> pd.DataFrame:
+    """Build a long-format priced parquet matching the augment-script schema.
+
+    Columns: ticker, underlying_ticker, contract_type, strike_price,
+    expiration_date, as_of_date, timing, event_date, bid, ask, mid,
+    underlying_close, is_atm, atm_iv.
+    """
+    expiry = expiry or (event_date + pd.Timedelta(days=9)).date() if isinstance(
+        event_date + pd.Timedelta(days=9), pd.Timestamp
+    ) else (expiry or pd.Timestamp(event_date).date())
+    if expiry is None:
+        expiry = (pd.Timestamp(event_date) + pd.Timedelta(days=9)).date()
+    rows: list[dict] = []
+    timings = ("entry", "exit") if include_exit else ("entry",)
+    for timing in timings:
+        as_of = event_date if timing == "entry" else (
+            (pd.Timestamp(event_date) + pd.Timedelta(days=5)).date()
+        )
+        for K in strikes:
+            for ctype in ("call", "put"):
+                contract = (
+                    f"O:{ticker}{event_date.strftime('%y%m%d')}"
+                    f"{ctype[0].upper()}{int(K * 1000):08d}"
+                )
+                # Synthetic-ish ATM-aware mid.
+                base_mid = max(0.05, abs(spot - K) + 1.0)
+                is_atm = K == atm_strike
+                # Optional injection of NaN at the ATM strike.
+                if is_atm and timing == "entry" and atm_mid_value is not None:
+                    mid = atm_mid_value
+                else:
+                    mid = base_mid
+                if is_atm and atm_iv_value is not None:
+                    row_iv = atm_iv_value
+                else:
+                    row_iv = iv
+                spread = max(0.05, mid * 0.02) if mid is not None and not (
+                    isinstance(mid, float) and np.isnan(mid)
+                ) else 0.05
+                bid = (mid - spread / 2.0) if mid is not None and not (
+                    isinstance(mid, float) and np.isnan(mid)
+                ) else float("nan")
+                ask = (mid + spread / 2.0) if mid is not None and not (
+                    isinstance(mid, float) and np.isnan(mid)
+                ) else float("nan")
+                rows.append(
+                    {
+                        "ticker": contract,
+                        "underlying_ticker": ticker,
+                        "contract_type": ctype,
+                        "strike_price": float(K),
+                        "expiration_date": expiry.isoformat(),
+                        "as_of_date": as_of.isoformat(),
+                        "timing": timing,
+                        "event_date": event_date.isoformat(),
+                        "bid": bid,
+                        "ask": ask,
+                        "mid": mid,
+                        "underlying_close": float(spot),
+                        "is_atm": bool(is_atm),
+                        "atm_iv": float(row_iv) if row_iv is not None else float("nan"),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def _write_priced_parquet(
+    base_dir: Path,
+    year: str,
+    *,
+    ticker: str,
+    event_date: date,
+    **kwargs,
+) -> Path:
+    """Write a priced parquet under chains_priced/ and return the path."""
+    target_dir = base_dir / year / "chains_priced" / ticker
+    target_dir.mkdir(parents=True, exist_ok=True)
+    df = _build_priced_parquet_rows(ticker=ticker, event_date=event_date, **kwargs)
+    out = target_dir / f"{event_date.isoformat()}.parquet"
+    df.to_parquet(out, index=False)
+    return out
+
+
+def _write_metadata_parquet(
+    base_dir: Path,
+    year: str,
+    *,
+    ticker: str,
+    event_date: date,
+) -> Path:
+    """Write a legacy metadata-only parquet under chains/."""
+    target_dir = base_dir / year / "chains" / ticker
+    target_dir.mkdir(parents=True, exist_ok=True)
+    df = pd.DataFrame(
+        {
+            "ticker": [
+                f"O:{ticker}{event_date.strftime('%y%m%d')}C00100000",
+                f"O:{ticker}{event_date.strftime('%y%m%d')}P00100000",
+            ],
+            "underlying_ticker": [ticker, ticker],
+            "contract_type": ["call", "put"],
+            "strike_price": [100.0, 100.0],
+            "expiration_date": [
+                (pd.Timestamp(event_date) + pd.Timedelta(days=9)).date().isoformat(),
+                (pd.Timestamp(event_date) + pd.Timedelta(days=9)).date().isoformat(),
+            ],
+            "as_of_date": [event_date.isoformat(), event_date.isoformat()],
+            "event_date": [event_date.isoformat(), event_date.isoformat()],
+        }
+    )
+    out = target_dir / f"{event_date.isoformat()}.parquet"
+    df.to_parquet(out, index=False)
+    return out
+
+
+def _write_earnings_dates(
+    base_dir: Path,
+    year: str,
+    *,
+    ticker: str,
+    dates: list[date],
+) -> None:
+    target_dir = base_dir / year / "earnings_dates"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({"earnings_date": dates}).to_parquet(
+        target_dir / f"{ticker}.parquet", index=False
+    )
+
+
+def test_load_year_cache_prefers_priced_over_metadata(mod, tmp_path):
+    """When both a metadata parquet and a priced parquet exist for an event,
+    the loader picks the priced one and tags it source='priced'."""
+    ev = date(2025, 7, 15)
+    _write_earnings_dates(tmp_path, "year2", ticker="AAPL", dates=[ev])
+    _write_metadata_parquet(tmp_path, "year2", ticker="AAPL", event_date=ev)
+    _write_priced_parquet(tmp_path, "year2", ticker="AAPL", event_date=ev)
+
+    cache = mod.load_year_cache(
+        tmp_path, "year2", universe=("AAPL",), allow_synthetic=False
+    )
+    key = ("AAPL", ev)
+    assert key in cache["chains"]
+    assert cache["chain_sources"][key] == "priced"
+    assert cache["events_dropped"] == []
+    chain = cache["chains"][key]
+    # Normalized columns should be present.
+    for col in ("strike", "expiry", "option_type", "bid", "ask", "mid", "atm_iv"):
+        assert col in chain.columns, f"missing col {col}"
+
+
+def test_load_year_cache_falls_back_to_metadata_when_allow_synthetic(mod, tmp_path):
+    """In allow-synthetic mode, a metadata-only event is loaded with
+    source='metadata' so the orchestrator can still smoke-test plumbing."""
+    ev = date(2025, 7, 15)
+    _write_earnings_dates(tmp_path, "year2", ticker="AAPL", dates=[ev])
+    _write_metadata_parquet(tmp_path, "year2", ticker="AAPL", event_date=ev)
+    # No chains_priced/AAPL/2025-07-15.parquet -> must fall back.
+
+    cache = mod.load_year_cache(
+        tmp_path, "year2", universe=("AAPL",), allow_synthetic=True
+    )
+    key = ("AAPL", ev)
+    assert key in cache["chains"]
+    assert cache["chain_sources"][key] == "metadata"
+    assert cache["events_dropped"] == []
+
+
+def test_load_year_cache_strict_drops_event_when_only_metadata(mod, tmp_path):
+    """Strict mode (default): no chains_priced/ parquet => event dropped from
+    the universe and recorded in events_dropped with reason='no_pricing'."""
+    ev = date(2025, 7, 15)
+    _write_earnings_dates(tmp_path, "year2", ticker="AAPL", dates=[ev])
+    _write_metadata_parquet(tmp_path, "year2", ticker="AAPL", event_date=ev)
+
+    cache = mod.load_year_cache(
+        tmp_path, "year2", universe=("AAPL",), allow_synthetic=False
+    )
+    key = ("AAPL", ev)
+    assert key not in cache["chains"]
+    assert key not in cache["chain_sources"]
+    drop_keys = [(d["ticker"], d["event_date"]) for d in cache["events_dropped"]]
+    assert ("AAPL", ev) in drop_keys
+    reasons = {d["reason"] for d in cache["events_dropped"] if d["ticker"] == "AAPL"}
+    assert "no_pricing" in reasons
+
+
+def test_load_year_cache_drops_priced_with_nan_atm_iv(mod, tmp_path):
+    """A priced parquet with NaN atm_iv at the ATM strike must be dropped
+    with reason='no_atm_iv' even though the file exists."""
+    ev = date(2025, 7, 15)
+    _write_earnings_dates(tmp_path, "year2", ticker="AAPL", dates=[ev])
+    _write_priced_parquet(
+        tmp_path, "year2", ticker="AAPL", event_date=ev,
+        atm_iv_value=float("nan"),
+    )
+
+    cache = mod.load_year_cache(
+        tmp_path, "year2", universe=("AAPL",), allow_synthetic=False
+    )
+    assert ("AAPL", ev) not in cache["chains"]
+    drop = [d for d in cache["events_dropped"] if d["ticker"] == "AAPL"]
+    assert drop and drop[0]["reason"] == "no_atm_iv"
+
+
+def test_load_year_cache_drops_priced_with_nan_entry_mid(mod, tmp_path):
+    """A priced parquet with NaN mid at the ATM strike triggers
+    drop reason='no_entry_price'."""
+    ev = date(2025, 7, 15)
+    _write_earnings_dates(tmp_path, "year2", ticker="AAPL", dates=[ev])
+    _write_priced_parquet(
+        tmp_path, "year2", ticker="AAPL", event_date=ev,
+        atm_mid_value=float("nan"),
+    )
+
+    cache = mod.load_year_cache(
+        tmp_path, "year2", universe=("AAPL",), allow_synthetic=False
+    )
+    assert ("AAPL", ev) not in cache["chains"]
+    drop = [d for d in cache["events_dropped"] if d["ticker"] == "AAPL"]
+    assert drop and drop[0]["reason"] == "no_entry_price"
+
+
+def test_synthetic_spy_chains_auto_disables_when_priced_exists(mod, tmp_path):
+    """When chains_priced/SPY/<date>.parquet exists for the year and
+    --allow-synthetic is off, _resolve_synthetic_spy_chains must return False."""
+    spy_dir = tmp_path / "year2" / "chains_priced" / "SPY"
+    spy_dir.mkdir(parents=True)
+    # Create one parquet so the dir is non-empty.
+    df = _build_priced_parquet_rows(
+        ticker="SPY",
+        event_date=date(2025, 7, 14),
+        spot=500.0,
+        iv=0.16,
+        strikes=(495.0, 500.0, 505.0),
+        atm_strike=500.0,
+    )
+    df.to_parquet(spy_dir / "2025-07-14.parquet", index=False)
+
+    assert (
+        mod._resolve_synthetic_spy_chains(tmp_path, "year2", allow_synthetic=False)
+        is False
+    )
+    # --allow-synthetic forces synthetic regardless.
+    assert (
+        mod._resolve_synthetic_spy_chains(tmp_path, "year2", allow_synthetic=True)
+        is True
+    )
+
+
+def test_synthetic_spy_chains_default_when_no_priced_dir(mod, tmp_path):
+    """No chains_priced/SPY/ directory => synthetic_spy_chains stays True."""
+    assert (
+        mod._resolve_synthetic_spy_chains(tmp_path, "year2", allow_synthetic=False)
+        is True
+    )
+
+
+def test_strict_mode_year2_replay_drops_events_without_pricing(mod, tmp_path):
+    """Mixed cache: priced + metadata events. Strict mode loads only priced
+    events; metadata-only events are dropped and the year2_replay stage's
+    events_dropped_no_pricing counter is non-zero."""
+    cache_dir = tmp_path / "cache"
+
+    # Year2 only has 1 priced + 1 metadata event; we focus the strict-mode
+    # behaviour on Year 2 by inspecting the loader's output directly (we don't
+    # need to invoke main() here; a separate end-to-end test covers that).
+    y2_priced = date(2025, 7, 15)
+    y2_meta = date(2025, 8, 12)
+    _write_earnings_dates(cache_dir, "year2", ticker="AAPL", dates=[y2_priced])
+    _write_earnings_dates(cache_dir, "year2", ticker="MSFT", dates=[y2_meta])
+    _write_priced_parquet(
+        cache_dir, "year2", ticker="AAPL", event_date=y2_priced,
+    )
+    _write_metadata_parquet(cache_dir, "year2", ticker="MSFT", event_date=y2_meta)
+
+    cache = mod.load_year_cache(
+        cache_dir, "year2", universe=("AAPL", "MSFT"), allow_synthetic=False
+    )
+    # Priced AAPL loaded; metadata-only MSFT dropped.
+    assert ("AAPL", y2_priced) in cache["chains"]
+    assert ("MSFT", y2_meta) not in cache["chains"]
+    assert cache["chain_sources"][("AAPL", y2_priced)] == "priced"
+    drop_pairs = {(d["ticker"], d["event_date"]) for d in cache["events_dropped"]}
+    assert ("MSFT", y2_meta) in drop_pairs
+    # Status JSON: events_dropped_no_pricing must surface to the loader summary.
+    summary = mod.cache_summary(cache)
+    assert summary["events_dropped_no_pricing"] >= 1
+
+
+def test_compute_gate_data_source_priced_when_all_priced(mod):
+    """Helper: gate data_source = 'priced' iff every contributing trade is."""
+    assert mod._compute_gate_data_source(["priced", "priced"]) == "priced"
+    assert mod._compute_gate_data_source(["priced", "synthetic"]) == "synthetic"
+    assert mod._compute_gate_data_source(["priced", "metadata"]) == "synthetic"
+    assert mod._compute_gate_data_source([]) == "synthetic"  # empty => fail-closed
+
+
+def test_should_refuse_completion_when_synthetic_and_strict(mod):
+    """Refusal logic: any synthetic data_source in gates_payload triggers refusal
+    unless allow_synthetic is True."""
+    payload = {
+        "base": {"data_source": "synthetic", "gates": {}},
+        "plus50": {"data_source": "priced", "gates": {}},
+        "data_source": "synthetic",
+    }
+    refuse, reason = mod._should_refuse_completion(payload, allow_synthetic=False)
+    assert refuse is True
+    assert "synthetic" in (reason or "")
+
+    refuse2, _ = mod._should_refuse_completion(payload, allow_synthetic=True)
+    assert refuse2 is False
+
+
+def test_should_refuse_completion_priced_passes(mod):
+    payload = {
+        "base": {"data_source": "priced", "gates": {
+            "dsr": {"data_source": "priced"},
+        }},
+        "plus50": {"data_source": "priced", "gates": {
+            "dsr": {"data_source": "priced"},
+        }},
+        "data_source": "priced",
+    }
+    refuse, reason = mod._should_refuse_completion(payload, allow_synthetic=False)
+    assert refuse is False
+    assert reason is None
+
+
+def test_run_refuses_complete_phase_with_synthetic_data_source(mod, tmp_path, monkeypatch):
+    """End-to-end: when the gate data_source resolves to 'synthetic' and
+    --allow-synthetic was not passed, main exits with rc != 0 and the status
+    JSON's phase is 'error'."""
+    db_path = tmp_path / "evidence.db"
+    status_path = tmp_path / "status.json"
+    cache_dir = tmp_path / "cache"
+
+    # Force the data_source computation to return 'synthetic' regardless of
+    # the trade_sources list. We still need a working cache; --allow-empty-cache
+    # provides that, but we also have to keep effective_allow_synthetic=False
+    # for the refusal to fire. We achieve this by monkey-patching the helper
+    # main() uses to derive allow_synthetic from args (no clean hook for that),
+    # so instead we monkey-patch `_should_refuse_completion` to always refuse.
+    monkeypatch.setattr(
+        mod,
+        "_should_refuse_completion",
+        lambda payload, allow_synthetic: (True, "test-injected refusal"),
+    )
+    rc = mod.main(
+        [
+            "--allow-empty-cache",
+            "--db-path", str(db_path),
+            "--cache-dir", str(cache_dir),
+            "--status-path", str(status_path),
+            "--run-id", "test_refusal",
+        ]
+    )
+    assert rc != 0
+    doc = json.loads(status_path.read_text())
+    assert doc["phase"] == "error"
+    assert any("test-injected" in (e.get("message") or "") for e in doc["errors"])
+
+
+def test_run_with_allow_synthetic_completes(mod, tmp_path):
+    """Smoke-test: --allow-empty-cache (which auto-implies --allow-synthetic)
+    still produces phase=complete with the new wiring."""
+    db_path = tmp_path / "evidence.db"
+    status_path = tmp_path / "status.json"
+    cache_dir = tmp_path / "cache"
+    rc = mod.main(
+        [
+            "--allow-empty-cache",
+            "--allow-synthetic",  # explicit, redundant with --allow-empty-cache
+            "--db-path", str(db_path),
+            "--cache-dir", str(cache_dir),
+            "--status-path", str(status_path),
+            "--run-id", "test_allow_synth",
+        ]
+    )
+    assert rc == 0
+    doc = json.loads(status_path.read_text())
+    assert doc["phase"] == "complete"
+    # Gates carry data_source field on each gate.
+    gates = doc["gates"]
+    for regime in ("base", "plus50"):
+        for gate in gates[regime]["gates"].values():
+            assert gate["data_source"] in ("priced", "synthetic")
+    # Top-level data_source should also be present.
+    assert gates["data_source"] in ("priced", "synthetic")

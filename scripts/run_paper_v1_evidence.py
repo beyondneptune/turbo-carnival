@@ -245,11 +245,168 @@ def cache_year_dir(base_dir: Path, year: str) -> Path:
     return Path(base_dir) / year
 
 
+# Required pricing columns for a "priced" chain parquet (long format from
+# `scripts/augment_chain_pricing.py`). Presence of all five marks the parquet
+# as priced; absence of any signals "metadata-only" which is rejected in
+# strict mode (the default for the official paper_v1 verdict).
+PRICED_REQUIRED_COLUMNS = (
+    "bid",
+    "ask",
+    "mid",
+    "underlying_close",
+    "atm_iv",
+)
+
+
+def _is_priced_parquet(df: pd.DataFrame) -> bool:
+    """True if df has all required pricing columns from the augment schema."""
+    return all(col in df.columns for col in PRICED_REQUIRED_COLUMNS)
+
+
+def _normalize_priced_chain(df: pd.DataFrame) -> pd.DataFrame:
+    """Adapt the long-format priced parquet to the in-memory schema the rest
+    of the orchestrator already consumes.
+
+    The augment script writes one row per (contract, timing) with columns:
+      ticker, underlying_ticker, contract_type, strike_price, expiration_date,
+      as_of_date, timing ('entry' | 'exit'), event_date, bid, ask, mid,
+      underlying_close, is_atm, atm_iv
+
+    Downstream consumers (`build_satellite_legs_and_quotes`, `build_earnings_events`,
+    `build_feature_row`, `construct_iron_condor`) expect columns:
+      strike, expiry, option_type, bid, ask, mid, underlying_close, atm_iv,
+      expiry_days, delta, is_atm
+
+    We use the entry-timing rows for the chain (entry pricing is what the
+    existing orchestrator simulates against). Exit rows are preserved on the
+    side via a `_exit_*` column suffix so future strategy work can read them
+    without re-loading.
+    """
+    if df is None or df.empty:
+        return df
+
+    if "timing" in df.columns:
+        entry = df[df["timing"] == "entry"].copy()
+    else:
+        entry = df.copy()
+    if entry.empty:
+        return entry
+
+    # Map priced-format columns -> legacy in-memory columns expected downstream.
+    rename_map = {
+        "strike_price": "strike",
+        "expiration_date": "expiry",
+        "contract_type": "option_type",
+    }
+    for src, dst in rename_map.items():
+        if src in entry.columns and dst not in entry.columns:
+            entry[dst] = entry[src]
+
+    # Coerce expiry to date objects (the rest of the code uses date for filters).
+    if "expiry" in entry.columns:
+        def _to_date(v: Any) -> Any:
+            if v is None:
+                return None
+            try:
+                return pd.Timestamp(v).date()
+            except (TypeError, ValueError):
+                return None
+        entry["expiry"] = entry["expiry"].map(_to_date)
+
+    # Normalize option_type to lower-case "call" / "put" (Polygon uses lower
+    # case already; defensively handle "C"/"P").
+    if "option_type" in entry.columns:
+        def _norm_otype(v: Any) -> Any:
+            if isinstance(v, str):
+                lo = v.lower()
+                if lo in ("c", "call"):
+                    return "call"
+                if lo in ("p", "put"):
+                    return "put"
+            return v
+        entry["option_type"] = entry["option_type"].map(_norm_otype)
+
+    # Compute expiry_days for any code that wants it (event_date is typically
+    # the entry decision day).
+    if "expiry" in entry.columns and "event_date" in entry.columns:
+        def _days(row: Any) -> int:
+            try:
+                ev = pd.Timestamp(row["event_date"]).date()
+                ex = row["expiry"]
+                if isinstance(ex, date):
+                    return int((ex - ev).days)
+            except Exception:
+                return 0
+            return 0
+        entry["expiry_days"] = entry.apply(_days, axis=1)
+
+    # Provide a delta column if missing (downstream SPY logic uses delta to
+    # pick condor strikes via construct_iron_condor; the augment schema does
+    # not currently include delta, so leave NaN -- callers must handle).
+    if "delta" not in entry.columns:
+        entry["delta"] = np.nan
+
+    return entry
+
+
+def _atm_pricing_is_valid(df: pd.DataFrame) -> tuple[bool, str | None]:
+    """Check the priced (and normalized) chain has finite ATM IV + entry mid.
+
+    Returns (ok, drop_reason). drop_reason is one of:
+      None              -- ok
+      'no_atm_iv'       -- ATM straddle row has NaN atm_iv
+      'no_entry_price'  -- ATM straddle row has NaN mid
+    """
+    if df is None or df.empty:
+        return False, "no_entry_price"
+    is_atm = df.get("is_atm")
+    if is_atm is None:
+        # Without is_atm we cannot localize the ATM row reliably; treat as
+        # missing pricing in strict mode.
+        return False, "no_atm_iv"
+    atm_rows = df[df["is_atm"].astype(bool)]
+    if atm_rows.empty:
+        return False, "no_atm_iv"
+    if "atm_iv" not in atm_rows.columns or atm_rows["atm_iv"].isna().all():
+        return False, "no_atm_iv"
+    if "mid" not in atm_rows.columns or atm_rows["mid"].isna().all():
+        return False, "no_entry_price"
+    return True, None
+
+
+def _resolve_synthetic_spy_chains(
+    base_dir: Path,
+    year: str,
+    *,
+    allow_synthetic: bool,
+) -> bool:
+    """Compute the runtime value of `synthetic_spy_chains`.
+
+    Rule (per paper-v1-evidence rules):
+      - If priced SPY chains exist for the year (chains_priced/SPY/ has any
+        parquet) AND --allow-synthetic was NOT passed, return False (use real
+        prices).
+      - Otherwise return True (synthetic). Note that "synthetic == True with no
+        priced SPY" only produces real trades when --allow-synthetic is on; the
+        replay code skips SPY when synthetic_spy_chains is True but the
+        allow_synthetic flag is off, preserving fail-closed semantics.
+    """
+    if allow_synthetic:
+        return True
+    spy_dir = cache_year_dir(Path(base_dir), year) / "chains_priced" / "SPY"
+    if not spy_dir.exists():
+        return True
+    if not any(spy_dir.glob("*.parquet")):
+        return True
+    return False
+
+
 def load_year_cache(
     base_dir: Path,
     year: str,
     *,
     universe: tuple[str, ...] = PAPER_V1_SATELLITE,
+    allow_synthetic: bool = False,
 ) -> dict[str, Any]:
     """Read cached SPY daily, IV daily, earnings dates, and chains for one year.
 
@@ -262,13 +419,21 @@ def load_year_cache(
           "spy_iv_daily": pd.DataFrame | None,
           "earnings_dates": {ticker -> list[date]},
           "chains": {(ticker, event_date) -> pd.DataFrame},
+          "chain_sources": {(ticker, event_date) -> 'priced'|'metadata'|'synthetic'},
+          "events_dropped": [{"ticker": str, "event_date": date, "reason": str}, ...],
         }
 
-    Missing files are tolerated (returned as empty/None) -- the caller decides
-    whether the cache is sufficient. The fetcher's contract only guarantees
-    contract metadata in the chain parquets (ticker/strike/expiration); pricing
-    is downstream and not part of this cache. The orchestrator pairs the
-    cached chains with synthetic mids when needed for replay.
+    Loader behavior (per .claude/rules/paper-v1-evidence.md):
+      * Prefers `chains_priced/{TICKER}/{event_date}.parquet` when present and
+        valid (all pricing columns present, ATM straddle has finite atm_iv and
+        mid). Loaded chain is normalized to the legacy in-memory schema used
+        downstream (strike/expiry/option_type/bid/ask/mid/atm_iv/underlying_close).
+      * Falls back to `chains/{TICKER}/{event_date}.parquet` (metadata only)
+        ONLY when ``allow_synthetic=True``. In strict mode (default) the event
+        is dropped with reason='no_pricing'.
+      * If a priced parquet exists but its ATM row lacks atm_iv or mid, the
+        event is dropped with reason='no_atm_iv' or 'no_entry_price'. Strict
+        mode dropped events do not appear in ``chains``.
     """
     yd = cache_year_dir(Path(base_dir), year)
     out: dict[str, Any] = {
@@ -278,6 +443,8 @@ def load_year_cache(
         "spy_iv_daily": None,
         "earnings_dates": {},
         "chains": {},
+        "chain_sources": {},
+        "events_dropped": [],
     }
 
     spy_daily_path = yd / "spy_daily.parquet"
@@ -306,21 +473,132 @@ def load_year_cache(
                         dates.append(d)
                     out["earnings_dates"][ticker] = sorted(set(dates))
 
+    priced_dir = yd / "chains_priced"
     chains_dir = yd / "chains"
-    if chains_dir.exists():
-        for ticker_dir in sorted(chains_dir.iterdir()):
+
+    # Decide loading per (ticker, event_date). We iterate either over
+    # earnings_dates (if populated) or fall back to enumerating directories.
+    candidate_keys: set[tuple[str, date]] = set()
+    for ticker, ev_dates in out["earnings_dates"].items():
+        for ev in ev_dates:
+            candidate_keys.add((ticker, ev))
+
+    # Also pick up any parquets present on disk under the requested universe
+    # that weren't enumerated via earnings_dates -- this preserves backward-compat
+    # for callers/tests that drop chain parquets without writing earnings_dates.
+    for src_dir in (priced_dir, chains_dir):
+        if not src_dir.exists():
+            continue
+        for ticker_dir in sorted(src_dir.iterdir()):
             if not ticker_dir.is_dir():
                 continue
             ticker = ticker_dir.name
+            if ticker not in universe:
+                continue
             for chain_path in sorted(ticker_dir.glob("*.parquet")):
                 try:
                     event_date = date.fromisoformat(chain_path.stem)
                 except ValueError:
                     continue
+                candidate_keys.add((ticker, event_date))
+
+    for ticker, event_date in sorted(candidate_keys):
+        priced_path = priced_dir / ticker / f"{event_date.isoformat()}.parquet"
+        meta_path = chains_dir / ticker / f"{event_date.isoformat()}.parquet"
+
+        loaded = False
+        if priced_path.exists():
+            try:
+                raw = pd.read_parquet(priced_path)
+            except Exception as exc:  # pragma: no cover -- defensive
+                logger.warning("failed to read %s: %s", priced_path, exc)
+                raw = pd.DataFrame()
+            if not raw.empty and _is_priced_parquet(raw):
+                normalized = _normalize_priced_chain(raw)
+                ok, reason = _atm_pricing_is_valid(normalized)
+                if ok:
+                    out["chains"][(ticker, event_date)] = normalized
+                    out["chain_sources"][(ticker, event_date)] = "priced"
+                    loaded = True
+                else:
+                    out["events_dropped"].append(
+                        {
+                            "ticker": ticker,
+                            "event_date": event_date,
+                            "reason": reason or "no_atm_iv",
+                            "source": "priced",
+                        }
+                    )
+                    logger.warning(
+                        "drop %s @ %s: priced parquet invalid (%s)",
+                        ticker,
+                        event_date.isoformat(),
+                        reason,
+                    )
+                    continue
+            else:
+                # priced_path exists but doesn't have pricing columns -- fall
+                # through to metadata fallback (it's effectively metadata).
+                logger.warning(
+                    "priced parquet at %s missing pricing columns; treating "
+                    "as metadata-only",
+                    priced_path,
+                )
+
+        if loaded:
+            continue
+
+        if meta_path.exists():
+            if allow_synthetic:
                 try:
-                    out["chains"][(ticker, event_date)] = pd.read_parquet(chain_path)
+                    raw = pd.read_parquet(meta_path)
                 except Exception as exc:  # pragma: no cover -- defensive
-                    logger.warning("failed to read %s: %s", chain_path, exc)
+                    logger.warning("failed to read %s: %s", meta_path, exc)
+                    raw = pd.DataFrame()
+                if raw is None or raw.empty:
+                    out["events_dropped"].append(
+                        {
+                            "ticker": ticker,
+                            "event_date": event_date,
+                            "reason": "empty_metadata",
+                            "source": "metadata",
+                        }
+                    )
+                    continue
+                # If the metadata parquet happens to contain pricing (e.g. test
+                # fixtures or an early-augmented file), normalize it. Otherwise
+                # leave the legacy columns alone.
+                if _is_priced_parquet(raw):
+                    chain = _normalize_priced_chain(raw)
+                else:
+                    chain = raw
+                out["chains"][(ticker, event_date)] = chain
+                out["chain_sources"][(ticker, event_date)] = "metadata"
+            else:
+                out["events_dropped"].append(
+                    {
+                        "ticker": ticker,
+                        "event_date": event_date,
+                        "reason": "no_pricing",
+                        "source": "metadata",
+                    }
+                )
+                logger.warning(
+                    "drop %s @ %s: chains_priced/ missing and "
+                    "--allow-synthetic not set",
+                    ticker,
+                    event_date.isoformat(),
+                )
+        else:
+            # Neither priced nor metadata parquet present: pure miss.
+            out["events_dropped"].append(
+                {
+                    "ticker": ticker,
+                    "event_date": event_date,
+                    "reason": "no_pricing",
+                    "source": "missing",
+                }
+            )
 
     return out
 
@@ -339,11 +617,20 @@ def cache_summary(cache: dict[str, Any]) -> dict[str, Any]:
     n_iv = len(cache["spy_iv_daily"]) if cache["spy_iv_daily"] is not None else 0
     n_events = sum(len(v) for v in cache["earnings_dates"].values())
     n_chain = len(cache["chains"])
+    sources = cache.get("chain_sources", {}) or {}
+    n_priced = sum(1 for s in sources.values() if s == "priced")
+    n_metadata = sum(1 for s in sources.values() if s == "metadata")
+    n_synthetic = sum(1 for s in sources.values() if s == "synthetic")
+    n_dropped = len(cache.get("events_dropped", []) or [])
     return {
         "spy_daily_rows": int(n_spy),
         "spy_iv_daily_rows": int(n_iv),
         "earnings_events": int(n_events),
         "chain_files": int(n_chain),
+        "chain_files_priced": int(n_priced),
+        "chain_files_metadata": int(n_metadata),
+        "chain_files_synthetic": int(n_synthetic),
+        "events_dropped_no_pricing": int(n_dropped),
     }
 
 
@@ -422,6 +709,8 @@ def synthesize_year_cache(
         for ev_date in ev_dates:
             chains[(ticker, ev_date)] = _synth_satellite_chain(ticker, ev_date, rng)
 
+    chain_sources = {key: "synthetic" for key in chains.keys()}
+
     return {
         "year": year,
         "window": (start, end),
@@ -429,6 +718,8 @@ def synthesize_year_cache(
         "spy_iv_daily": spy_iv_daily,
         "earnings_dates": earnings_dates,
         "chains": chains,
+        "chain_sources": chain_sources,
+        "events_dropped": [],
     }
 
 
@@ -998,8 +1289,25 @@ def replay_year2(
     rng: np.random.Generator,
     cost_stress_multiplier: float = 1.0,
     synthetic_spy_chains: bool = True,
+    allow_synthetic: bool = False,
+    spy_priced_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Walk every Year 2 candidate event, write rows, return per-event arrays.
+
+    Parameters
+    ----------
+    synthetic_spy_chains
+        When True, the SPY core sleeve uses synthesized chains (only honored
+        when ``allow_synthetic=True`` -- otherwise SPY trades are skipped to
+        preserve fail-closed semantics for the official verdict).
+    allow_synthetic
+        Master switch for synthetic price fallback; when False (the default
+        for the official paper_v1 verdict) we never produce synthetic SPY
+        condor trades.
+    spy_priced_dir
+        Optional directory of priced SPY parquets (chains_priced/SPY/). When
+        ``synthetic_spy_chains=False`` and this directory has parquets, the
+        SPY core loop reads real prices for each Monday entry.
 
     Returns a dict with the per-event arrays needed downstream:
       - strategy_returns
@@ -1008,9 +1316,15 @@ def replay_year2(
       - features_for_b3
       - sample_size
       - trades_placed / trades_blocked
+      - trade_sources: counts of 'priced' / 'synthetic' contributions
+      - events_dropped_no_pricing: events filtered out for missing pricing
+      - dropped_events: detail list (mirrors cache["events_dropped"])
     """
+    chain_sources_map = cache.get("chain_sources") or {}
     events = build_earnings_events(cache)
     n_events = len(events)
+    # Carry forward any drops from load_year_cache (no_pricing / no_atm_iv).
+    dropped = list(cache.get("events_dropped") or [])
     status.set_stage(
         "year2_replay",
         "running",
@@ -1018,6 +1332,7 @@ def replay_year2(
         events_processed=0,
         trades_placed=0,
         trades_blocked=0,
+        events_dropped_no_pricing=len(dropped),
     )
 
     spy_daily = cache.get("spy_daily")
@@ -1039,6 +1354,9 @@ def replay_year2(
     underlying_moves: list[float] = []
     pre_iv: list[float] = []
     feature_rows: list[dict[str, float]] = []
+    # Per-trade data source tracking ('priced' or 'synthetic'). The verdict
+    # gate's data_source is "priced" iff every contributing trade was priced.
+    trade_sources: list[str] = []
 
     trades_placed = 0
     trades_blocked = 0
@@ -1118,11 +1436,16 @@ def replay_year2(
             signal_threshold=0.0,
         )
 
+        # Per-event chain source: priced when augment-script parquet was loaded,
+        # synthetic otherwise (i.e. synthesize_year_cache or metadata fallback).
+        ev_chain_source = chain_sources_map.get((ev.ticker, ev.event_date), "synthetic")
+
         if not risk.passed:
             trades_blocked += 1
             strat_returns.append(0.0)
             underlying_moves.append(outcome["realized_5d_return"])
             pre_iv.append(ev.pre_event_atm_iv_5d)
+            trade_sources.append(ev_chain_source)
             _maybe_update_progress(
                 status, idx, n_events, trades_placed, trades_blocked
             )
@@ -1143,6 +1466,7 @@ def replay_year2(
         strat_returns.append(payoff / max(1.0, max_loss) - net_debit / max(1.0, max_loss))
         underlying_moves.append(outcome["realized_5d_return"])
         pre_iv.append(ev.pre_event_atm_iv_5d)
+        trade_sources.append(ev_chain_source)
 
         legs = []
         for leg_no, (order, quote, leg_fill) in enumerate(
@@ -1201,9 +1525,44 @@ def replay_year2(
         mondays = [d.date() for d in pd.bdate_range(YEAR2_START, YEAR2_END) if d.weekday() == CORE_ENTRY_WEEKDAY]
 
     for entry_day in mondays:
-        if not synthetic_spy_chains:
-            continue  # real cached SPY chain pricing not available in cache schema
-        spy_chain = _synth_spy_chain_at(entry_day, rng)
+        spy_chain: pd.DataFrame | None = None
+        spy_source: str = "synthetic"
+        if not synthetic_spy_chains and spy_priced_dir is not None:
+            # Priced mode: load the augmented SPY chain. Skip the entry if no
+            # priced parquet exists for this date (fail-closed).
+            priced_path = spy_priced_dir / f"{entry_day.isoformat()}.parquet"
+            if not priced_path.exists():
+                continue
+            try:
+                raw = pd.read_parquet(priced_path)
+            except Exception:  # pragma: no cover -- defensive
+                continue
+            if raw is None or raw.empty or not _is_priced_parquet(raw):
+                continue
+            spy_chain = _normalize_priced_chain(raw)
+            ok, _ = _atm_pricing_is_valid(spy_chain)
+            if not ok:
+                dropped.append(
+                    {
+                        "ticker": "SPY",
+                        "event_date": entry_day,
+                        "reason": "no_atm_iv",
+                        "source": "priced",
+                    }
+                )
+                continue
+            spy_source = "priced"
+        elif synthetic_spy_chains and allow_synthetic:
+            spy_chain = _synth_spy_chain_at(entry_day, rng)
+            spy_source = "synthetic"
+        else:
+            # Strict mode: no priced SPY parquet AND --allow-synthetic not set.
+            # Skip SPY core trades (verdict will run on satellite-only sample).
+            continue
+
+        if spy_chain is None or spy_chain.empty:
+            continue
+
         try:
             spec = construct_iron_condor(
                 spy_chain,
@@ -1337,6 +1696,7 @@ def replay_year2(
             notes=f"paper_v1 evidence core; credit={credit:.2f}",
         )
         trades_placed += 1
+        trade_sources.append(spy_source)
 
     conn.commit()
     status.update_stage(
@@ -1346,6 +1706,7 @@ def replay_year2(
         events_processed=n_events,
         trades_placed=trades_placed,
         trades_blocked=trades_blocked,
+        events_dropped_no_pricing=len(dropped),
     )
 
     # Build features_for_b3 from the satellite feature rows (3 columns required).
@@ -1357,6 +1718,10 @@ def replay_year2(
             columns=["pre_event_atm_iv_5d", "log_spot", "atm_premium"]
         )
 
+    n_priced = sum(1 for s in trade_sources if s == "priced")
+    n_synthetic = sum(1 for s in trade_sources if s == "synthetic")
+    n_metadata = sum(1 for s in trade_sources if s == "metadata")
+
     return {
         "strategy_returns": np.asarray(strat_returns, dtype=float),
         "underlying_moves": np.asarray(underlying_moves, dtype=float),
@@ -1365,6 +1730,14 @@ def replay_year2(
         "trades_placed": trades_placed,
         "trades_blocked": trades_blocked,
         "n_events": len(strat_returns),
+        "trade_sources": trade_sources,
+        "trade_source_counts": {
+            "priced": int(n_priced),
+            "synthetic": int(n_synthetic),
+            "metadata": int(n_metadata),
+        },
+        "events_dropped_no_pricing": int(len(dropped)),
+        "dropped_events": dropped,
     }
 
 
@@ -1558,7 +1931,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--allow-empty-cache",
         action="store_true",
         help="If set and the cache is empty, generate synthetic data so the "
-             "orchestrator can run end-to-end without a real cache pull.",
+             "orchestrator can run end-to-end without a real cache pull. "
+             "Auto-implies --allow-synthetic for the verdict (smoke-test mode "
+             "only -- never use for the official paper_v1 verdict).",
+    )
+    p.add_argument(
+        "--allow-synthetic",
+        action="store_true",
+        help="Allow synthetic price fallback when chains_priced/ is missing. "
+             "NEVER use this for the official paper_v1 verdict.",
     )
     p.add_argument(
         "--cost-stress-multiplier",
@@ -1601,13 +1982,21 @@ def main(argv: list[str] | None = None) -> int:
     status = StatusWriter(args.status_path, run_id=run_id)
     rng = np.random.default_rng(args.seed)
 
+    # `--allow-empty-cache` is a smoke-test affordance for the orchestrator's
+    # plumbing: it auto-implies `--allow-synthetic` so the synthesized cache
+    # can flow through the entire pipeline. The official paper_v1 verdict
+    # uses neither flag (fail-closed).
+    effective_allow_synthetic = bool(args.allow_synthetic or args.allow_empty_cache)
+
     started = time.monotonic()
 
     try:
         # --- Load Year 1 ---
         status.set_phase("loading")
         status.set_stage("load_year1_cache", "running")
-        year1 = load_year_cache(args.cache_dir, "year1")
+        year1 = load_year_cache(
+            args.cache_dir, "year1", allow_synthetic=effective_allow_synthetic
+        )
         if not _cache_has_events(year1):
             if args.allow_empty_cache:
                 logger.info("year1 cache empty; synthesising")
@@ -1624,11 +2013,17 @@ def main(argv: list[str] | None = None) -> int:
             "complete",
             events=y1_summary["earnings_events"],
             chain_files=y1_summary["chain_files"],
+            chain_files_priced=y1_summary["chain_files_priced"],
+            chain_files_metadata=y1_summary["chain_files_metadata"],
+            chain_files_synthetic=y1_summary["chain_files_synthetic"],
+            events_dropped_no_pricing=y1_summary["events_dropped_no_pricing"],
         )
 
         # --- Load Year 2 ---
         status.set_stage("load_year2_cache", "running")
-        year2 = load_year_cache(args.cache_dir, "year2")
+        year2 = load_year_cache(
+            args.cache_dir, "year2", allow_synthetic=effective_allow_synthetic
+        )
         if not _cache_has_events(year2):
             if args.allow_empty_cache:
                 logger.info("year2 cache empty; synthesising")
@@ -1645,6 +2040,10 @@ def main(argv: list[str] | None = None) -> int:
             "complete",
             events=y2_summary["earnings_events"],
             chain_files=y2_summary["chain_files"],
+            chain_files_priced=y2_summary["chain_files_priced"],
+            chain_files_metadata=y2_summary["chain_files_metadata"],
+            chain_files_synthetic=y2_summary["chain_files_synthetic"],
+            events_dropped_no_pricing=y2_summary["events_dropped_no_pricing"],
         )
 
         # --- Train models on Year 1 ---
@@ -1703,6 +2102,12 @@ def main(argv: list[str] | None = None) -> int:
 
             # --- Year 2 replay ---
             status.set_phase("year2_replay")
+            synthetic_spy_chains = _resolve_synthetic_spy_chains(
+                args.cache_dir, "year2", allow_synthetic=effective_allow_synthetic
+            )
+            spy_priced_dir = (
+                cache_year_dir(args.cache_dir, "year2") / "chains_priced" / "SPY"
+            )
             replay = replay_year2(
                 conn=conn,
                 run_id=run_id,
@@ -1710,7 +2115,9 @@ def main(argv: list[str] | None = None) -> int:
                 status=status,
                 rng=rng,
                 cost_stress_multiplier=args.cost_stress_multiplier,
-                synthetic_spy_chains=True,
+                synthetic_spy_chains=synthetic_spy_chains,
+                allow_synthetic=effective_allow_synthetic,
+                spy_priced_dir=spy_priced_dir if spy_priced_dir.exists() else None,
             )
 
             # --- Compute gates ---
@@ -1730,7 +2137,19 @@ def main(argv: list[str] | None = None) -> int:
                 cost_multiplier=1.5,
             )
             report = evaluate_full(base_inputs, plus50_inputs)
-            gates_payload = _serialize_gate_report(report)
+            gate_data_source = _compute_gate_data_source(replay.get("trade_sources", []))
+            sample_warning: str | None = None
+            n_dropped = int(replay.get("events_dropped_no_pricing", 0))
+            if n_dropped > 0:
+                sample_warning = (
+                    f"verdict computed on a reduced sample: "
+                    f"{n_dropped} candidate event(s) dropped for missing pricing"
+                )
+            gates_payload = _serialize_gate_report(
+                report,
+                data_source=gate_data_source,
+                sample_warning=sample_warning,
+            )
             status.set_top_level("gates", gates_payload)
 
             insert_agent_log(
@@ -1740,7 +2159,9 @@ def main(argv: list[str] | None = None) -> int:
                 prompt_version="gates_v1",
                 summary=(
                     f"gates evaluated: overall_pass={report.overall_pass} "
-                    f"failed={report.failed_gates_summary}"
+                    f"failed={report.failed_gates_summary} "
+                    f"data_source={gate_data_source} "
+                    f"events_dropped_no_pricing={n_dropped}"
                 ),
             )
 
@@ -1748,6 +2169,22 @@ def main(argv: list[str] | None = None) -> int:
             update_run_status(conn, run_id, "completed")
         finally:
             conn.close()
+
+        # Verdict gate: refuse `phase=complete` if the verdict-relevant data
+        # source is synthetic and --allow-synthetic was not opted into. The
+        # `--allow-empty-cache` smoke-test mode auto-implies allow-synthetic
+        # via `effective_allow_synthetic`.
+        refuse, refuse_reason = _should_refuse_completion(
+            gates_payload, effective_allow_synthetic
+        )
+        if refuse:
+            status.add_error(refuse_reason or "synthetic data_source not allowed")
+            status.set_phase("error")
+            print(
+                "paper_v1 evidence orchestrator: REFUSED "
+                f"run_id={run_id} reason={refuse_reason!r}"
+            )
+            return 3
 
         elapsed = time.monotonic() - started
         status.set_stage(
@@ -1757,6 +2194,8 @@ def main(argv: list[str] | None = None) -> int:
             trades_placed=int(replay["trades_placed"]),
             trades_blocked=int(replay["trades_blocked"]),
             n_events=int(replay["n_events"]),
+            events_dropped_no_pricing=int(replay.get("events_dropped_no_pricing", 0)),
+            data_source=gate_data_source,
         )
         status.set_phase("complete")
 
@@ -1764,7 +2203,8 @@ def main(argv: list[str] | None = None) -> int:
             "paper_v1 evidence orchestrator: COMPLETE "
             f"run_id={run_id} elapsed={elapsed:.1f}s "
             f"trades={replay['trades_placed']} blocked={replay['trades_blocked']} "
-            f"twin_b_beats_a={comparison.b_beats_a} gates_pass={report.overall_pass}"
+            f"twin_b_beats_a={comparison.b_beats_a} gates_pass={report.overall_pass} "
+            f"data_source={gate_data_source}"
         )
         return 0
 
@@ -1788,8 +2228,68 @@ def _cache_has_events(cache: dict[str, Any]) -> bool:
     return any(len(v) for v in earnings.values())
 
 
-def _serialize_gate_report(report: GateEvaluationReport) -> dict[str, Any]:
-    """Convert dataclass tree to JSON-friendly dict matching the dashboard contract."""
+def _should_refuse_completion(
+    gates_payload: dict[str, Any],
+    allow_synthetic: bool,
+) -> tuple[bool, str | None]:
+    """Decide whether to refuse writing `phase=complete`.
+
+    Refuse when ANY verdict-relevant gate evaluation has data_source !=
+    'priced' AND the orchestrator was launched without --allow-synthetic
+    (or its smoke-test alias --allow-empty-cache).
+    """
+    if allow_synthetic:
+        return False, None
+    suspect: list[str] = []
+    for regime_label in ("base", "plus50"):
+        regime = gates_payload.get(regime_label) or {}
+        regime_ds = regime.get("data_source")
+        if regime_ds and regime_ds != "priced":
+            suspect.append(f"{regime_label}={regime_ds}")
+        for gname, gate in (regime.get("gates") or {}).items():
+            ds = gate.get("data_source")
+            if ds and ds != "priced":
+                suspect.append(f"{regime_label}.{gname}={ds}")
+    top_ds = gates_payload.get("data_source")
+    if top_ds and top_ds != "priced":
+        suspect.append(f"top={top_ds}")
+    if suspect:
+        return True, (
+            "refusing phase=complete: gate evaluation has synthetic data_source "
+            "but --allow-synthetic was not set ("
+            + ",".join(suspect[:6])
+            + (" ..." if len(suspect) > 6 else "")
+            + ")"
+        )
+    return False, None
+
+
+def _compute_gate_data_source(trade_sources: list[str] | tuple[str, ...]) -> str:
+    """Reduce per-trade source labels to the verdict gates' ``data_source``.
+
+    Returns ``"priced"`` only when every trade was sourced from a priced
+    parquet (``chains_priced/``). Any synthetic or metadata-only contribution
+    forces ``"synthetic"`` (which the orchestrator treats as fail-closed for
+    the official paper_v1 verdict unless ``--allow-synthetic`` is passed).
+    """
+    if not trade_sources:
+        # No trades produced -- treat as synthetic for fail-closed semantics.
+        return "synthetic"
+    return "priced" if all(s == "priced" for s in trade_sources) else "synthetic"
+
+
+def _serialize_gate_report(
+    report: GateEvaluationReport,
+    *,
+    data_source: str = "synthetic",
+    sample_warning: str | None = None,
+) -> dict[str, Any]:
+    """Convert dataclass tree to JSON-friendly dict matching the dashboard contract.
+
+    Each gate evaluation carries a ``data_source`` field ('priced' | 'synthetic')
+    so the dashboard and the verdict gatekeeper can refuse synthetic results
+    for the official paper_v1 verdict.
+    """
 
     def regime_dict(r: Any) -> dict[str, Any]:
         gates = {}
@@ -1800,20 +2300,26 @@ def _serialize_gate_report(report: GateEvaluationReport) -> dict[str, Any]:
                 "observed": gate.observed,
                 "threshold": gate.threshold,
                 "detail": gate.detail,
+                "data_source": data_source,
             }
         return {
             "regime_label": r.regime_label,
             "all_pass": bool(r.all_pass),
             "inputs": dataclasses.asdict(r.inputs),
             "gates": gates,
+            "data_source": data_source,
         }
 
-    return {
+    payload: dict[str, Any] = {
         "base": regime_dict(report.base),
         "plus50": regime_dict(report.plus50),
         "overall_pass": bool(report.overall_pass),
         "failed_gates_summary": list(report.failed_gates_summary),
+        "data_source": data_source,
     }
+    if sample_warning:
+        payload["warnings"] = [sample_warning]
+    return payload
 
 
 if __name__ == "__main__":
