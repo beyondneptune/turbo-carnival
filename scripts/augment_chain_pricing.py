@@ -1133,6 +1133,40 @@ def _augment_spy_core_for_year(
         except Exception:
             return None
 
+    def _fetch_and_cache_spy_chain_for(d: date) -> pd.DataFrame | None:
+        """Fetch one SPY expiry metadata snapshot when no cached chain exists.
+
+        The original year cache only stores options-chain metadata for earnings
+        events. SPY core entries are calendar-driven Mondays, so they normally
+        have no metadata file to reuse. Fetching the specific target expiry is
+        data-source wiring, not strategy logic: the strike/expiry policy remains
+        pinned by the constants above.
+        """
+        expiry = next_friday_on_or_after(d + timedelta(days=CORE_DTE_TARGET_DAYS))
+        try:
+            chain = client.fetch_options_contracts(
+                "SPY",
+                expiration_date=expiry.isoformat(),
+                as_of=d.isoformat(),
+                limit=1000,
+            )
+        except PolygonError as exc:
+            logger.warning("%s SPY metadata fetch failed %s expiry=%s: %s", year, d, expiry, exc)
+            return None
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.exception("%s SPY metadata unexpected error %s expiry=%s: %s", year, d, expiry, exc)
+            return None
+        if chain is None or chain.empty:
+            return None
+        chain = chain.copy()
+        chain["as_of_date"] = d.isoformat()
+        chain["event_date"] = d.isoformat()
+        target = cache_path_chain("SPY", d, year=year, base_dir=base_dir)
+        _atomic_write_parquet(chain, target)
+        available.append((d, target))
+        available.sort(key=lambda t: t[0])
+        return chain
+
     files_written = 0
     total = len(entry_dates)
     write_status(
@@ -1166,6 +1200,8 @@ def _augment_spy_core_for_year(
                 )
             continue
         chain = _spy_chain_for(ed)
+        if chain is None or chain.empty:
+            chain = _fetch_and_cache_spy_chain_for(ed)
         if chain is None or chain.empty:
             if done % 5 == 0 or done == total:
                 write_status(

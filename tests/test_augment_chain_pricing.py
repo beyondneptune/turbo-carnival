@@ -550,6 +550,60 @@ def test_nan_tolerance_polygon_error(tmp_path, mod):
 
 
 # ---------------------------------------------------------------------------
+# SPY core metadata fallback
+# ---------------------------------------------------------------------------
+
+
+def test_spy_core_fetches_contract_metadata_when_no_cached_spy_chain(tmp_path, mod):
+    """SPY core should not require pre-existing chains/SPY metadata files."""
+    cache_dir = tmp_path / "cache"
+    status_file = tmp_path / "status.json"
+    yd = cache_dir / "year1"
+    yd.mkdir(parents=True)
+
+    entry = date(2024, 6, 3)  # Monday
+    expiry = mod.next_friday_on_or_after(entry + timedelta(days=mod.CORE_DTE_TARGET_DAYS))
+    days = pd.bdate_range(entry, expiry)
+    spy_daily = pd.DataFrame(
+        {"close": [500.0] * len(days)},
+        index=pd.DatetimeIndex(days, name="date"),
+    )
+    spy_daily.to_parquet(yd / "spy_daily.parquet")
+
+    chain = _make_chain_metadata("SPY", entry, expiry, [470.0, 475.0, 500.0, 525.0, 530.0])
+    fake_client = MagicMock()
+    fake_client.fetch_options_contracts.return_value = chain
+    fake_client.fetch_options_aggregates.return_value = pd.DataFrame(
+        {"close": [2.0]},
+        index=pd.DatetimeIndex([entry], name="date"),
+    )
+
+    summary = mod._augment_spy_core_for_year(
+        year="year1",
+        client=fake_client,
+        base_dir=cache_dir,
+        status_file=status_file,
+        year_start=entry,
+        year_end=entry,
+    )
+
+    assert summary == {"skipped": False, "files_written": 1, "total": 1}
+    fake_client.fetch_options_contracts.assert_called_once_with(
+        "SPY",
+        expiration_date=expiry.isoformat(),
+        as_of=entry.isoformat(),
+        limit=1000,
+    )
+    assert (cache_dir / "year1" / "chains" / "SPY" / f"{entry.isoformat()}.parquet").exists()
+    priced = cache_dir / "year1" / "chains_priced" / "SPY" / f"{entry.isoformat()}.parquet"
+    assert priced.exists()
+    out = pd.read_parquet(priced)
+    assert set(out.columns) == REQUIRED_COLUMNS
+    assert len(out) == 8
+    assert set(out["timing"].unique()) == {"entry", "exit"}
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 

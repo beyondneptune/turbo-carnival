@@ -39,12 +39,13 @@ MARKET_ETFS = (
     "SPY", "QQQ", "IWM", "DIA",
     "TLT", "IEF", "SHY", "HYG", "LQD",
     "GLD", "USO", "SMH", "KRE",
+    "UUP", "FXE", "FXY", "VIXY", "SVXY",
 )
 SECTOR_ETFS = (
     "XLB", "XLC", "XLE", "XLF", "XLI", "XLK",
     "XLP", "XLRE", "XLU", "XLV", "XLY",
 )
-VOL_TICKERS = ("^VIX", "^VVIX", "^VIX3M")
+VOL_TICKERS = ("^VIX", "^VVIX", "^VIX3M", "^VXN", "^RVX", "^MOVE")
 
 # Preserve the frozen paper_v1 ticker on disk while querying current Yahoo
 # symbols when a company has changed tickers during/after the study window.
@@ -61,17 +62,36 @@ FRED_SERIES = {
     "T10Y2Y": "10Y minus 2Y Treasury spread",
     "T10Y3M": "10Y minus 3M Treasury spread",
     "SOFR": "Secured Overnight Financing Rate",
+    "EFFR": "Effective Federal Funds Rate (daily)",
     "FEDFUNDS": "Effective federal funds rate",
+    "IORB": "Interest on reserve balances",
+    "WALCL": "Federal Reserve total assets",
+    "RRPONTSYD": "Overnight reverse repurchase agreements",
     # Vol / risk / macro context
     "VIXCLS": "CBOE VIX close",
+    "VXNCLS": "CBOE NASDAQ-100 Volatility Index",
+    "RVXCLS": "CBOE Russell 2000 Volatility Index",
+    "OVXCLS": "CBOE Crude Oil ETF Volatility Index",
+    "GVZCLS": "CBOE Gold ETF Volatility Index",
     "BAMLH0A0HYM2": "ICE BofA US high yield option-adjusted spread",
+    "BAMLH0A0HYM2EY": "ICE BofA US high yield effective yield",
     "BAMLC0A0CM": "ICE BofA US corporate option-adjusted spread",
+    "BAMLC0A0CMEY": "ICE BofA US corporate effective yield",
+    "NFCI": "Chicago Fed National Financial Conditions Index",
+    "ANFCI": "Chicago Fed Adjusted National Financial Conditions Index",
+    "STLFSI4": "St. Louis Fed Financial Stress Index",
     "DCOILWTICO": "WTI crude oil spot price",
     "DTWEXBGS": "Nominal broad dollar index",
+    "DEXUSEU": "US / Euro foreign exchange rate",
+    "DEXJPUS": "Japan / US foreign exchange rate",
+    "USEPUINDXD": "US economic policy uncertainty index",
     "CPIAUCSL": "CPI all urban consumers",
     "UNRATE": "Civilian unemployment rate",
+    "ICSA": "Initial unemployment claims",
+    "CCSA": "Continued unemployment claims",
     "PAYEMS": "Total nonfarm payrolls",
     "INDPRO": "Industrial production index",
+    "UMCSENT": "University of Michigan consumer sentiment",
 }
 
 
