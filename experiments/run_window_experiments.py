@@ -382,7 +382,14 @@ def run_window(
             allow_synthetic=allow_synthetic,
         )
         if len(X) < 8:
-            raise RuntimeError(f"insufficient train rows after target build: {len(X)}")
+            row.update(
+                {
+                    "status": "skipped",
+                    "reason": f"insufficient train rows after target build: {len(X)}/8",
+                }
+            )
+            _write_json(win_dir / "window.json", {"spec": spec, "summary": row})
+            return row
         model_a, model_b, comparison = evidence.train_and_compare(
             X, y_a, y_b, realized, random_state=seed
         )
@@ -423,6 +430,28 @@ def run_window(
                 satellite_model_version=selected_version,
                 satellite_signal_threshold=evidence.SATELLITE_SIGNAL_THRESHOLD,
             )
+            strategy_events = int(len(replay["strategy_returns"]))
+            if strategy_events < 4:
+                row.update(
+                    {
+                        "status": "skipped",
+                        "reason": (
+                            "strategy events below baseline floor "
+                            f"{strategy_events}/4"
+                        ),
+                        "trades_placed": int(replay["trades_placed"]),
+                        "trades_blocked": int(replay["trades_blocked"]),
+                        "events_dropped_no_pricing": int(
+                            replay.get("events_dropped_no_pricing", 0)
+                        ),
+                        "strategy_events": strategy_events,
+                        "satellite_strategy_events": strategy_events,
+                        "trade_source_counts": replay.get("trade_source_counts", {}),
+                    }
+                )
+                evidence.update_run_status(conn, run_id, "aborted")
+                _write_json(win_dir / "window.json", {"spec": spec, "summary": row})
+                return row
             base_inputs = evidence.build_cost_regime_inputs(
                 strategy_returns=replay["strategy_returns"],
                 underlying_moves=replay["underlying_moves"],

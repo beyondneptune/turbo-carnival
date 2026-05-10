@@ -426,6 +426,30 @@ def _atm_pricing_is_valid(df: pd.DataFrame) -> tuple[bool, str | None]:
     return True, None
 
 
+def _spy_condor_pricing_is_valid(df: pd.DataFrame) -> tuple[bool, str | None]:
+    """Check a priced SPY condor chain without requiring ATM legs.
+
+    SPY core priced parquets contain the four selected iron-condor legs. They
+    are intentionally away from ATM, so the satellite ATM-straddle validation
+    would reject valid core files.
+    """
+    if df is None or df.empty:
+        return False, "no_entry_price"
+    if "atm_iv" not in df.columns or pd.to_numeric(
+        df["atm_iv"], errors="coerce"
+    ).dropna().empty:
+        return False, "no_atm_iv"
+    if "mid" not in df.columns or pd.to_numeric(
+        df["mid"], errors="coerce"
+    ).dropna().empty:
+        return False, "no_entry_price"
+    if "exit_mid" not in df.columns or pd.to_numeric(
+        df["exit_mid"], errors="coerce"
+    ).dropna().empty:
+        return False, "no_exit_price"
+    return True, None
+
+
 def _resolve_synthetic_spy_chains(
     base_dir: Path,
     year: str,
@@ -1880,13 +1904,13 @@ def replay_year2(
             if raw is None or raw.empty or not _is_priced_parquet(raw):
                 continue
             spy_chain = _normalize_priced_chain(raw)
-            ok, _ = _atm_pricing_is_valid(spy_chain)
+            ok, reason = _spy_condor_pricing_is_valid(spy_chain)
             if not ok:
                 dropped.append(
                     {
                         "ticker": "SPY",
                         "event_date": entry_day,
-                        "reason": "no_atm_iv",
+                        "reason": reason or "no_atm_iv",
                         "source": "priced",
                     }
                 )

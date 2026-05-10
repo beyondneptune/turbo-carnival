@@ -888,6 +888,83 @@ def test_synthetic_spy_chains_default_when_no_priced_dir(mod, tmp_path):
     )
 
 
+def test_replay_year2_accepts_priced_spy_condor_without_atm_rows(mod, tmp_path):
+    """Regression: SPY core condor files are OTM legs, not ATM straddles."""
+    entry = date(2025, 7, 14)  # Monday
+    expiry = date(2025, 8, 22)
+    spy_dir = tmp_path / "spy_priced"
+    spy_dir.mkdir()
+
+    rows = []
+    legs = (
+        ("put", 490.0, 1.20, 0.10),
+        ("put", 495.0, 1.60, 0.20),
+        ("call", 530.0, 1.50, 0.25),
+        ("call", 535.0, 1.10, 0.10),
+    )
+    for timing in ("entry", "exit"):
+        for contract_type, strike, entry_mid, exit_mid in legs:
+            mid = entry_mid if timing == "entry" else exit_mid
+            rows.append(
+                {
+                    "ticker": f"O:SPY250822{contract_type[0].upper()}{int(strike * 1000):08d}",
+                    "underlying_ticker": "SPY",
+                    "contract_type": contract_type,
+                    "strike_price": strike,
+                    "expiration_date": expiry.isoformat(),
+                    "as_of_date": (entry if timing == "entry" else expiry).isoformat(),
+                    "timing": timing,
+                    "event_date": entry.isoformat(),
+                    "bid": mid - 0.01,
+                    "ask": mid + 0.01,
+                    "mid": mid,
+                    "underlying_close": 512.0,
+                    "is_atm": False,
+                    "atm_iv": 0.18,
+                }
+            )
+    pd.DataFrame(rows).to_parquet(spy_dir / f"{entry.isoformat()}.parquet", index=False)
+
+    cache = {
+        "year": "year2",
+        "window": (entry, entry),
+        "spy_daily": pd.DataFrame(
+            {"close": [512.0]},
+            index=pd.DatetimeIndex([entry], name="date"),
+        ),
+        "spy_iv_daily": pd.DataFrame(),
+        "earnings_dates": {},
+        "chains": {},
+        "chain_sources": {},
+        "events_dropped": [],
+    }
+
+    conn = mod.open_db(tmp_path / "evidence.db")
+    try:
+        mod.insert_run_row(conn, "run_spy_core")
+        status = mod.StatusWriter(tmp_path / "status.json", run_id="run_spy_core")
+        replay = mod.replay_year2(
+            conn=conn,
+            run_id="run_spy_core",
+            cache=cache,
+            status=status,
+            rng=np.random.default_rng(1),
+            synthetic_spy_chains=False,
+            allow_synthetic=False,
+            spy_priced_dir=spy_dir,
+        )
+        trades = conn.execute(
+            "SELECT sleeve, strategy_type, underlying_ticker FROM trades"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert replay["trades_placed"] == 1
+    assert replay["trade_source_counts"]["priced"] == 1
+    assert replay["events_dropped_no_pricing"] == 0
+    assert trades == [("core", "iron_condor", "SPY")]
+
+
 def test_strict_mode_year2_replay_drops_events_without_pricing(mod, tmp_path):
     """Mixed cache: priced + metadata events. Strict mode loads only priced
     events; metadata-only events are dropped and the year2_replay stage's
