@@ -1,0 +1,14 @@
+runs/
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.csv
+*.jsonl
+
+!configs/
+!configs/*.json
+!README.md
+!run_window_experiments.py
+!__init__.py
+
