@@ -14,13 +14,20 @@ from pathlib import Path
 from dashboard.app import (
     count_satellite_events,
     count_priced_chain_files,
+    count_spy_core_files,
+    fetch_latest_run_id,
+    fetch_live_simulation_summary,
+    fetch_prediction_actuals,
+    fetch_run_trades,
     fetch_run_equity_curve,
     filter_paper_v1_processes,
     get_system_snapshot,
     is_status_stale,
+    paper_v1_log_path_from_status,
     read_offline_context_manifest,
     read_offline_context_status,
     read_paper_v1_status,
+    resolve_live_run_id,
     summarize_offline_context_cache,
     tail_text_file,
     total_polygon_api_calls,
@@ -57,10 +64,18 @@ def _make_db_with_run(
     def _add(sleeve: str, idx: int, pnl: float | None) -> None:
         cur = conn.execute(
             "INSERT INTO gate_decisions (run_id, decision_at_utc, underlying_ticker, sleeve, "
-            "candidate_summary, signal_pass, risk_spread_pass, risk_vega_pass, risk_scenario_pass, "
+            "candidate_summary, signal_score, signal_threshold, signal_pass, "
+            "risk_spread_pass, risk_vega_pass, risk_scenario_pass, "
             "risk_liquidity_pass, risk_pin_pass, risk_concentration_pass, final_decision) "
-            "VALUES (?, ?, ?, ?, ?, 1, 1, 1, 1, 1, 1, 1, 'approved')",
-            (run_id, f"2026-05-07T04:{idx:02d}:00Z", "SPY", sleeve, "test"),
+            "VALUES (?, ?, ?, ?, ?, ?, 0.0, 1, 1, 1, 1, 1, 1, 1, 'approved')",
+            (
+                run_id,
+                f"2026-05-07T04:{idx:02d}:00Z",
+                "SPY",
+                sleeve,
+                "test",
+                float(idx) / 10.0,
+            ),
         )
         decision_id = cur.lastrowid
         status = "closed" if pnl is not None else "open"
@@ -438,6 +453,102 @@ def test_fetch_run_equity_curve_handles_none_conn():
 
 
 # ---------------------------------------------------------------------------
+# live simulation helpers
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_latest_run_id_returns_newest(tmp_path):
+    db_path = tmp_path / "runs.db"
+    _make_db_with_run(db_path, run_id="old")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO runs (run_id, run_type, status, initial_nav_usd, started_at_utc) "
+        "VALUES ('new', 'paper_demo', 'running', 1000.0, '2026-05-08T00:00:00Z')"
+    )
+    conn.commit()
+
+    assert fetch_latest_run_id(conn) == "new"
+    conn.close()
+
+
+def test_resolve_live_run_id_prefers_status_then_db(tmp_path):
+    db_path = tmp_path / "runs.db"
+    _make_db_with_run(db_path, run_id="db_run")
+    conn = sqlite3.connect(db_path)
+
+    assert resolve_live_run_id(conn, {"run_id": "status_run"}) == "status_run"
+    assert resolve_live_run_id(conn, {}) == "db_run"
+    conn.close()
+
+
+def test_fetch_live_simulation_summary_aggregates_decisions_and_trades(tmp_path):
+    db_path = tmp_path / "sim.db"
+    _make_db_with_run(
+        db_path,
+        run_id="r0",
+        n_satellite=3,
+        n_demo=1,
+        pnl_sequence=[100.0, -40.0, 0.0, 20.0],
+    )
+    conn = sqlite3.connect(db_path)
+
+    out = fetch_live_simulation_summary(conn, "r0")
+
+    assert out["decisions_total"] == 4
+    assert out["approved"] == 4
+    assert out["blocked"] == 0
+    assert out["trades_total"] == 4
+    assert out["closed_trades"] == 4
+    assert out["satellite_trades"] == 3
+    assert out["realized_pnl_usd"] == 80.0
+    assert out["win_rate"] == 0.5
+    conn.close()
+
+
+def test_fetch_prediction_actuals_joins_decisions_to_trades(tmp_path):
+    db_path = tmp_path / "sim.db"
+    _make_db_with_run(
+        db_path,
+        run_id="r0",
+        n_satellite=2,
+        pnl_sequence=[100.0, -20.0],
+    )
+    conn = sqlite3.connect(db_path)
+
+    df = fetch_prediction_actuals(conn, "r0")
+
+    assert len(df) == 2
+    assert {"signal_score", "signal_threshold", "realized_pnl_usd"}.issubset(df.columns)
+    assert list(df["realized_pnl_usd"]) == [100.0, -20.0]
+    assert list(df["signal_score"]) == [0.0, 0.1]
+    conn.close()
+
+
+def test_fetch_run_trades_returns_recent_trades(tmp_path):
+    db_path = tmp_path / "sim.db"
+    _make_db_with_run(
+        db_path,
+        run_id="r0",
+        n_satellite=2,
+        pnl_sequence=[100.0, -20.0],
+    )
+    conn = sqlite3.connect(db_path)
+
+    df = fetch_run_trades(conn, "r0")
+
+    assert len(df) == 2
+    assert {"trade_id", "sleeve", "realized_pnl_usd"}.issubset(df.columns)
+    assert list(df["realized_pnl_usd"]) == [100.0, -20.0]
+    conn.close()
+
+
+def test_paper_v1_log_path_from_status_uses_init_log_file(tmp_path):
+    log_file = tmp_path / "active.log"
+    payload = {"stages": {"init": {"log_file": str(log_file)}}}
+    assert paper_v1_log_path_from_status(payload) == log_file.resolve()
+
+
+# ---------------------------------------------------------------------------
 # total_polygon_api_calls
 # ---------------------------------------------------------------------------
 
@@ -469,6 +580,19 @@ def test_count_priced_chain_files_by_year(tmp_path):
 
     out = count_priced_chain_files(tmp_path)
     assert out == {"year1": 2, "year2": 1, "total": 3}
+
+
+def test_count_spy_core_files_by_year(tmp_path):
+    for path in (
+        tmp_path / "year1" / "chains_priced" / "SPY" / "2024-05-13.parquet",
+        tmp_path / "year2" / "chains_priced" / "SPY" / "2025-05-12.parquet",
+        tmp_path / "year2" / "chains_priced" / "SPY" / "2025-05-19.parquet",
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"marker")
+
+    out = count_spy_core_files(tmp_path)
+    assert out == {"year1": 1, "year2": 2, "total": 3}
 
 
 def test_tail_text_file_returns_last_lines(tmp_path):

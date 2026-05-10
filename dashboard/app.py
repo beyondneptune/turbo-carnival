@@ -142,6 +142,20 @@ def get_paper_v1_log_path() -> Path:
     return PAPER_V1_LOG_PATH
 
 
+def paper_v1_log_path_from_status(status: dict[str, Any] | None) -> Path:
+    """Prefer the active run's configured log path when the status records one."""
+    override = os.environ.get("PAPER_V1_LOG_PATH")
+    if override:
+        return Path(override).expanduser().resolve()
+    if isinstance(status, dict):
+        stages = status.get("stages")
+        init = stages.get("init") if isinstance(stages, dict) else None
+        log_file = init.get("log_file") if isinstance(init, dict) else None
+        if isinstance(log_file, str) and log_file.strip():
+            return Path(log_file).expanduser().resolve()
+    return PAPER_V1_LOG_PATH
+
+
 def read_paper_v1_status(path: Path | None = None) -> dict[str, Any] | None:
     """Read the paper_v1 status JSON file. Returns None if absent or unreadable."""
     target = path if path is not None else get_paper_v1_status_path()
@@ -285,6 +299,198 @@ def count_priced_chain_files(cache_root: Path | None = None) -> dict[str, int]:
         total += count
     out["total"] = total
     return out
+
+
+def count_spy_core_files(cache_root: Path | None = None) -> dict[str, int]:
+    """Count SPY core priced parquet files by paper_v1 year."""
+    root = cache_root if cache_root is not None else (REPO_ROOT / "data" / "cache")
+    out: dict[str, int] = {}
+    total = 0
+    for year in ("year1", "year2"):
+        spy_dir = root / year / "chains_priced" / "SPY"
+        count = sum(1 for p in spy_dir.glob("*.parquet") if p.is_file()) if spy_dir.exists() else 0
+        out[year] = count
+        total += count
+    out["total"] = total
+    return out
+
+
+def fetch_latest_run_id(conn: sqlite3.Connection | None) -> str | None:
+    """Return the most recent run_id from the audit DB."""
+    if conn is None:
+        return None
+    try:
+        row = conn.execute(
+            "SELECT run_id FROM runs ORDER BY started_at_utc DESC LIMIT 1"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if not row or not row[0]:
+        return None
+    return str(row[0])
+
+
+def resolve_live_run_id(
+    conn: sqlite3.Connection | None,
+    status: dict[str, Any] | None,
+) -> str | None:
+    """Use status run_id first, then fall back to the newest DB run."""
+    if isinstance(status, dict):
+        run_id = status.get("run_id")
+        if isinstance(run_id, str) and run_id.strip():
+            return run_id.strip()
+    return fetch_latest_run_id(conn)
+
+
+def fetch_live_simulation_summary(
+    conn: sqlite3.Connection | None,
+    run_id: str | None,
+) -> dict[str, Any]:
+    """Aggregate the current simulation run from gate_decisions + trades."""
+    empty = {
+        "decisions_total": 0,
+        "approved": 0,
+        "blocked": 0,
+        "trades_total": 0,
+        "open_trades": 0,
+        "closed_trades": 0,
+        "core_trades": 0,
+        "satellite_trades": 0,
+        "realized_pnl_usd": 0.0,
+        "win_rate": None,
+    }
+    if conn is None or not run_id:
+        return empty
+    try:
+        decisions = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN final_decision = 'approved' THEN 1 ELSE 0 END) AS approved,
+                SUM(CASE WHEN final_decision = 'blocked' THEN 1 ELSE 0 END) AS blocked
+            FROM gate_decisions
+            WHERE run_id = ?
+            """,
+            (run_id,),
+        ).fetchone()
+        trades = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) AS open_trades,
+                SUM(CASE WHEN status IN ('closed', 'expired', 'force_closed') THEN 1 ELSE 0 END) AS closed_trades,
+                SUM(CASE WHEN sleeve = 'core' THEN 1 ELSE 0 END) AS core_trades,
+                SUM(CASE WHEN sleeve = 'satellite' THEN 1 ELSE 0 END) AS satellite_trades,
+                COALESCE(SUM(realized_pnl_usd), 0.0) AS pnl,
+                SUM(CASE WHEN realized_pnl_usd > 0 THEN 1 ELSE 0 END) AS wins,
+                SUM(CASE WHEN realized_pnl_usd IS NOT NULL THEN 1 ELSE 0 END) AS closed_with_pnl
+            FROM trades
+            WHERE run_id = ?
+            """,
+            (run_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return empty
+
+    out = dict(empty)
+    if decisions:
+        out["decisions_total"] = int(decisions[0] or 0)
+        out["approved"] = int(decisions[1] or 0)
+        out["blocked"] = int(decisions[2] or 0)
+    if trades:
+        out["trades_total"] = int(trades[0] or 0)
+        out["open_trades"] = int(trades[1] or 0)
+        out["closed_trades"] = int(trades[2] or 0)
+        out["core_trades"] = int(trades[3] or 0)
+        out["satellite_trades"] = int(trades[4] or 0)
+        out["realized_pnl_usd"] = float(trades[5] or 0.0)
+        wins = int(trades[6] or 0)
+        closed_with_pnl = int(trades[7] or 0)
+        out["win_rate"] = (wins / closed_with_pnl) if closed_with_pnl else None
+    return out
+
+
+def fetch_prediction_actuals(
+    conn: sqlite3.Connection | None,
+    run_id: str | None,
+    *,
+    limit: int = 250,
+) -> pd.DataFrame:
+    """Join prediction/gate rows to their realized trade outcome."""
+    if conn is None or not run_id:
+        return pd.DataFrame()
+    try:
+        return pd.read_sql_query(
+            """
+            SELECT *
+            FROM (
+                SELECT
+                    gd.decision_id,
+                    gd.decision_at_utc,
+                    gd.underlying_ticker,
+                    gd.sleeve,
+                    gd.signal_score,
+                    gd.signal_threshold,
+                    gd.signal_pass,
+                    gd.final_decision,
+                    gd.block_reason,
+                    gd.candidate_summary,
+                    gd.model_version,
+                    t.trade_id,
+                    t.strategy_type,
+                    t.status AS trade_status,
+                    t.entry_at_utc,
+                    t.exit_at_utc,
+                    t.realized_pnl_usd,
+                    t.commission_usd,
+                    t.spread_cost_usd,
+                    t.slippage_usd
+                FROM gate_decisions gd
+                LEFT JOIN trades t ON t.decision_id = gd.decision_id
+                WHERE gd.run_id = ?
+                ORDER BY gd.decision_at_utc DESC
+                LIMIT ?
+            )
+            ORDER BY decision_at_utc ASC
+            """,
+            conn,
+            params=(run_id, limit),
+        )
+    except (pd.errors.DatabaseError, sqlite3.OperationalError):
+        return pd.DataFrame()
+
+
+def fetch_run_trades(
+    conn: sqlite3.Connection | None,
+    run_id: str | None,
+    *,
+    limit: int = 250,
+) -> pd.DataFrame:
+    """Return recent trades for a run in chronological display order."""
+    if conn is None or not run_id:
+        return pd.DataFrame()
+    try:
+        return pd.read_sql_query(
+            """
+            SELECT *
+            FROM (
+                SELECT
+                    trade_id, decision_id, sleeve, strategy_type, underlying_ticker,
+                    status, entry_at_utc, exit_at_utc, entry_delta, entry_gamma,
+                    entry_theta, entry_vega, commission_usd, spread_cost_usd,
+                    slippage_usd, realized_pnl_usd, notes
+                FROM trades
+                WHERE run_id = ?
+                ORDER BY entry_at_utc DESC
+                LIMIT ?
+            )
+            ORDER BY entry_at_utc ASC
+            """,
+            conn,
+            params=(run_id, limit),
+        )
+    except (pd.errors.DatabaseError, sqlite3.OperationalError):
+        return pd.DataFrame()
 
 
 OFFLINE_CONTEXT_SOURCE_LABELS = {
@@ -1038,13 +1244,14 @@ def _render_behind_the_scenes(status: dict[str, Any], status_path: Path) -> None
             _empty_state("🐍", "No paper_v1 process found", "The process may have exited or be outside psutil visibility.")
     with proc_cols[1]:
         st.markdown("#### Files")
+        log_path = paper_v1_log_path_from_status(status)
         st.markdown(
             f"`{status_path}`\n\n"
-            f"`{get_paper_v1_log_path()}`\n\n"
+            f"`{log_path}`\n\n"
             f"Snapshot: `{snap['timestamp_utc']}`"
         )
 
-    log_lines = tail_text_file(get_paper_v1_log_path(), max_lines=120)
+    log_lines = tail_text_file(log_path, max_lines=120)
     st.markdown("#### Live log tail")
     if log_lines:
         st.code("\n".join(log_lines), language="text")
@@ -1267,6 +1474,243 @@ def _render_equity_curve(equity_df: pd.DataFrame) -> None:
         plot_bgcolor="rgba(0,0,0,0)",
     )
     st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_prediction_actual_chart(pred_df: pd.DataFrame) -> None:
+    """Scatter signal_score against realized P&L for approved/filled trades."""
+    if pred_df.empty or "signal_score" not in pred_df.columns or "realized_pnl_usd" not in pred_df.columns:
+        return
+    plot_df = pred_df.dropna(subset=["signal_score", "realized_pnl_usd"]).copy()
+    if plot_df.empty:
+        return
+    colors = [
+        COLOR_GREEN if float(v) >= 0 else COLOR_RED
+        for v in plot_df["realized_pnl_usd"].astype(float)
+    ]
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=plot_df["signal_score"].astype(float),
+            y=plot_df["realized_pnl_usd"].astype(float),
+            mode="markers",
+            marker={"size": 10, "color": colors, "line": {"width": 1, "color": "rgba(255,255,255,0.5)"}},
+            text=plot_df["underlying_ticker"].astype(str),
+            customdata=plot_df[["sleeve", "final_decision", "trade_status"]].astype(str).to_numpy(),
+            hovertemplate=(
+                "<b>%{text}</b><br>"
+                "signal: %{x:.4f}<br>"
+                "realized P&L: $%{y:,.2f}<br>"
+                "sleeve: %{customdata[0]}<br>"
+                "decision: %{customdata[1]}<br>"
+                "trade: %{customdata[2]}<extra></extra>"
+            ),
+            name="Prediction vs actual",
+        )
+    )
+    fig.add_hline(y=0, line_dash="dot", line_color=COLOR_GRAY, opacity=0.55)
+    fig.update_layout(
+        template="plotly_dark",
+        margin={"l": 10, "r": 10, "t": 10, "b": 10},
+        height=300,
+        xaxis={"title": "Signal / prediction score", "gridcolor": "rgba(255,255,255,0.06)"},
+        yaxis={"title": "Actual realized P&L (USD)", "gridcolor": "rgba(255,255,255,0.06)"},
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_trade_pnl_bars(trades_df: pd.DataFrame) -> None:
+    """Bar chart for realized P&L by trade."""
+    if trades_df.empty or "realized_pnl_usd" not in trades_df.columns:
+        return
+    plot_df = trades_df.dropna(subset=["realized_pnl_usd"]).copy()
+    if plot_df.empty:
+        return
+    plot_df["label"] = (
+        plot_df["entry_at_utc"].astype(str).str.slice(0, 10)
+        + " "
+        + plot_df["underlying_ticker"].astype(str)
+        + " #"
+        + plot_df["trade_id"].astype(str)
+    )
+    colors = [COLOR_GREEN if float(v) >= 0 else COLOR_RED for v in plot_df["realized_pnl_usd"]]
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=plot_df["label"],
+            y=plot_df["realized_pnl_usd"].astype(float),
+            marker={"color": colors},
+            customdata=plot_df[["sleeve", "strategy_type", "status"]].astype(str).to_numpy(),
+            hovertemplate=(
+                "<b>%{x}</b><br>"
+                "P&L: $%{y:,.2f}<br>"
+                "sleeve: %{customdata[0]}<br>"
+                "strategy: %{customdata[1]}<br>"
+                "status: %{customdata[2]}<extra></extra>"
+            ),
+            name="Trade P&L",
+        )
+    )
+    fig.add_hline(y=0, line_dash="dot", line_color=COLOR_GRAY, opacity=0.55)
+    fig.update_layout(
+        template="plotly_dark",
+        margin={"l": 10, "r": 10, "t": 10, "b": 10},
+        height=300,
+        xaxis={"title": None, "tickangle": -35, "showgrid": False},
+        yaxis={"title": "Realized P&L (USD)", "gridcolor": "rgba(255,255,255,0.06)"},
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_live_backfill_strip(status: dict[str, Any] | None) -> None:
+    """Compact live data-prep strip shown before/during simulation."""
+    if not isinstance(status, dict):
+        return
+    stage_name, stage = _running_stage_payload(status)
+    stage = stage or {}
+    spy_counts = count_spy_core_files()
+    priced_counts = count_priced_chain_files()
+    cols = st.columns(4)
+    cols[0].metric(
+        "Background phase",
+        str(status.get("phase") or "—"),
+        delta=stage_name or "—",
+        delta_color="off",
+        border=True,
+    )
+    cols[1].metric(
+        "Active item",
+        str(stage.get("current_ticker") or "—"),
+        delta=str(stage.get("current_entry_date") or stage.get("current_event_date") or "—"),
+        delta_color="off",
+        border=True,
+    )
+    done = stage.get("done")
+    total = stage.get("total")
+    cols[2].metric(
+        "Stage progress",
+        f"{int(done):,}/{int(total):,}" if isinstance(done, (int, float)) and isinstance(total, (int, float)) else "—",
+        delta=str(stage.get("current_substage") or "—"),
+        delta_color="off",
+        border=True,
+    )
+    cols[3].metric(
+        "SPY core files",
+        f"{spy_counts['total']:,}/104",
+        delta=f"Y1 {spy_counts['year1']} · Y2 {spy_counts['year2']} · all priced {priced_counts['total']}",
+        delta_color="off",
+        border=True,
+    )
+    if isinstance(done, (int, float)) and isinstance(total, (int, float)) and total > 0:
+        st.progress(max(0.0, min(1.0, float(done) / float(total))), text=f"{int(done):,} / {int(total):,} current stage")
+
+
+def show_live_simulation(conn: sqlite3.Connection | None) -> None:
+    """First-screen live cockpit for the evidence/smoke replay."""
+    st.subheader("📡 Live Simulation")
+    status = read_paper_v1_status()
+    run_id = resolve_live_run_id(conn, status)
+
+    _render_live_backfill_strip(status)
+    st.divider()
+
+    if conn is None:
+        _empty_state("🗄️", "Audit DB not available", "Simulation rows appear after the DB is initialised.")
+        return
+    if not run_id:
+        _empty_state("📡", "No simulation run yet", "Backfill can continue; the replay table appears after an unofficial or official run starts.")
+        return
+
+    summary = fetch_live_simulation_summary(conn, run_id)
+    pred_df = fetch_prediction_actuals(conn, run_id, limit=300)
+    trades_df = fetch_run_trades(conn, run_id, limit=300)
+    equity_df = fetch_run_equity_curve(conn, run_id)
+
+    st.markdown(
+        f"<div style='font-size:0.85rem;color:{COLOR_GRAY};margin-bottom:0.4rem;'>"
+        f"run <code>{run_id}</code></div>",
+        unsafe_allow_html=True,
+    )
+
+    metric_cols = st.columns(5)
+    metric_cols[0].metric("Decisions", f"{summary['decisions_total']:,}", delta=f"{summary['approved']} approved · {summary['blocked']} blocked", delta_color="off", border=True)
+    metric_cols[1].metric("Trades", f"{summary['trades_total']:,}", delta=f"{summary['open_trades']} open · {summary['closed_trades']} closed", delta_color="off", border=True)
+    metric_cols[2].metric("Realized P&L", f"${summary['realized_pnl_usd']:,.2f}", delta="closed trades", delta_color="normal" if summary["realized_pnl_usd"] >= 0 else "inverse", border=True)
+    win_rate = summary["win_rate"]
+    metric_cols[3].metric("Win rate", f"{win_rate:.0%}" if isinstance(win_rate, float) else "—", border=True)
+    metric_cols[4].metric("Sleeves", f"C {summary['core_trades']} · S {summary['satellite_trades']}", delta="core · satellite", delta_color="off", border=True)
+
+    chart_cols = st.columns(2)
+    with chart_cols[0]:
+        st.markdown("#### Equity")
+        if equity_df.empty:
+            _empty_state("📈", "No closed trades", "P&L curve appears as trades close.")
+        else:
+            _render_equity_curve(equity_df)
+    with chart_cols[1]:
+        st.markdown("#### Prediction vs actual")
+        if pred_df.empty or pred_df[["signal_score", "realized_pnl_usd"]].dropna().empty:
+            _empty_state("🎯", "No paired prediction/P&L rows", "Pairs appear after decisions have realized outcomes.")
+        else:
+            _render_prediction_actual_chart(pred_df)
+
+    st.markdown("#### Trade P&L")
+    if trades_df.empty or trades_df["realized_pnl_usd"].dropna().empty:
+        _empty_state("💼", "No realized trade P&L", "Closed trades render here.")
+    else:
+        _render_trade_pnl_bars(trades_df)
+
+    tab_predictions, tab_trades, tab_legs = st.tabs(["Predictions", "Trades", "Legs"])
+    with tab_predictions:
+        if pred_df.empty:
+            _empty_state("🎯", "No decisions yet", "Gate decisions stream here during replay.")
+        else:
+            display_cols = [
+                c for c in (
+                    "decision_at_utc", "underlying_ticker", "sleeve", "signal_score",
+                    "signal_threshold", "signal_pass", "final_decision", "realized_pnl_usd",
+                    "trade_status", "block_reason", "candidate_summary",
+                )
+                if c in pred_df.columns
+            ]
+            st.dataframe(pred_df[display_cols].sort_values("decision_at_utc", ascending=False), use_container_width=True, hide_index=True, height=360)
+    with tab_trades:
+        if trades_df.empty:
+            _empty_state("💼", "No trades yet", "Approved decisions become trades here.")
+        else:
+            st.dataframe(trades_df.sort_values("entry_at_utc", ascending=False), use_container_width=True, hide_index=True, height=360)
+    with tab_legs:
+        if trades_df.empty:
+            _empty_state("🦴", "No trade legs yet", "Trade legs appear after fills.")
+        else:
+            trade_ids = tuple(int(x) for x in trades_df["trade_id"].dropna().tolist())
+            if not trade_ids:
+                _empty_state("🦴", "No trade legs yet", "Trade legs appear after fills.")
+            else:
+                placeholders = ",".join("?" for _ in trade_ids)
+                try:
+                    legs = pd.read_sql_query(
+                        f"""
+                        SELECT trade_id, leg_number, instrument_type, direction, quantity,
+                               strike, expiry, entry_fill_price, exit_fill_price
+                        FROM trade_legs
+                        WHERE trade_id IN ({placeholders})
+                        ORDER BY trade_id DESC, leg_number ASC
+                        """,
+                        conn,
+                        params=trade_ids,
+                    )
+                except (pd.errors.DatabaseError, sqlite3.OperationalError):
+                    legs = pd.DataFrame()
+                if legs.empty:
+                    _empty_state("🦴", "No trade legs yet", "Trade legs appear after fills.")
+                else:
+                    st.dataframe(legs, use_container_width=True, hide_index=True, height=360)
 
 
 def _render_sample_size_pill(n: int, target: int = SATELLITE_SAMPLE_TARGET) -> None:
@@ -1733,6 +2177,7 @@ def main() -> None:
     live_view = st.sidebar.radio(
         "Live views",
         [
+            "📡 Live Simulation",
             "🚀 Paper v1 Run",
             "🖥️ System",
         ],
@@ -1803,6 +2248,8 @@ def main() -> None:
         show_trades(conn)
     elif "Agent Activity" in active:
         show_table_view(conn, "🤖 Agent activity", "agents_log")
+    elif "Live Simulation" in active:
+        show_live_simulation(conn)
     elif "Paper v1 Run" in active:
         show_paper_v1_run(conn)
     elif "System" in active:
