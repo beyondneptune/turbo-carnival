@@ -24,6 +24,18 @@ The runner writes:
 - `exp*/experiment.db` - scratch audit DB for that window
 - `exp*/status.json` - scratch status file for that window
 
+Current scope:
+
+- Window gate metrics are labeled `gate_scope=satellite_selection_returns`.
+  They measure the earnings-volatility satellite selector across alternate
+  train/test windows.
+- SPY core trades are still written into each scratch DB and counted in
+  `trades_placed` / `trade_source_counts`, but they are not yet part of the
+  gate-return arrays because the current official replay evaluator exposes
+  satellite arrays for baseline comparison.
+- Use strict priced runs for evidence-quality diagnostics. Use
+  `--allow-synthetic --synthetic-spy-core` only for fast exploratory smoke.
+
 Rules:
 
 - Do not use `data/trading_system.db` for experiments.
@@ -32,4 +44,3 @@ Rules:
   as official evidence.
 - A good experiment is allowed to inspire a future cycle, but it does not alter
   the current paper month rules.
-

@@ -39,6 +39,13 @@ import run_paper_v1_evidence as evidence  # noqa: E402
 
 
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "experiments" / "runs"
+WINDOW_SCRATCH_FILES = (
+    "experiment.db",
+    "experiment.db-shm",
+    "experiment.db-wal",
+    "status.json",
+    "window.json",
+)
 
 
 @dataclass(frozen=True)
@@ -303,6 +310,16 @@ def _materialize_spy_priced_window(
     return dest_dir if count else None
 
 
+def reset_window_scratch(win_dir: Path) -> None:
+    """Remove per-window scratch outputs so experiment windows are rerunnable."""
+    win_dir.mkdir(parents=True, exist_ok=True)
+    for name in WINDOW_SCRATCH_FILES:
+        (win_dir / name).unlink(missing_ok=True)
+    spy_priced_dir = win_dir / "spy_priced"
+    if spy_priced_dir.exists():
+        shutil.rmtree(spy_priced_dir)
+
+
 def run_window(
     *,
     full_cache: dict[str, Any],
@@ -317,7 +334,7 @@ def run_window(
     synthetic_spy_core: bool,
 ) -> dict[str, Any]:
     win_dir = run_dir / spec.name
-    win_dir.mkdir(parents=True, exist_ok=True)
+    reset_window_scratch(win_dir)
     run_id = f"research_window_{run_dir.name}_{spec.name}"
     db_path = win_dir / "experiment.db"
     status_path = win_dir / "status.json"
@@ -441,10 +458,18 @@ def run_window(
             "trades_placed": int(replay["trades_placed"]),
             "trades_blocked": int(replay["trades_blocked"]),
             "events_dropped_no_pricing": int(replay.get("events_dropped_no_pricing", 0)),
+            "gate_scope": "satellite_selection_returns",
+            "fill_cost_stress_multiplier": float(cost_stress_multiplier),
             "strategy_events": int(len(replay["strategy_returns"])),
+            "satellite_strategy_events": int(len(replay["strategy_returns"])),
             "strategy_ann_return": float(base_inputs.strategy_annualised_return),
+            "satellite_ann_return": float(base_inputs.strategy_annualised_return),
             "best_baseline_ann_return": float(base_inputs.best_baseline_annualised_return),
             "net_excess_bps": float(
+                (base_inputs.strategy_annualised_return - base_inputs.best_baseline_annualised_return)
+                * 10_000.0
+            ),
+            "satellite_net_excess_bps": float(
                 (base_inputs.strategy_annualised_return - base_inputs.best_baseline_annualised_return)
                 * 10_000.0
             ),
