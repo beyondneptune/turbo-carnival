@@ -45,6 +45,9 @@ models/*.bin
 models/*.cbm
 models/*.lgb
 
+# Local third-party research repos
+external/
+
 # Run outputs — too large, organized separately
 results/runs/
 runs/
