@@ -27,7 +27,11 @@ import streamlit as st
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = REPO_ROOT / "data" / "trading_system.db"
 PAPER_V1_STATUS_PATH = REPO_ROOT / "data" / "paper_v1_status.json"
+PAPER_V1_UNOFFICIAL_STATUS_PATH = REPO_ROOT / "data" / "paper_v1_unofficial_status.json"
 PAPER_V1_LOG_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_augment.log"
+PAPER_V1_SPY_CORE_LOG_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_spy_core_resume.log"
+PAPER_V1_SPY_CORE_ERR_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_spy_core_resume.err"
+PAPER_V1_SPY_CORE_OUT_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_spy_core_resume.out"
 OFFLINE_CONTEXT_DIR = REPO_ROOT / "data" / "offline_context"
 OFFLINE_CONTEXT_MANIFEST_PATH = OFFLINE_CONTEXT_DIR / "manifest.json"
 OFFLINE_CONTEXT_STATUS_PATH = REPO_ROOT / "data" / "offline_context_status.json"
@@ -134,6 +138,14 @@ def get_paper_v1_status_path() -> Path:
     return PAPER_V1_STATUS_PATH
 
 
+def get_paper_v1_unofficial_status_path() -> Path:
+    """Return the unofficial/smoke-run status path (env override allowed)."""
+    override = os.environ.get("PAPER_V1_UNOFFICIAL_STATUS_PATH")
+    if override:
+        return Path(override).expanduser().resolve()
+    return PAPER_V1_UNOFFICIAL_STATUS_PATH
+
+
 def get_paper_v1_log_path() -> Path:
     """Return the configured paper_v1 augment log path (env override allowed)."""
     override = os.environ.get("PAPER_V1_LOG_PATH")
@@ -159,6 +171,12 @@ def paper_v1_log_path_from_status(status: dict[str, Any] | None) -> Path:
 def read_paper_v1_status(path: Path | None = None) -> dict[str, Any] | None:
     """Read the paper_v1 status JSON file. Returns None if absent or unreadable."""
     target = path if path is not None else get_paper_v1_status_path()
+    return _read_json_object(target)
+
+
+def read_paper_v1_unofficial_status(path: Path | None = None) -> dict[str, Any] | None:
+    """Read the unofficial smoke-run status JSON file, if present."""
+    target = path if path is not None else get_paper_v1_unofficial_status_path()
     return _read_json_object(target)
 
 
@@ -702,6 +720,51 @@ def tail_text_file(
     text = data.decode("utf-8", errors="replace")
     lines = text.splitlines()
     return lines[-max_lines:]
+
+
+def _log_source_row(label: str, path: Path) -> dict[str, Any]:
+    """Build a display row for one dashboard log source."""
+    exists = path.exists()
+    size_bytes: int | None = None
+    modified_at_utc: str | None = None
+    if exists:
+        try:
+            stat = path.stat()
+        except OSError:
+            exists = False
+        else:
+            size_bytes = stat.st_size
+            modified_at_utc = datetime.fromtimestamp(
+                stat.st_mtime,
+                tz=timezone.utc,
+            ).isoformat()
+    return {
+        "label": label,
+        "path": path,
+        "exists": exists,
+        "size_bytes": size_bytes,
+        "modified_at_utc": modified_at_utc,
+    }
+
+
+def live_log_sources(status: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Return deduped log sources worth showing in the live simulation view."""
+    candidates = [
+        ("Active backfill log", paper_v1_log_path_from_status(status)),
+        ("SPY core log", PAPER_V1_SPY_CORE_LOG_PATH),
+        ("SPY core stderr", PAPER_V1_SPY_CORE_ERR_PATH),
+        ("SPY core stdout", PAPER_V1_SPY_CORE_OUT_PATH),
+        ("Default augment log", get_paper_v1_log_path()),
+    ]
+    out: list[dict[str, Any]] = []
+    seen: set[Path] = set()
+    for label, raw_path in candidates:
+        path = raw_path.expanduser().resolve()
+        if path in seen:
+            continue
+        seen.add(path)
+        out.append(_log_source_row(label, path))
+    return out
 
 
 def filter_paper_v1_processes(processes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2084,6 +2147,78 @@ def _render_legs_table(legs: pd.DataFrame) -> None:
     )
 
 
+def _render_live_logs_tab(
+    status: dict[str, Any] | None,
+    unofficial_status: dict[str, Any] | None,
+) -> None:
+    """Live log viewer for backfill + smoke-run status."""
+    st.markdown("#### Runtime logs")
+    cols = st.columns(3)
+    active_phase = status.get("phase") if isinstance(status, dict) else None
+    smoke_phase = unofficial_status.get("phase") if isinstance(unofficial_status, dict) else None
+    smoke_run = unofficial_status.get("run_id") if isinstance(unofficial_status, dict) else None
+    cols[0].metric("Backfill phase", str(active_phase or "—"), border=True)
+    cols[1].metric("Smoke phase", str(smoke_phase or "—"), border=True)
+    cols[2].metric("Smoke run", str(smoke_run or "—"), border=True)
+
+    if isinstance(unofficial_status, dict):
+        gates = unofficial_status.get("gates")
+        if isinstance(gates, dict):
+            failed = gates.get("failed_gates_summary") or []
+            warnings = gates.get("warnings") or []
+            if failed:
+                st.warning("Failed gates: " + ", ".join(str(x) for x in failed))
+            if warnings:
+                st.info("Warnings: " + " · ".join(str(x) for x in warnings))
+        errors = unofficial_status.get("errors") or []
+        if isinstance(errors, list) and errors:
+            st.error("Errors: " + " · ".join(str(x) for x in errors))
+    else:
+        st.caption(f"No unofficial status file at `{get_paper_v1_unofficial_status_path()}` yet.")
+
+    sources = live_log_sources(status)
+    source_rows = [
+        {
+            "source": row["label"],
+            "exists": row["exists"],
+            "size": _format_cache_size(row["size_bytes"]),
+            "modified_utc": row["modified_at_utc"] or "—",
+            "path": str(row["path"]),
+        }
+        for row in sources
+    ]
+    st.dataframe(
+        pd.DataFrame(source_rows),
+        use_container_width=True,
+        hide_index=True,
+        height=min(220, 40 + 32 * max(1, len(source_rows))),
+    )
+
+    available = [row for row in sources if row["exists"]]
+    selectable = available or sources
+    if not selectable:
+        st.info("No log sources configured.")
+        return
+
+    labels = [str(row["label"]) for row in selectable]
+    selected = st.selectbox("Log source", labels, index=0)
+    selected_row = next(row for row in selectable if row["label"] == selected)
+    max_lines = st.slider("Tail lines", min_value=20, max_value=300, value=120, step=20)
+    log_path = selected_row["path"]
+    st.caption(f"`{log_path}`")
+    lines = tail_text_file(log_path, max_lines=max_lines)
+    if lines:
+        st.code("\n".join(lines), language="text")
+    else:
+        st.info("No lines available for this log source yet.")
+
+    with st.expander("Raw smoke status JSON", expanded=False):
+        if isinstance(unofficial_status, dict):
+            st.json(unofficial_status)
+        else:
+            st.info("No smoke status JSON found.")
+
+
 def show_live_simulation(conn: sqlite3.Connection | None) -> None:
     """First-screen live trading-terminal cockpit for the evidence/smoke replay.
 
@@ -2098,6 +2233,7 @@ def show_live_simulation(conn: sqlite3.Connection | None) -> None:
     """
     st.subheader("📡 Live Simulation")
     status = read_paper_v1_status()
+    unofficial_status = read_paper_v1_unofficial_status()
     run_id = resolve_live_run_id(conn, status)
     is_live = _is_simulation_running()
     refresh_interval = st.session_state.get("refresh_interval_seconds")
@@ -2111,11 +2247,17 @@ def show_live_simulation(conn: sqlite3.Connection | None) -> None:
     if conn is None:
         _live_simulation_empty_state("no_db")
         st.divider()
+        with st.expander("Logs", expanded=True):
+            _render_live_logs_tab(status, unofficial_status)
+        st.divider()
         with st.expander("Backfill status", expanded=False):
             _render_live_backfill_strip(status)
         return
     if not run_id:
         _live_simulation_empty_state("no_run")
+        st.divider()
+        with st.expander("Logs", expanded=True):
+            _render_live_logs_tab(status, unofficial_status)
         st.divider()
         with st.expander("Backfill status", expanded=False):
             _render_live_backfill_strip(status)
@@ -2147,7 +2289,9 @@ def show_live_simulation(conn: sqlite3.Connection | None) -> None:
         _render_prediction_actual_timeseries(pred_df)
 
     # 6. Tabs.
-    tab_predictions, tab_trades, tab_legs = st.tabs(["Predictions", "Trades", "Legs"])
+    tab_predictions, tab_trades, tab_legs, tab_logs = st.tabs(
+        ["Predictions", "Trades", "Legs", "Logs"]
+    )
     with tab_predictions:
         if pred_df.empty:
             _empty_state("🎯", "No decisions yet", "Gate decisions stream here during replay.")
@@ -2185,6 +2329,8 @@ def show_live_simulation(conn: sqlite3.Connection | None) -> None:
                     _empty_state("🦴", "No trade legs yet", "Trade legs appear after fills.")
                 else:
                     _render_legs_table(legs)
+    with tab_logs:
+        _render_live_logs_tab(status, unofficial_status)
 
     # 7. Backfill is context, not focus — push it to the bottom in an expander.
     st.divider()

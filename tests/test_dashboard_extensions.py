@@ -25,10 +25,12 @@ from dashboard.app import (
     filter_paper_v1_processes,
     get_system_snapshot,
     is_status_stale,
+    live_log_sources,
     paper_v1_log_path_from_status,
     read_offline_context_manifest,
     read_offline_context_status,
     read_paper_v1_status,
+    read_paper_v1_unofficial_status,
     resolve_live_run_id,
     summarize_offline_context_cache,
     tail_text_file,
@@ -239,6 +241,20 @@ def test_read_paper_v1_status_non_dict_root(tmp_path):
     target = tmp_path / "list.json"
     target.write_text(json.dumps([1, 2, 3]))
     assert read_paper_v1_status(target) is None
+
+
+def test_read_paper_v1_unofficial_status_parses_smoke_file(tmp_path):
+    payload = {
+        "run_id": "paper_v1_unofficial_smoke_test",
+        "phase": "complete",
+        "errors": [],
+    }
+    target = tmp_path / "paper_v1_unofficial_status.json"
+    target.write_text(json.dumps(payload))
+    parsed = read_paper_v1_unofficial_status(target)
+    assert parsed is not None
+    assert parsed["run_id"] == "paper_v1_unofficial_smoke_test"
+    assert parsed["phase"] == "complete"
 
 
 # ---------------------------------------------------------------------------
@@ -603,6 +619,31 @@ def test_tail_text_file_returns_last_lines(tmp_path):
 
     assert tail_text_file(log, max_lines=3) == ["line 7", "line 8", "line 9"]
     assert tail_text_file(tmp_path / "missing.log", max_lines=3) == []
+
+
+def test_live_log_sources_prefers_active_log_and_dedupes(monkeypatch, tmp_path):
+    active = tmp_path / "active.log"
+    err = tmp_path / "active.err"
+    out = tmp_path / "active.out"
+    default = tmp_path / "default.log"
+    active.write_text("hello\n")
+    err.write_text("err\n")
+    out.write_text("")
+    default.write_text("default\n")
+    monkeypatch.delenv("PAPER_V1_LOG_PATH", raising=False)
+    monkeypatch.setattr(dashboard_app, "PAPER_V1_SPY_CORE_LOG_PATH", active)
+    monkeypatch.setattr(dashboard_app, "PAPER_V1_SPY_CORE_ERR_PATH", err)
+    monkeypatch.setattr(dashboard_app, "PAPER_V1_SPY_CORE_OUT_PATH", out)
+    monkeypatch.setattr(dashboard_app, "PAPER_V1_LOG_PATH", default)
+
+    status = {"stages": {"init": {"log_file": str(active)}}}
+    sources = live_log_sources(status)
+    paths = [row["path"] for row in sources]
+
+    assert paths.count(active.resolve()) == 1
+    assert paths[:3] == [active.resolve(), err.resolve(), out.resolve()]
+    assert sources[0]["exists"] is True
+    assert sources[0]["size_bytes"] == len("hello\n")
 
 
 def test_filter_paper_v1_processes_keeps_relevant_commands():
