@@ -1103,8 +1103,9 @@ def _augment_spy_core_for_year(
     # SPY chains under the existing metadata layout. The fetcher writes
     # chains/SPY/{ev_date}.parquet only when a SPY earnings event was queued
     # — but the orchestrator's core sleeve doesn't need earnings events.
-    # We re-use the SPY chain at the entry date if one exists; else fall
-    # back to the most recent SPY chain on or before the entry date.
+    # For SPY core, cached metadata is only usable when it contains the exact
+    # target expiry for that Monday entry. Reusing the most recent prior chain
+    # can silently skip valid entries because weekly SPY expiries change.
     spy_chains_dir = yd / "chains" / "SPY"
     available: list[tuple[date, Path]] = []
     if spy_chains_dir.exists():
@@ -1115,25 +1116,26 @@ def _augment_spy_core_for_year(
                 continue
             available.append((cd, p))
 
-    def _spy_chain_for(d: date) -> pd.DataFrame | None:
-        # exact match wins
+    def _chain_has_expiry(chain: pd.DataFrame | None, expiry: date) -> bool:
+        if chain is None or chain.empty or "expiration_date" not in chain.columns:
+            return False
+        expiries = pd.to_datetime(chain["expiration_date"], errors="coerce").dt.date
+        return bool((expiries == expiry).any())
+
+    def _spy_chain_for(d: date, *, expiry: date) -> pd.DataFrame | None:
+        # Exact-date cache only. Do not use prior chains unless they contain
+        # the exact target expiry; otherwise the SPY core loop races through
+        # Mondays without fetching their actual weekly metadata.
         for (cd, p) in available:
             if cd == d:
                 try:
-                    return pd.read_parquet(p)
+                    chain = pd.read_parquet(p)
                 except Exception:
                     return None
-        # else last on or before
-        prior = [(cd, p) for (cd, p) in available if cd <= d]
-        if not prior:
-            return None
-        prior.sort(key=lambda t: t[0])
-        try:
-            return pd.read_parquet(prior[-1][1])
-        except Exception:
-            return None
+                return chain if _chain_has_expiry(chain, expiry) else None
+        return None
 
-    def _fetch_and_cache_spy_chain_for(d: date) -> pd.DataFrame | None:
+    def _fetch_and_cache_spy_chain_for(d: date, *, expiry: date) -> pd.DataFrame | None:
         """Fetch one SPY expiry metadata snapshot when no cached chain exists.
 
         The original year cache only stores options-chain metadata for earnings
@@ -1142,7 +1144,6 @@ def _augment_spy_core_for_year(
         data-source wiring, not strategy logic: the strike/expiry policy remains
         pinned by the constants above.
         """
-        expiry = next_friday_on_or_after(d + timedelta(days=CORE_DTE_TARGET_DAYS))
         try:
             chain = client.fetch_options_contracts(
                 "SPY",
@@ -1156,7 +1157,7 @@ def _augment_spy_core_for_year(
         except Exception as exc:  # pragma: no cover — defensive
             logger.exception("%s SPY metadata unexpected error %s expiry=%s: %s", year, d, expiry, exc)
             return None
-        if chain is None or chain.empty:
+        if not _chain_has_expiry(chain, expiry):
             return None
         chain = chain.copy()
         chain["as_of_date"] = d.isoformat()
@@ -1197,11 +1198,12 @@ def _augment_spy_core_for_year(
                     total=total,
                     pending=max(0, total - done),
                     files_written=files_written,
-                )
+            )
             continue
-        chain = _spy_chain_for(ed)
+        target_expiry = next_friday_on_or_after(ed + timedelta(days=CORE_DTE_TARGET_DAYS))
+        chain = _spy_chain_for(ed, expiry=target_expiry)
         if chain is None or chain.empty:
-            chain = _fetch_and_cache_spy_chain_for(ed)
+            chain = _fetch_and_cache_spy_chain_for(ed, expiry=target_expiry)
         if chain is None or chain.empty:
             if done % 5 == 0 or done == total:
                 write_status(

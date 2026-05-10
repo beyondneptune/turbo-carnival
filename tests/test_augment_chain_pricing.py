@@ -603,6 +603,76 @@ def test_spy_core_fetches_contract_metadata_when_no_cached_spy_chain(tmp_path, m
     assert set(out["timing"].unique()) == {"entry", "exit"}
 
 
+def test_spy_core_rejects_cached_chain_without_target_expiry(tmp_path, mod):
+    """Regression: if a cached chain at the entry date doesn't contain the
+    target Friday expiry, the loop must REFETCH metadata — not silently reuse
+    the wrong chain. Earlier code reused prior/stale chains and produced a
+    Year 1 status of 52/52 with only 2 actual SPY priced files written.
+    """
+    cache_dir = tmp_path / "cache"
+    status_file = tmp_path / "status.json"
+    yd = cache_dir / "year1"
+    yd.mkdir(parents=True)
+
+    entry = date(2024, 6, 3)  # Monday
+    target_expiry = mod.next_friday_on_or_after(entry + timedelta(days=mod.CORE_DTE_TARGET_DAYS))
+    wrong_expiry = target_expiry + timedelta(days=14)  # 2 Fridays too late
+    assert wrong_expiry != target_expiry
+
+    # Pre-populate a stale cached chain at the EXACT entry date but with the
+    # WRONG expiry — old code would have happily reused this and written a
+    # priced parquet with no rows for the target expiry's option contracts.
+    chains_spy_dir = yd / "chains" / "SPY"
+    chains_spy_dir.mkdir(parents=True)
+    wrong_chain = _make_chain_metadata("SPY", entry, wrong_expiry, [495.0, 500.0, 505.0])
+    wrong_chain.to_parquet(chains_spy_dir / f"{entry.isoformat()}.parquet")
+
+    days = pd.bdate_range(entry, target_expiry)
+    spy_daily = pd.DataFrame(
+        {"close": [500.0] * len(days)},
+        index=pd.DatetimeIndex(days, name="date"),
+    )
+    spy_daily.to_parquet(yd / "spy_daily.parquet")
+
+    fresh_chain = _make_chain_metadata("SPY", entry, target_expiry, [495.0, 500.0, 505.0])
+    fake_client = MagicMock()
+    fake_client.fetch_options_contracts.return_value = fresh_chain
+    fake_client.fetch_options_aggregates.return_value = pd.DataFrame(
+        {"close": [2.0]},
+        index=pd.DatetimeIndex([entry], name="date"),
+    )
+
+    summary = mod._augment_spy_core_for_year(
+        year="year1",
+        client=fake_client,
+        base_dir=cache_dir,
+        status_file=status_file,
+        year_start=entry,
+        year_end=entry,
+    )
+
+    # The client MUST have been called with the target expiry — proves we
+    # didn't silently reuse the stale wrong-expiry chain on disk.
+    fake_client.fetch_options_contracts.assert_called_once_with(
+        "SPY",
+        expiration_date=target_expiry.isoformat(),
+        as_of=entry.isoformat(),
+        limit=1000,
+    )
+    assert summary["files_written"] == 1
+
+    # Cached metadata at entry date is now the FRESH chain (target expiry).
+    refreshed = pd.read_parquet(chains_spy_dir / f"{entry.isoformat()}.parquet")
+    refreshed_expiries = pd.to_datetime(refreshed["expiration_date"]).dt.date
+    assert target_expiry in set(refreshed_expiries)
+
+    priced = cache_dir / "year1" / "chains_priced" / "SPY" / f"{entry.isoformat()}.parquet"
+    assert priced.exists()
+    out = pd.read_parquet(priced)
+    assert set(out.columns) == REQUIRED_COLUMNS
+    assert set(out["timing"].unique()) == {"entry", "exit"}
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
