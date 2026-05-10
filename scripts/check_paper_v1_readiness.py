@@ -198,7 +198,13 @@ def _atm_slice(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["is_atm"].astype(bool)]
 
 
-def _validate_priced_parquet(path: Path, *, year: str, ticker: str) -> list[Finding]:
+def _validate_priced_parquet(
+    path: Path,
+    *,
+    year: str,
+    ticker: str,
+    is_spy_core: bool = False,
+) -> list[Finding]:
     findings: list[Finding] = []
     try:
         df = pd.read_parquet(path)
@@ -309,6 +315,25 @@ def _validate_priced_parquet(path: Path, *, year: str, ticker: str) -> list[Find
             )
         )
 
+    if is_spy_core:
+        # SPY core is a 4-leg iron condor. By design no leg sits at the money,
+        # so is_atm=False on every row is correct. The atm_iv reference is
+        # carried at the row level (same value across all rows) instead of via
+        # a flagged ATM row, so validate that any finite atm_iv is present.
+        if _finite_count(df["atm_iv"]) == 0:
+            findings.append(
+                Finding(
+                    level="blocker",
+                    code="no_finite_atm_iv",
+                    message="SPY core priced parquet has no finite atm_iv values",
+                    year=year,
+                    ticker=ticker,
+                    event_date=path.stem,
+                    path=str(path),
+                )
+            )
+        return findings
+
     atm_entry = _atm_slice(entry)
     atm_exit = _atm_slice(exit_rows)
     if atm_entry.empty or atm_exit.empty:
@@ -402,7 +427,9 @@ def _summarize_spy_core(
         )
 
     for path in files:
-        findings.extend(_validate_priced_parquet(path, year=year, ticker="SPY"))
+        findings.extend(
+            _validate_priced_parquet(path, year=year, ticker="SPY", is_spy_core=True)
+        )
 
     return {
         "present": bool(files),

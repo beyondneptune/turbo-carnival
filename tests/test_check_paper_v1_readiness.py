@@ -135,6 +135,90 @@ def _write_ready_satellite_cache(cache_dir: Path) -> None:
         _write_priced(cache_dir, year, "AAPL", event_date)
 
 
+def _spy_iron_condor_priced_df(
+    entry_date: date,
+    *,
+    underlying_close: float = 570.0,
+    atm_iv: float = 0.13,
+    entry_mid_finite: bool = True,
+    exit_mid_finite: bool = True,
+) -> pd.DataFrame:
+    """Build a SPY-core priced parquet shaped like the live augment output.
+
+    4 unique strikes (2 puts below spot, 2 calls above spot) x entry/exit = 8
+    rows. ``is_atm`` is False on every row by design — iron condor legs are not
+    ATM. ``atm_iv`` is carried at the row level.
+    """
+    expiry = (pd.Timestamp(entry_date) + pd.Timedelta(days=39)).date().isoformat()
+    exit_date_iso = expiry
+    leg_specs = [
+        ("put", 535.0, 2.25),
+        ("put", 541.0, 2.73),
+        ("call", 600.0, 0.84),
+        ("call", 605.0, 0.53),
+    ]
+    rows = []
+    for ctype, strike, entry_mid in leg_specs:
+        rows.append(
+            {
+                "ticker": f"O:SPY{entry_date.strftime('%y%m%d')}{ctype[0].upper()}{int(strike*1000):08d}",
+                "underlying_ticker": "SPY",
+                "contract_type": ctype,
+                "strike_price": strike,
+                "expiration_date": expiry,
+                "as_of_date": entry_date.isoformat(),
+                "timing": "entry",
+                "event_date": entry_date.isoformat(),
+                "bid": np.nan,
+                "ask": np.nan,
+                "mid": entry_mid if entry_mid_finite else np.nan,
+                "underlying_close": underlying_close,
+                "is_atm": False,
+                "atm_iv": atm_iv,
+            }
+        )
+        rows.append(
+            {
+                "ticker": f"O:SPY{entry_date.strftime('%y%m%d')}{ctype[0].upper()}{int(strike*1000):08d}",
+                "underlying_ticker": "SPY",
+                "contract_type": ctype,
+                "strike_price": strike,
+                "expiration_date": expiry,
+                "as_of_date": exit_date_iso,
+                "timing": "exit",
+                "event_date": entry_date.isoformat(),
+                "bid": np.nan,
+                "ask": np.nan,
+                "mid": 0.01 if exit_mid_finite else np.nan,
+                "underlying_close": underlying_close + 1.5,
+                "is_atm": False,
+                "atm_iv": atm_iv,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _write_full_spy_core_year(
+    cache_dir: Path,
+    year: str,
+    mod,
+    *,
+    df_factory=None,
+) -> int:
+    """Write a priced parquet for every expected SPY core Monday in ``year``.
+
+    Uses the module's own ``_spy_core_entry_dates`` so the test stays in sync
+    with the readiness check's expected set.
+    """
+    entry_dates = mod._spy_core_entry_dates(year)
+    target_dir = cache_dir / year / "chains_priced" / "SPY"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    for ed in entry_dates:
+        df = (df_factory or _spy_iron_condor_priced_df)(ed)
+        df.to_parquet(target_dir / f"{ed.isoformat()}.parquet", index=False)
+    return len(entry_dates)
+
+
 def test_check_readiness_ready_with_satellite_priced_and_spy_warning(mod, tmp_path):
     _write_ready_satellite_cache(tmp_path)
 
@@ -269,3 +353,91 @@ def test_main_returns_nonzero_for_blockers(mod, tmp_path, capsys):
 
     assert rc == 1
     assert "paper_v1 readiness: BLOCKED" in captured.out
+
+
+def test_spy_core_iron_condor_with_no_atm_rows_passes(mod, tmp_path):
+    """SPY iron-condor priced parquets have is_atm=False on every leg by design.
+
+    Readiness must validate them with iron-condor rules (no ATM-row check),
+    not satellite ATM-straddle rules. Otherwise we get ~200 false-positive
+    blockers across the live cache.
+    """
+    _write_ready_satellite_cache(tmp_path)
+    _write_full_spy_core_year(tmp_path, "year1", mod)
+    _write_full_spy_core_year(tmp_path, "year2", mod)
+
+    summary = mod.check_readiness(tmp_path, universe=("AAPL",), require_spy_core=True)
+
+    spy_codes = {
+        b["code"]
+        for b in summary["blockers"]
+        if b.get("ticker") == "SPY"
+    }
+    # The two false-positive codes that motivated this fix must not fire on
+    # SPY core files even though every row has is_atm=False.
+    assert "missing_atm_rows" not in spy_codes
+    assert "no_finite_atm_iv" not in spy_codes
+
+    assert summary["ready"] is True
+    assert summary["years"]["year1"]["spy_core"]["present"] is True
+    assert summary["years"]["year2"]["spy_core"]["present"] is True
+
+
+def test_satellite_still_blocks_when_atm_rows_missing(mod, tmp_path):
+    """Satellite straddles still need is_atm=True rows; the SPY relaxation
+    must not leak into satellite validation.
+    """
+    _write_ready_satellite_cache(tmp_path)
+    event = date(2024, 8, 1)
+    bad = _priced_df("AAPL", event)
+    bad["is_atm"] = False  # strip ATM markers — pretend the augment forgot them
+    _write_priced(tmp_path, "year1", "AAPL", event, df=bad)
+
+    summary = mod.check_readiness(tmp_path, universe=("AAPL",))
+    codes = {b["code"] for b in summary["blockers"] if b.get("ticker") == "AAPL"}
+
+    assert summary["ready"] is False
+    assert "missing_atm_rows" in codes
+    assert "no_finite_atm_iv" in codes
+
+
+def test_spy_core_with_nan_atm_iv_blocks_even_for_iron_condor(mod, tmp_path):
+    """SPY core still needs at least one finite atm_iv reference. Removing the
+    ATM-row requirement does not also remove the IV-availability requirement.
+    """
+    _write_ready_satellite_cache(tmp_path)
+    spy_dir = tmp_path / "year1" / "chains_priced" / "SPY"
+    spy_dir.mkdir(parents=True, exist_ok=True)
+    entry = mod._spy_core_entry_dates("year1")[0]
+    df = _spy_iron_condor_priced_df(entry)
+    df["atm_iv"] = np.nan
+    df.to_parquet(spy_dir / f"{entry.isoformat()}.parquet", index=False)
+
+    summary = mod.check_readiness(tmp_path, universe=("AAPL",), require_spy_core=True)
+    codes = {
+        b["code"]
+        for b in summary["blockers"]
+        if b.get("ticker") == "SPY" and b.get("event_date") == entry.isoformat()
+    }
+
+    assert "no_finite_atm_iv" in codes
+
+
+def test_partial_spy_core_promotes_to_blocker_when_required(mod, tmp_path):
+    """Partial SPY core (some Mondays present, some missing) must become a
+    blocker when --require-spy-core is set, not a warning.
+    """
+    _write_ready_satellite_cache(tmp_path)
+    spy_dir = tmp_path / "year1" / "chains_priced" / "SPY"
+    spy_dir.mkdir(parents=True, exist_ok=True)
+    entry_dates = mod._spy_core_entry_dates("year1")
+    # Write only the first 3 of N expected Monday files.
+    for ed in entry_dates[:3]:
+        df = _spy_iron_condor_priced_df(ed)
+        df.to_parquet(spy_dir / f"{ed.isoformat()}.parquet", index=False)
+
+    summary = mod.check_readiness(tmp_path, universe=("AAPL",), require_spy_core=True)
+    blocker_codes = {b["code"] for b in summary["blockers"]}
+
+    assert summary["ready"] is False
+    assert "partial_spy_priced_core" in blocker_codes
