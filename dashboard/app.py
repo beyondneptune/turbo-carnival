@@ -1610,20 +1610,515 @@ def _render_live_backfill_strip(status: dict[str, Any] | None) -> None:
         st.progress(max(0.0, min(1.0, float(done) / float(total))), text=f"{int(done):,} / {int(total):,} current stage")
 
 
+def _is_simulation_running(
+    needles: tuple[str, ...] = ("augment_chain_pricing", "run_paper_v1_evidence"),
+) -> bool:
+    """True if any live process matches the simulation/augment scripts.
+
+    Uses psutil rather than `pgrep` to stay portable and avoid spawning a shell
+    on every dashboard tick. Per-process errors are swallowed silently — a
+    transient AccessDenied/NoSuchProcess must not block rendering.
+    """
+    for proc in psutil.process_iter(attrs=["cmdline"]):
+        try:
+            cmdline = " ".join(proc.info.get("cmdline") or [])
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+        if not cmdline:
+            continue
+        if any(needle in cmdline for needle in needles):
+            return True
+    return False
+
+
+def _render_auto_refresh_pill(refresh_interval: int | None, *, is_live: bool) -> None:
+    """Small contextual pill: live state + refresh cadence."""
+    if is_live and refresh_interval and refresh_interval > 0:
+        bg = COLOR_GREEN
+        text = f"🔄 Live · refreshing every {refresh_interval}s"
+    elif is_live:
+        bg = COLOR_GREEN
+        text = "🔄 Live · manual refresh"
+    elif refresh_interval and refresh_interval > 0:
+        bg = COLOR_GRAY
+        text = f"⏸️ Idle · still refreshing every {refresh_interval}s"
+    else:
+        bg = COLOR_GRAY
+        text = "⏸️ Idle · auto-refresh paused"
+    st.markdown(
+        f'<span style="display:inline-block;background:{bg}22;color:{bg};'
+        f'padding:0.18rem 0.7rem;border-radius:999px;font-size:0.75rem;'
+        f'font-weight:600;border:1px solid {bg}66;">{text}</span>',
+        unsafe_allow_html=True,
+    )
+
+
+def _render_hero_pnl(
+    summary: dict[str, Any],
+    run_id: str,
+    *,
+    is_live: bool,
+) -> None:
+    """Giant P&L card with LIVE/IDLE badge and run id beneath."""
+    pnl = float(summary.get("realized_pnl_usd") or 0.0)
+    color = COLOR_GREEN if pnl >= 0 else COLOR_RED
+    sign = "+" if pnl > 0 else ("−" if pnl < 0 else "")
+    pnl_text = f"{sign}${abs(pnl):,.2f}"
+
+    if is_live:
+        badge_color = COLOR_GREEN
+        badge_text = "LIVE"
+        # Pulsing dot via inline SVG-free animation: alternate opacity dot is faked
+        # with a solid full-opacity glyph; Streamlit strips <style> tags so we keep
+        # it visually loud rather than animated.
+        dot = (
+            f'<span style="display:inline-block;width:10px;height:10px;'
+            f'background:{badge_color};border-radius:50%;'
+            f'box-shadow:0 0 0 4px {badge_color}33;margin-right:0.45rem;'
+            f'vertical-align:middle;"></span>'
+        )
+        badge_label = f"{dot}🔴 {badge_text}"
+    else:
+        badge_color = COLOR_GRAY
+        badge_label = "⏸️ IDLE"
+
+    badge_html = (
+        f'<span style="display:inline-block;background:{badge_color}22;'
+        f'color:{badge_color};padding:0.25rem 0.85rem;border-radius:999px;'
+        f'font-weight:700;font-size:0.8rem;letter-spacing:0.06em;'
+        f'border:1px solid {badge_color}66;">{badge_label}</span>'
+    )
+
+    st.markdown(
+        f'<div style="background:linear-gradient(135deg,{color}11,{color}06 60%,transparent);'
+        f"border:1px solid {color}33;border-left:6px solid {color};"
+        f'border-radius:14px;padding:1.1rem 1.3rem;margin:0.3rem 0 0.8rem 0;">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+        f'gap:0.5rem;flex-wrap:wrap;">'
+        f'<div style="font-size:0.72rem;letter-spacing:0.16em;color:{COLOR_GRAY};'
+        f'font-weight:700;text-transform:uppercase;">Realized P&L</div>'
+        f"<div>{badge_html}</div>"
+        f"</div>"
+        f'<div style="font-size:3.4rem;line-height:1.05;font-weight:800;'
+        f'color:{color};margin-top:0.2rem;letter-spacing:-0.02em;'
+        f'font-variant-numeric:tabular-nums;">{pnl_text}</div>'
+        f'<div style="font-size:0.78rem;color:{COLOR_GRAY};margin-top:0.35rem;'
+        f'font-family:ui-monospace,SFMono-Regular,Menlo,monospace;'
+        f'word-break:break-all;">run {run_id}</div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_kpi_strip(summary: dict[str, Any]) -> None:
+    """Four compact cards: decisions / trades / win rate / sleeves."""
+    decisions_total = int(summary.get("decisions_total") or 0)
+    approved = int(summary.get("approved") or 0)
+    blocked = int(summary.get("blocked") or 0)
+    trades_total = int(summary.get("trades_total") or 0)
+    open_trades = int(summary.get("open_trades") or 0)
+    closed_trades = int(summary.get("closed_trades") or 0)
+    core = int(summary.get("core_trades") or 0)
+    satellite = int(summary.get("satellite_trades") or 0)
+    win_rate = summary.get("win_rate")
+
+    cols = st.columns(4)
+    cols[0].metric(
+        "Decisions",
+        f"{decisions_total:,}",
+        delta=f"{approved} approved · {blocked} blocked",
+        delta_color="off",
+        border=True,
+    )
+    cols[1].metric(
+        "Trades",
+        f"{trades_total:,}",
+        delta=f"{open_trades} open · {closed_trades} closed",
+        delta_color="off",
+        border=True,
+    )
+    if isinstance(win_rate, float):
+        cols[2].metric(
+            "Win rate",
+            f"{win_rate:.0%}",
+            delta=f"{closed_trades} closed",
+            delta_color="off",
+            border=True,
+        )
+    else:
+        cols[2].metric("Win rate", "—", delta="no closed trades", delta_color="off", border=True)
+    cols[3].metric(
+        "Sleeves",
+        f"C {core} · S {satellite}",
+        delta="core · satellite",
+        delta_color="off",
+        border=True,
+    )
+
+
+def _render_chart_with_trade_markers(
+    equity_df: pd.DataFrame,
+    trades_df: pd.DataFrame,
+) -> None:
+    """Stock-style equity timeline with green/red trade markers overlaid."""
+    if equity_df.empty:
+        return
+    cum = equity_df["cumulative_pnl_usd"].astype(float)
+    terminal = float(cum.iloc[-1])
+    line_color = COLOR_GREEN if terminal >= 0 else COLOR_RED
+    fill_rgba = "rgba(34,197,94,0.22)" if terminal >= 0 else "rgba(239,68,68,0.22)"
+
+    fig = go.Figure()
+    # Main equity line + gradient-style fill below.
+    fig.add_trace(
+        go.Scatter(
+            x=equity_df["entry_at_utc"],
+            y=cum,
+            mode="lines+markers",
+            line={"color": line_color, "width": 2.6, "shape": "linear"},
+            marker={"size": 5, "color": line_color, "line": {"width": 0}},
+            fill="tozeroy",
+            fillcolor=fill_rgba,
+            name="Cumulative P&L",
+            hovertemplate=(
+                "<b>%{x}</b><br>Cum P&L: $%{y:,.2f}<extra></extra>"
+            ),
+        )
+    )
+
+    # Trade markers — winners + losers as separate triangles, sized by |P&L|.
+    if not trades_df.empty and "realized_pnl_usd" in trades_df.columns:
+        marks = trades_df.dropna(subset=["realized_pnl_usd", "entry_at_utc"]).copy()
+        if not marks.empty:
+            marks["realized_pnl_usd"] = marks["realized_pnl_usd"].astype(float)
+            max_abs = float(marks["realized_pnl_usd"].abs().max() or 1.0)
+            # Marker baseline so triangles sit on the cumulative line; we use the
+            # cumulative value at each entry by interpolating off equity_df. To
+            # keep this dependency-free we map each trade timestamp to its own
+            # cumulative value from equity_df (they share entry timestamps).
+            cum_lookup = dict(
+                zip(
+                    equity_df["entry_at_utc"].astype(str).tolist(),
+                    cum.tolist(),
+                    strict=False,
+                )
+            )
+            marks["_y"] = marks["entry_at_utc"].astype(str).map(cum_lookup)
+            # Trades that aren't in the equity line (e.g. open) fall on the
+            # zero-line so users still see them placed in time.
+            marks["_y"] = marks["_y"].fillna(0.0)
+            marks["_size"] = (marks["realized_pnl_usd"].abs() / max_abs * 18.0 + 8.0)
+
+            wins = marks[marks["realized_pnl_usd"] > 0]
+            losses = marks[marks["realized_pnl_usd"] < 0]
+
+            for sub, color, symbol, label in (
+                (wins, COLOR_GREEN, "triangle-up", "Win"),
+                (losses, COLOR_RED, "triangle-down", "Loss"),
+            ):
+                if sub.empty:
+                    continue
+                hover_cols = [
+                    sub.get("underlying_ticker", pd.Series([""] * len(sub))).astype(str),
+                    sub.get("sleeve", pd.Series([""] * len(sub))).astype(str),
+                    sub.get("status", pd.Series([""] * len(sub))).astype(str),
+                    sub["realized_pnl_usd"].astype(float),
+                ]
+                customdata = pd.concat(hover_cols, axis=1).to_numpy()
+                fig.add_trace(
+                    go.Scatter(
+                        x=sub["entry_at_utc"],
+                        y=sub["_y"],
+                        mode="markers",
+                        marker={
+                            "symbol": symbol,
+                            "size": sub["_size"].astype(float).tolist(),
+                            "color": color,
+                            "line": {"width": 1.2, "color": "rgba(255,255,255,0.85)"},
+                        },
+                        name=label,
+                        customdata=customdata,
+                        hovertemplate=(
+                            "<b>%{customdata[0]}</b><br>"
+                            "sleeve: %{customdata[1]}<br>"
+                            "status: %{customdata[2]}<br>"
+                            "P&L: $%{customdata[3]:,.2f}<extra></extra>"
+                        ),
+                    )
+                )
+
+    fig.add_hline(y=0, line_dash="dot", line_color=COLOR_GRAY, opacity=0.55)
+    fig.update_layout(
+        template="plotly_dark",
+        margin={"l": 8, "r": 8, "t": 8, "b": 8},
+        height=340,
+        xaxis={
+            "title": None,
+            "showgrid": True,
+            "gridcolor": "rgba(255,255,255,0.06)",
+            "rangeslider": {"visible": False},
+        },
+        yaxis={
+            "title": "Cumulative P&L (USD)",
+            "showgrid": True,
+            "gridcolor": "rgba(255,255,255,0.06)",
+            "zeroline": False,
+            "tickprefix": "$",
+        },
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_prediction_actual_timeseries(pred_df: pd.DataFrame) -> None:
+    """Time series of signal_score (line) + realized P&L (bars) on dual axes."""
+    if pred_df.empty:
+        return
+    df = pred_df.copy()
+    if "decision_at_utc" not in df.columns or "signal_score" not in df.columns:
+        return
+    # Drop rows with no decision time; keep rows even if realized P&L is null
+    # so the prediction line still tells the model's-call-vs-reality story.
+    df = df.dropna(subset=["decision_at_utc"]).sort_values("decision_at_utc")
+    if df.empty:
+        return
+
+    fig = go.Figure()
+    # Realized P&L bars (secondary axis, color-coded green/red).
+    if "realized_pnl_usd" in df.columns:
+        bar_df = df.dropna(subset=["realized_pnl_usd"]).copy()
+        if not bar_df.empty:
+            bar_df["realized_pnl_usd"] = bar_df["realized_pnl_usd"].astype(float)
+            colors = [
+                COLOR_GREEN if v >= 0 else COLOR_RED for v in bar_df["realized_pnl_usd"]
+            ]
+            fig.add_trace(
+                go.Bar(
+                    x=bar_df["decision_at_utc"],
+                    y=bar_df["realized_pnl_usd"],
+                    marker={"color": colors, "line": {"width": 0}},
+                    opacity=0.55,
+                    name="Realized P&L",
+                    yaxis="y2",
+                    hovertemplate=(
+                        "<b>%{x}</b><br>P&L: $%{y:,.2f}<extra></extra>"
+                    ),
+                )
+            )
+
+    # Prediction line on primary axis.
+    pred_line = df.dropna(subset=["signal_score"]).copy()
+    if not pred_line.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=pred_line["decision_at_utc"],
+                y=pred_line["signal_score"].astype(float),
+                mode="lines+markers",
+                line={"color": COLOR_BLUE, "width": 2.0},
+                marker={"size": 5, "color": COLOR_BLUE},
+                name="Signal score",
+                hovertemplate=(
+                    "<b>%{x}</b><br>signal: %{y:.4f}<extra></extra>"
+                ),
+            )
+        )
+
+    fig.add_hline(y=0, line_dash="dot", line_color=COLOR_GRAY, opacity=0.45)
+    fig.update_layout(
+        template="plotly_dark",
+        margin={"l": 8, "r": 8, "t": 30, "b": 8},
+        height=320,
+        xaxis={
+            "title": None,
+            "showgrid": True,
+            "gridcolor": "rgba(255,255,255,0.06)",
+        },
+        yaxis={
+            "title": "Signal score",
+            "gridcolor": "rgba(255,255,255,0.06)",
+            "zeroline": False,
+        },
+        yaxis2={
+            "title": "Realized P&L (USD)",
+            "overlaying": "y",
+            "side": "right",
+            "showgrid": False,
+            "tickprefix": "$",
+            "zeroline": False,
+        },
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "right",
+            "x": 1.0,
+        },
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        bargap=0.15,
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _live_simulation_empty_state(reason: str) -> None:
+    """Polished empty state for the live simulation view."""
+    if reason == "no_db":
+        title = "Audit DB not available"
+        hint = "Simulation rows appear after the DB is initialised."
+    else:
+        title = "No simulation run yet"
+        hint = (
+            "Kick one off with "
+            "<code>scripts/run_paper_v1_evidence.py --allow-synthetic</code> "
+            "(or wait for backfill)."
+        )
+    st.markdown(
+        f'<div style="text-align:center;padding:2.2rem 1rem;'
+        f"background:linear-gradient(135deg,{COLOR_BLUE}0f,transparent 70%);"
+        f"border:1px dashed {COLOR_GRAY}66;border-radius:14px;"
+        f'margin:0.4rem 0 1rem 0;">'
+        f'<div style="font-size:3rem;line-height:1;">📡</div>'
+        f'<div style="font-size:1.2rem;font-weight:700;margin-top:0.5rem;'
+        f'color:#e5e7eb;">{title}</div>'
+        f'<div style="font-size:0.9rem;margin-top:0.4rem;color:{COLOR_GRAY};'
+        f'max-width:42rem;margin-left:auto;margin-right:auto;">'
+        f"You'll see a hero P&L card, an equity timeline with trade markers, "
+        f"and a prediction-vs-actual chart here as soon as a run starts."
+        f"</div>"
+        f'<div style="font-size:0.85rem;margin-top:0.7rem;color:{COLOR_GRAY};">{hint}</div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_predictions_table(pred_df: pd.DataFrame) -> None:
+    """Predictions tab table with formatted columns and decision color cues."""
+    display_cols = [
+        c for c in (
+            "decision_at_utc", "underlying_ticker", "sleeve", "signal_score",
+            "signal_threshold", "signal_pass", "final_decision", "realized_pnl_usd",
+            "trade_status", "block_reason", "candidate_summary",
+        )
+        if c in pred_df.columns
+    ]
+    out = pred_df[display_cols].sort_values("decision_at_utc", ascending=False).copy()
+    column_config = {
+        "decision_at_utc": st.column_config.DatetimeColumn("Decision (UTC)", format="YYYY-MM-DD HH:mm"),
+        "underlying_ticker": st.column_config.TextColumn("Ticker"),
+        "sleeve": st.column_config.TextColumn("Sleeve"),
+        "signal_score": st.column_config.NumberColumn("Signal", format="%.4f"),
+        "signal_threshold": st.column_config.NumberColumn("Threshold", format="%.4f"),
+        "signal_pass": st.column_config.CheckboxColumn("Pass"),
+        "final_decision": st.column_config.TextColumn("Decision"),
+        "realized_pnl_usd": st.column_config.NumberColumn("Realized P&L", format="$%.2f"),
+        "trade_status": st.column_config.TextColumn("Trade status"),
+        "block_reason": st.column_config.TextColumn("Block reason"),
+        "candidate_summary": st.column_config.TextColumn("Candidate"),
+    }
+    column_config = {k: v for k, v in column_config.items() if k in out.columns}
+    st.dataframe(
+        out,
+        use_container_width=True,
+        hide_index=True,
+        height=380,
+        column_config=column_config,
+    )
+
+
+def _render_trades_table(trades_df: pd.DataFrame) -> None:
+    """Trades tab table with currency formatting and timeline columns."""
+    out = trades_df.sort_values("entry_at_utc", ascending=False).copy()
+    column_config = {
+        "trade_id": st.column_config.NumberColumn("ID", format="%d"),
+        "decision_id": st.column_config.NumberColumn("Decision", format="%d"),
+        "sleeve": st.column_config.TextColumn("Sleeve"),
+        "strategy_type": st.column_config.TextColumn("Strategy"),
+        "underlying_ticker": st.column_config.TextColumn("Ticker"),
+        "status": st.column_config.TextColumn("Status"),
+        "entry_at_utc": st.column_config.DatetimeColumn("Entry (UTC)", format="YYYY-MM-DD HH:mm"),
+        "exit_at_utc": st.column_config.DatetimeColumn("Exit (UTC)", format="YYYY-MM-DD HH:mm"),
+        "entry_delta": st.column_config.NumberColumn("Δ", format="%.3f"),
+        "entry_gamma": st.column_config.NumberColumn("Γ", format="%.3f"),
+        "entry_theta": st.column_config.NumberColumn("Θ", format="%.3f"),
+        "entry_vega": st.column_config.NumberColumn("V", format="%.3f"),
+        "commission_usd": st.column_config.NumberColumn("Commission", format="$%.2f"),
+        "spread_cost_usd": st.column_config.NumberColumn("Spread", format="$%.2f"),
+        "slippage_usd": st.column_config.NumberColumn("Slippage", format="$%.2f"),
+        "realized_pnl_usd": st.column_config.NumberColumn("Realized P&L", format="$%.2f"),
+        "notes": st.column_config.TextColumn("Notes"),
+    }
+    column_config = {k: v for k, v in column_config.items() if k in out.columns}
+    st.dataframe(
+        out,
+        use_container_width=True,
+        hide_index=True,
+        height=380,
+        column_config=column_config,
+    )
+
+
+def _render_legs_table(legs: pd.DataFrame) -> None:
+    """Trade legs tab with structured columns."""
+    column_config = {
+        "trade_id": st.column_config.NumberColumn("Trade", format="%d"),
+        "leg_number": st.column_config.NumberColumn("Leg", format="%d"),
+        "instrument_type": st.column_config.TextColumn("Instrument"),
+        "direction": st.column_config.TextColumn("Direction"),
+        "quantity": st.column_config.NumberColumn("Qty", format="%d"),
+        "strike": st.column_config.NumberColumn("Strike", format="%.2f"),
+        "expiry": st.column_config.TextColumn("Expiry"),
+        "entry_fill_price": st.column_config.NumberColumn("Entry $", format="$%.2f"),
+        "exit_fill_price": st.column_config.NumberColumn("Exit $", format="$%.2f"),
+    }
+    column_config = {k: v for k, v in column_config.items() if k in legs.columns}
+    st.dataframe(
+        legs,
+        use_container_width=True,
+        hide_index=True,
+        height=380,
+        column_config=column_config,
+    )
+
+
 def show_live_simulation(conn: sqlite3.Connection | None) -> None:
-    """First-screen live cockpit for the evidence/smoke replay."""
+    """First-screen live trading-terminal cockpit for the evidence/smoke replay.
+
+    Layout (mobile-first):
+      1. Auto-refresh + LIVE/IDLE pill
+      2. Hero realized-P&L card
+      3. KPI strip (decisions / trades / win rate / sleeves)
+      4. Equity timeline with green/red trade markers (stock-chart style)
+      5. Prediction vs actual time series (signal line + realized bars)
+      6. Tabs: Predictions / Trades / Legs (formatted tables)
+      7. Backfill status (compact, at the bottom — context, not focus)
+    """
     st.subheader("📡 Live Simulation")
     status = read_paper_v1_status()
     run_id = resolve_live_run_id(conn, status)
+    is_live = _is_simulation_running()
+    refresh_interval = st.session_state.get("refresh_interval_seconds")
+    try:
+        refresh_interval_int = int(refresh_interval) if refresh_interval is not None else None
+    except (TypeError, ValueError):
+        refresh_interval_int = None
 
-    _render_live_backfill_strip(status)
-    st.divider()
+    _render_auto_refresh_pill(refresh_interval_int, is_live=is_live)
 
     if conn is None:
-        _empty_state("🗄️", "Audit DB not available", "Simulation rows appear after the DB is initialised.")
+        _live_simulation_empty_state("no_db")
+        st.divider()
+        with st.expander("Backfill status", expanded=False):
+            _render_live_backfill_strip(status)
         return
     if not run_id:
-        _empty_state("📡", "No simulation run yet", "Backfill can continue; the replay table appears after an unofficial or official run starts.")
+        _live_simulation_empty_state("no_run")
+        st.divider()
+        with st.expander("Backfill status", expanded=False):
+            _render_live_backfill_strip(status)
         return
 
     summary = fetch_live_simulation_summary(conn, run_id)
@@ -1631,59 +2126,38 @@ def show_live_simulation(conn: sqlite3.Connection | None) -> None:
     trades_df = fetch_run_trades(conn, run_id, limit=300)
     equity_df = fetch_run_equity_curve(conn, run_id)
 
-    st.markdown(
-        f"<div style='font-size:0.85rem;color:{COLOR_GRAY};margin-bottom:0.4rem;'>"
-        f"run <code>{run_id}</code></div>",
-        unsafe_allow_html=True,
-    )
+    # 1+2. Hero P&L card.
+    _render_hero_pnl(summary, run_id, is_live=is_live)
 
-    metric_cols = st.columns(5)
-    metric_cols[0].metric("Decisions", f"{summary['decisions_total']:,}", delta=f"{summary['approved']} approved · {summary['blocked']} blocked", delta_color="off", border=True)
-    metric_cols[1].metric("Trades", f"{summary['trades_total']:,}", delta=f"{summary['open_trades']} open · {summary['closed_trades']} closed", delta_color="off", border=True)
-    metric_cols[2].metric("Realized P&L", f"${summary['realized_pnl_usd']:,.2f}", delta="closed trades", delta_color="normal" if summary["realized_pnl_usd"] >= 0 else "inverse", border=True)
-    win_rate = summary["win_rate"]
-    metric_cols[3].metric("Win rate", f"{win_rate:.0%}" if isinstance(win_rate, float) else "—", border=True)
-    metric_cols[4].metric("Sleeves", f"C {summary['core_trades']} · S {summary['satellite_trades']}", delta="core · satellite", delta_color="off", border=True)
+    # 3. KPI strip.
+    _render_kpi_strip(summary)
 
-    chart_cols = st.columns(2)
-    with chart_cols[0]:
-        st.markdown("#### Equity")
-        if equity_df.empty:
-            _empty_state("📈", "No closed trades", "P&L curve appears as trades close.")
-        else:
-            _render_equity_curve(equity_df)
-    with chart_cols[1]:
-        st.markdown("#### Prediction vs actual")
-        if pred_df.empty or pred_df[["signal_score", "realized_pnl_usd"]].dropna().empty:
-            _empty_state("🎯", "No paired prediction/P&L rows", "Pairs appear after decisions have realized outcomes.")
-        else:
-            _render_prediction_actual_chart(pred_df)
-
-    st.markdown("#### Trade P&L")
-    if trades_df.empty or trades_df["realized_pnl_usd"].dropna().empty:
-        _empty_state("💼", "No realized trade P&L", "Closed trades render here.")
+    # 4. Equity timeline with trade markers (stock-chart style).
+    st.markdown("#### Equity timeline")
+    if equity_df.empty:
+        _empty_state("📈", "No closed trades yet", "The cumulative P&L curve appears as trades close.")
     else:
-        _render_trade_pnl_bars(trades_df)
+        _render_chart_with_trade_markers(equity_df, trades_df)
 
+    # 5. Prediction vs actual time series.
+    st.markdown("#### Prediction vs actual")
+    if pred_df.empty:
+        _empty_state("🎯", "No decisions yet", "Gate decisions and realized outcomes stream in here.")
+    else:
+        _render_prediction_actual_timeseries(pred_df)
+
+    # 6. Tabs.
     tab_predictions, tab_trades, tab_legs = st.tabs(["Predictions", "Trades", "Legs"])
     with tab_predictions:
         if pred_df.empty:
             _empty_state("🎯", "No decisions yet", "Gate decisions stream here during replay.")
         else:
-            display_cols = [
-                c for c in (
-                    "decision_at_utc", "underlying_ticker", "sleeve", "signal_score",
-                    "signal_threshold", "signal_pass", "final_decision", "realized_pnl_usd",
-                    "trade_status", "block_reason", "candidate_summary",
-                )
-                if c in pred_df.columns
-            ]
-            st.dataframe(pred_df[display_cols].sort_values("decision_at_utc", ascending=False), use_container_width=True, hide_index=True, height=360)
+            _render_predictions_table(pred_df)
     with tab_trades:
         if trades_df.empty:
             _empty_state("💼", "No trades yet", "Approved decisions become trades here.")
         else:
-            st.dataframe(trades_df.sort_values("entry_at_utc", ascending=False), use_container_width=True, hide_index=True, height=360)
+            _render_trades_table(trades_df)
     with tab_legs:
         if trades_df.empty:
             _empty_state("🦴", "No trade legs yet", "Trade legs appear after fills.")
@@ -1710,7 +2184,12 @@ def show_live_simulation(conn: sqlite3.Connection | None) -> None:
                 if legs.empty:
                     _empty_state("🦴", "No trade legs yet", "Trade legs appear after fills.")
                 else:
-                    st.dataframe(legs, use_container_width=True, hide_index=True, height=360)
+                    _render_legs_table(legs)
+
+    # 7. Backfill is context, not focus — push it to the bottom in an expander.
+    st.divider()
+    with st.expander("Backfill status", expanded=False):
+        _render_live_backfill_strip(status)
 
 
 def _render_sample_size_pill(n: int, target: int = SATELLITE_SAMPLE_TARGET) -> None:

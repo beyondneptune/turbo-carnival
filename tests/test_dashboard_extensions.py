@@ -11,7 +11,9 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from dashboard import app as dashboard_app
 from dashboard.app import (
+    _is_simulation_running,
     count_satellite_events,
     count_priced_chain_files,
     count_spy_core_files,
@@ -613,6 +615,53 @@ def test_filter_paper_v1_processes_keeps_relevant_commands():
 
     out = filter_paper_v1_processes(processes)
     assert [p["pid"] for p in out] == [1, 2, 4]
+
+
+# ---------------------------------------------------------------------------
+# _is_simulation_running (live indicator)
+# ---------------------------------------------------------------------------
+
+
+class _FakeProc:
+    def __init__(self, cmdline: list[str]):
+        self.info = {"cmdline": cmdline}
+
+
+def test_is_simulation_running_detects_augment(monkeypatch):
+    fake = [
+        _FakeProc(["python", "scripts/augment_chain_pricing.py"]),
+        _FakeProc(["bash", "-l"]),
+    ]
+    monkeypatch.setattr(
+        dashboard_app.psutil,
+        "process_iter",
+        lambda attrs=None: iter(fake),
+    )
+    assert _is_simulation_running() is True
+
+
+def test_is_simulation_running_detects_evidence_run(monkeypatch):
+    fake = [_FakeProc(["python", "scripts/run_paper_v1_evidence.py", "--allow-synthetic"])]
+    monkeypatch.setattr(
+        dashboard_app.psutil,
+        "process_iter",
+        lambda attrs=None: iter(fake),
+    )
+    assert _is_simulation_running() is True
+
+
+def test_is_simulation_running_returns_false_when_no_match(monkeypatch):
+    fake = [
+        _FakeProc(["python", "manage.py", "runserver"]),
+        _FakeProc(["streamlit", "run", "other.py"]),
+        _FakeProc([]),
+    ]
+    monkeypatch.setattr(
+        dashboard_app.psutil,
+        "process_iter",
+        lambda attrs=None: iter(fake),
+    )
+    assert _is_simulation_running() is False
 
 
 # ---------------------------------------------------------------------------
