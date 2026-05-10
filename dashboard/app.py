@@ -32,6 +32,7 @@ PAPER_V1_LOG_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_augment.log"
 PAPER_V1_SPY_CORE_LOG_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_spy_core_resume.log"
 PAPER_V1_SPY_CORE_ERR_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_spy_core_resume.err"
 PAPER_V1_SPY_CORE_OUT_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_spy_core_resume.out"
+PAPER_V1_WATCHDOG_LOG_PATH = REPO_ROOT / "data" / "logs" / "paper_v1_watchdog.log"
 OFFLINE_CONTEXT_DIR = REPO_ROOT / "data" / "offline_context"
 OFFLINE_CONTEXT_MANIFEST_PATH = OFFLINE_CONTEXT_DIR / "manifest.json"
 OFFLINE_CONTEXT_STATUS_PATH = REPO_ROOT / "data" / "offline_context_status.json"
@@ -750,6 +751,7 @@ def _log_source_row(label: str, path: Path) -> dict[str, Any]:
 def live_log_sources(status: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """Return deduped log sources worth showing in the live simulation view."""
     candidates = [
+        ("Watchdog log", PAPER_V1_WATCHDOG_LOG_PATH),
         ("Active backfill log", paper_v1_log_path_from_status(status)),
         ("SPY core log", PAPER_V1_SPY_CORE_LOG_PATH),
         ("SPY core stderr", PAPER_V1_SPY_CORE_ERR_PATH),

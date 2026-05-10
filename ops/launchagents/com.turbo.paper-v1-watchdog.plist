@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.turbo.paper-v1-watchdog</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/weeoto/turbo-carnival/.venv/bin/python</string>
+    <string>/Users/weeoto/turbo-carnival/scripts/paper_v1_watchdog.py</string>
+    <string>--interval-seconds</string>
+    <string>300</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/weeoto/turbo-carnival</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/weeoto/turbo-carnival/data/logs/paper_v1_watchdog.out</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/weeoto/turbo-carnival/data/logs/paper_v1_watchdog.err</string>
+</dict>
+</plist>

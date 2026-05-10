@@ -634,6 +634,7 @@ def test_live_log_sources_prefers_active_log_and_dedupes(monkeypatch, tmp_path):
     monkeypatch.setattr(dashboard_app, "PAPER_V1_SPY_CORE_LOG_PATH", active)
     monkeypatch.setattr(dashboard_app, "PAPER_V1_SPY_CORE_ERR_PATH", err)
     monkeypatch.setattr(dashboard_app, "PAPER_V1_SPY_CORE_OUT_PATH", out)
+    monkeypatch.setattr(dashboard_app, "PAPER_V1_WATCHDOG_LOG_PATH", tmp_path / "watchdog.log")
     monkeypatch.setattr(dashboard_app, "PAPER_V1_LOG_PATH", default)
 
     status = {"stages": {"init": {"log_file": str(active)}}}
@@ -641,9 +642,14 @@ def test_live_log_sources_prefers_active_log_and_dedupes(monkeypatch, tmp_path):
     paths = [row["path"] for row in sources]
 
     assert paths.count(active.resolve()) == 1
-    assert paths[:3] == [active.resolve(), err.resolve(), out.resolve()]
-    assert sources[0]["exists"] is True
-    assert sources[0]["size_bytes"] == len("hello\n")
+    assert paths[:4] == [
+        (tmp_path / "watchdog.log").resolve(),
+        active.resolve(),
+        err.resolve(),
+        out.resolve(),
+    ]
+    assert sources[1]["exists"] is True
+    assert sources[1]["size_bytes"] == len("hello\n")
 
 
 def test_filter_paper_v1_processes_keeps_relevant_commands():
