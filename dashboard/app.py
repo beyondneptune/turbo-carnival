@@ -285,6 +285,150 @@ def fetch_run_equity_curve(
     return df
 
 
+def _empty_daily_returns() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "date",
+            "week_start",
+            "trades_closed",
+            "realized_pnl_usd",
+            "start_nav_usd",
+            "end_nav_usd",
+            "daily_return",
+            "cumulative_pnl_usd",
+            "cumulative_return",
+        ]
+    )
+
+
+def fetch_run_daily_returns(
+    conn: sqlite3.Connection | None,
+    run_id: str | None,
+) -> pd.DataFrame:
+    """Daily realised P&L and return tape for an investor-facing paper run.
+
+    Returns are based on closed trades only and dated by exit_at_utc, falling
+    back to entry_at_utc for legacy rows that have realised P&L without an exit
+    timestamp. Open positions are intentionally excluded because the schema does
+    not yet carry live marks for unrealised P&L.
+    """
+    if conn is None or not run_id:
+        return _empty_daily_returns()
+    try:
+        nav_row = conn.execute(
+            "SELECT initial_nav_usd FROM runs WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+        initial_nav = float(nav_row[0]) if nav_row and nav_row[0] is not None else 0.0
+        trades = pd.read_sql_query(
+            """
+            SELECT
+                COALESCE(exit_at_utc, entry_at_utc) AS realised_at_utc,
+                realized_pnl_usd
+            FROM trades
+            WHERE run_id = ?
+              AND realized_pnl_usd IS NOT NULL
+            ORDER BY realised_at_utc ASC
+            """,
+            conn,
+            params=(run_id,),
+        )
+    except (pd.errors.DatabaseError, sqlite3.OperationalError, TypeError, ValueError):
+        return _empty_daily_returns()
+    if trades.empty or initial_nav <= 0:
+        return _empty_daily_returns()
+
+    trades["realised_at_utc"] = pd.to_datetime(
+        trades["realised_at_utc"],
+        utc=True,
+        errors="coerce",
+    )
+    trades = trades.dropna(subset=["realised_at_utc", "realized_pnl_usd"])
+    if trades.empty:
+        return _empty_daily_returns()
+
+    trades["date"] = trades["realised_at_utc"].dt.date.astype(str)
+    daily = (
+        trades.groupby("date", as_index=False)
+        .agg(
+            trades_closed=("realized_pnl_usd", "size"),
+            realized_pnl_usd=("realized_pnl_usd", "sum"),
+        )
+        .sort_values("date")
+        .reset_index(drop=True)
+    )
+    daily["realized_pnl_usd"] = daily["realized_pnl_usd"].astype(float)
+    daily["cumulative_pnl_usd"] = daily["realized_pnl_usd"].cumsum()
+    daily["start_nav_usd"] = initial_nav + daily["cumulative_pnl_usd"].shift(1, fill_value=0.0)
+    daily["end_nav_usd"] = initial_nav + daily["cumulative_pnl_usd"]
+    daily["daily_return"] = daily["realized_pnl_usd"] / daily["start_nav_usd"]
+    daily["cumulative_return"] = daily["cumulative_pnl_usd"] / initial_nav
+    dates = pd.to_datetime(daily["date"], utc=True, errors="coerce")
+    daily["week_start"] = (
+        (dates - pd.to_timedelta(dates.dt.weekday, unit="D")).dt.date.astype(str)
+    )
+    return daily[
+        [
+            "date",
+            "week_start",
+            "trades_closed",
+            "realized_pnl_usd",
+            "start_nav_usd",
+            "end_nav_usd",
+            "daily_return",
+            "cumulative_pnl_usd",
+            "cumulative_return",
+        ]
+    ]
+
+
+def fetch_run_weekly_returns(
+    conn: sqlite3.Connection | None,
+    run_id: str | None,
+) -> pd.DataFrame:
+    """Weekly rollup from the realised daily return tape."""
+    daily = fetch_run_daily_returns(conn, run_id)
+    if daily.empty:
+        return pd.DataFrame(
+            columns=[
+                "week_start",
+                "trades_closed",
+                "realized_pnl_usd",
+                "start_nav_usd",
+                "end_nav_usd",
+                "weekly_return",
+                "cumulative_pnl_usd",
+                "cumulative_return",
+            ]
+        )
+    weekly = (
+        daily.groupby("week_start", as_index=False)
+        .agg(
+            trades_closed=("trades_closed", "sum"),
+            realized_pnl_usd=("realized_pnl_usd", "sum"),
+            start_nav_usd=("start_nav_usd", "first"),
+            end_nav_usd=("end_nav_usd", "last"),
+            cumulative_pnl_usd=("cumulative_pnl_usd", "last"),
+            cumulative_return=("cumulative_return", "last"),
+        )
+        .sort_values("week_start")
+        .reset_index(drop=True)
+    )
+    weekly["weekly_return"] = weekly["realized_pnl_usd"] / weekly["start_nav_usd"]
+    return weekly[
+        [
+            "week_start",
+            "trades_closed",
+            "realized_pnl_usd",
+            "start_nav_usd",
+            "end_nav_usd",
+            "weekly_return",
+            "cumulative_pnl_usd",
+            "cumulative_return",
+        ]
+    ]
+
+
 def total_polygon_api_calls(status: dict[str, Any] | None) -> int | None:
     """Sum `api_calls` across stages in the status payload, if present."""
     if not status:
@@ -2029,6 +2173,186 @@ def _render_prediction_actual_timeseries(pred_df: pd.DataFrame) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
+def _format_signed_currency(value: float | int | None) -> str:
+    if value is None:
+        return "—"
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    sign = "+" if amount > 0 else ("−" if amount < 0 else "")
+    return f"{sign}${abs(amount):,.2f}"
+
+
+def _format_signed_pct(value: float | int | None) -> str:
+    if value is None:
+        return "—"
+    try:
+        pct = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    sign = "+" if pct > 0 else ("−" if pct < 0 else "")
+    return f"{sign}{abs(pct):.2%}"
+
+
+def _render_return_tape(
+    daily_df: pd.DataFrame,
+    weekly_df: pd.DataFrame,
+) -> None:
+    """Investor-facing daily and weekly realised return tape."""
+    st.markdown("#### Daily / weekly returns")
+    if daily_df.empty:
+        _empty_state(
+            "📅",
+            "No realised daily returns yet",
+            "Closed paper trades will roll up here by exit date.",
+        )
+        return
+
+    latest_day = daily_df.iloc[-1]
+    latest_week = weekly_df.iloc[-1] if not weekly_df.empty else None
+    mtd_pnl = float(daily_df["realized_pnl_usd"].sum())
+    mtd_return = float(daily_df["cumulative_return"].iloc[-1])
+    today_pnl = float(latest_day["realized_pnl_usd"])
+    today_return = float(latest_day["daily_return"])
+
+    cols = st.columns(4)
+    cols[0].metric(
+        "Latest day",
+        _format_signed_currency(today_pnl),
+        delta=_format_signed_pct(today_return),
+        border=True,
+    )
+    if latest_week is not None:
+        cols[1].metric(
+            "Latest week",
+            _format_signed_currency(float(latest_week["realized_pnl_usd"])),
+            delta=_format_signed_pct(float(latest_week["weekly_return"])),
+            border=True,
+        )
+    else:
+        cols[1].metric("Latest week", "—", delta="—", delta_color="off", border=True)
+    cols[2].metric(
+        "Run return",
+        _format_signed_currency(mtd_pnl),
+        delta=_format_signed_pct(mtd_return),
+        border=True,
+    )
+    cols[3].metric(
+        "Closed trades",
+        f"{int(daily_df['trades_closed'].sum()):,}",
+        delta=f"{len(daily_df)} active days",
+        delta_color="off",
+        border=True,
+    )
+
+    fig = go.Figure()
+    bar_colors = [
+        COLOR_GREEN if float(v) >= 0 else COLOR_RED
+        for v in daily_df["daily_return"].astype(float)
+    ]
+    fig.add_trace(
+        go.Bar(
+            x=daily_df["date"],
+            y=daily_df["daily_return"].astype(float),
+            marker={"color": bar_colors, "line": {"width": 0}},
+            name="Daily return",
+            hovertemplate="<b>%{x}</b><br>Daily return: %{y:.2%}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=daily_df["date"],
+            y=daily_df["cumulative_return"].astype(float),
+            mode="lines+markers",
+            line={"color": COLOR_BLUE, "width": 2.2},
+            marker={"size": 5, "color": COLOR_BLUE},
+            name="Cumulative return",
+            yaxis="y2",
+            hovertemplate="<b>%{x}</b><br>Cumulative: %{y:.2%}<extra></extra>",
+        )
+    )
+    fig.add_hline(y=0, line_dash="dot", line_color=COLOR_GRAY, opacity=0.45)
+    fig.update_layout(
+        template="plotly_dark",
+        height=300,
+        margin={"l": 8, "r": 8, "t": 30, "b": 8},
+        xaxis={"title": None, "showgrid": False},
+        yaxis={
+            "title": "Daily return",
+            "tickformat": ".1%",
+            "gridcolor": "rgba(255,255,255,0.06)",
+        },
+        yaxis2={
+            "title": "Cumulative return",
+            "overlaying": "y",
+            "side": "right",
+            "tickformat": ".1%",
+            "showgrid": False,
+        },
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "right",
+            "x": 1.0,
+        },
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        bargap=0.18,
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    tab_daily, tab_weekly = st.tabs(["Daily tape", "Weekly rollup"])
+    daily_display = daily_df.sort_values("date", ascending=False).copy()
+    weekly_display = weekly_df.sort_values("week_start", ascending=False).copy()
+    for col in ("daily_return", "cumulative_return"):
+        if col in daily_display.columns:
+            daily_display[col] = daily_display[col].astype(float) * 100.0
+    for col in ("weekly_return", "cumulative_return"):
+        if col in weekly_display.columns:
+            weekly_display[col] = weekly_display[col].astype(float) * 100.0
+    with tab_daily:
+        st.dataframe(
+            daily_display,
+            use_container_width=True,
+            hide_index=True,
+            height=260,
+            column_config={
+                "date": st.column_config.TextColumn("Date"),
+                "week_start": st.column_config.TextColumn("Week"),
+                "trades_closed": st.column_config.NumberColumn("Trades", format="%d"),
+                "realized_pnl_usd": st.column_config.NumberColumn("Daily P&L", format="$%.2f"),
+                "start_nav_usd": st.column_config.NumberColumn("Start NAV", format="$%.2f"),
+                "end_nav_usd": st.column_config.NumberColumn("End NAV", format="$%.2f"),
+                "daily_return": st.column_config.NumberColumn("Daily return %", format="%.2f"),
+                "cumulative_pnl_usd": st.column_config.NumberColumn("Cum P&L", format="$%.2f"),
+                "cumulative_return": st.column_config.NumberColumn("Cum return %", format="%.2f"),
+            },
+        )
+    with tab_weekly:
+        if weekly_display.empty:
+            _empty_state("📆", "No weekly return yet", "Weekly rows appear after trades close.")
+        else:
+            st.dataframe(
+                weekly_display,
+                use_container_width=True,
+                hide_index=True,
+                height=220,
+                column_config={
+                    "week_start": st.column_config.TextColumn("Week starting"),
+                    "trades_closed": st.column_config.NumberColumn("Trades", format="%d"),
+                    "realized_pnl_usd": st.column_config.NumberColumn("Weekly P&L", format="$%.2f"),
+                    "start_nav_usd": st.column_config.NumberColumn("Start NAV", format="$%.2f"),
+                    "end_nav_usd": st.column_config.NumberColumn("End NAV", format="$%.2f"),
+                    "weekly_return": st.column_config.NumberColumn("Weekly return %", format="%.2f"),
+                    "cumulative_pnl_usd": st.column_config.NumberColumn("Cum P&L", format="$%.2f"),
+                    "cumulative_return": st.column_config.NumberColumn("Cum return %", format="%.2f"),
+                },
+            )
+
+
 def _live_simulation_empty_state(reason: str) -> None:
     """Polished empty state for the live simulation view."""
     if reason == "no_db":
@@ -2269,6 +2593,8 @@ def show_live_simulation(conn: sqlite3.Connection | None) -> None:
     pred_df = fetch_prediction_actuals(conn, run_id, limit=300)
     trades_df = fetch_run_trades(conn, run_id, limit=300)
     equity_df = fetch_run_equity_curve(conn, run_id)
+    daily_returns = fetch_run_daily_returns(conn, run_id)
+    weekly_returns = fetch_run_weekly_returns(conn, run_id)
 
     # 1+2. Hero P&L card.
     _render_hero_pnl(summary, run_id, is_live=is_live)
@@ -2289,6 +2615,9 @@ def show_live_simulation(conn: sqlite3.Connection | None) -> None:
         _empty_state("🎯", "No decisions yet", "Gate decisions and realized outcomes stream in here.")
     else:
         _render_prediction_actual_timeseries(pred_df)
+
+    # Investor-facing realised return tape.
+    _render_return_tape(daily_returns, weekly_returns)
 
     # 6. Tabs.
     tab_predictions, tab_trades, tab_legs, tab_logs = st.tabs(

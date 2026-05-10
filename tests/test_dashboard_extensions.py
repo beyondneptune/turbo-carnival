@@ -20,8 +20,10 @@ from dashboard.app import (
     fetch_latest_run_id,
     fetch_live_simulation_summary,
     fetch_prediction_actuals,
+    fetch_run_daily_returns,
     fetch_run_trades,
     fetch_run_equity_curve,
+    fetch_run_weekly_returns,
     filter_paper_v1_processes,
     get_system_snapshot,
     is_status_stale,
@@ -468,6 +470,92 @@ def test_fetch_run_equity_curve_no_closed_trades(tmp_path):
 def test_fetch_run_equity_curve_handles_none_conn():
     df = fetch_run_equity_curve(None, "anything")
     assert df.empty
+
+
+def test_fetch_run_daily_returns_aggregates_by_exit_date(tmp_path):
+    db_path = tmp_path / "returns.db"
+    _make_db_with_run(
+        db_path,
+        run_id="r0",
+        n_satellite=3,
+        pnl_sequence=[100.0, -50.0, 200.0],
+    )
+    conn = sqlite3.connect(db_path)
+    trade_ids = [
+        row[0]
+        for row in conn.execute(
+            "SELECT trade_id FROM trades WHERE run_id = 'r0' ORDER BY trade_id"
+        ).fetchall()
+    ]
+    conn.execute(
+        "UPDATE trades SET exit_at_utc = ? WHERE trade_id = ?",
+        ("2026-05-11T20:00:00Z", trade_ids[0]),
+    )
+    conn.execute(
+        "UPDATE trades SET exit_at_utc = ? WHERE trade_id = ?",
+        ("2026-05-11T20:05:00Z", trade_ids[1]),
+    )
+    conn.execute(
+        "UPDATE trades SET exit_at_utc = ? WHERE trade_id = ?",
+        ("2026-05-12T20:00:00Z", trade_ids[2]),
+    )
+    conn.commit()
+
+    df = fetch_run_daily_returns(conn, "r0")
+
+    assert list(df["date"]) == ["2026-05-11", "2026-05-12"]
+    assert list(df["trades_closed"]) == [2, 1]
+    assert list(df["realized_pnl_usd"]) == [50.0, 200.0]
+    assert list(df["cumulative_pnl_usd"]) == [50.0, 250.0]
+    assert math.isclose(float(df.iloc[0]["daily_return"]), 50.0 / 100_000.0)
+    assert math.isclose(float(df.iloc[1]["daily_return"]), 200.0 / 100_050.0)
+    assert list(df["week_start"]) == ["2026-05-11", "2026-05-11"]
+    conn.close()
+
+
+def test_fetch_run_weekly_returns_rolls_up_daily_tape(tmp_path):
+    db_path = tmp_path / "weekly.db"
+    _make_db_with_run(
+        db_path,
+        run_id="r0",
+        n_satellite=3,
+        pnl_sequence=[100.0, -50.0, 200.0],
+    )
+    conn = sqlite3.connect(db_path)
+    trade_ids = [
+        row[0]
+        for row in conn.execute(
+            "SELECT trade_id FROM trades WHERE run_id = 'r0' ORDER BY trade_id"
+        ).fetchall()
+    ]
+    conn.execute(
+        "UPDATE trades SET exit_at_utc = ? WHERE trade_id = ?",
+        ("2026-05-15T20:00:00Z", trade_ids[0]),
+    )
+    conn.execute(
+        "UPDATE trades SET exit_at_utc = ? WHERE trade_id = ?",
+        ("2026-05-15T20:05:00Z", trade_ids[1]),
+    )
+    conn.execute(
+        "UPDATE trades SET exit_at_utc = ? WHERE trade_id = ?",
+        ("2026-05-18T20:00:00Z", trade_ids[2]),
+    )
+    conn.commit()
+
+    df = fetch_run_weekly_returns(conn, "r0")
+
+    assert list(df["week_start"]) == ["2026-05-11", "2026-05-18"]
+    assert list(df["trades_closed"]) == [2, 1]
+    assert list(df["realized_pnl_usd"]) == [50.0, 200.0]
+    assert math.isclose(float(df.iloc[0]["weekly_return"]), 50.0 / 100_000.0)
+    assert math.isclose(float(df.iloc[1]["weekly_return"]), 200.0 / 100_050.0)
+    assert list(df["cumulative_pnl_usd"]) == [50.0, 250.0]
+    conn.close()
+
+
+def test_fetch_run_daily_returns_handles_none_conn():
+    assert fetch_run_daily_returns(None, "anything").empty
+    assert fetch_run_weekly_returns(None, "anything").empty
 
 
 # ---------------------------------------------------------------------------
