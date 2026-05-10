@@ -279,6 +279,39 @@ def _insert_experiment_run_row(conn: sqlite3.Connection, run_id: str, spec: Wind
     conn.commit()
 
 
+def trade_stats(conn: sqlite3.Connection, run_id: str) -> dict[str, Any]:
+    rows = conn.execute(
+        """
+        SELECT sleeve, realized_pnl_usd
+        FROM trades
+        WHERE run_id = ?
+        """,
+        (run_id,),
+    ).fetchall()
+    pnl_values = [float(row[1] or 0.0) for row in rows]
+    total_pnl = float(sum(pnl_values))
+    total_trades = len(pnl_values)
+    wins = sum(1 for pnl in pnl_values if pnl > 0.0)
+    by_sleeve: dict[str, int] = {}
+    pnl_by_sleeve: dict[str, float] = {}
+    for sleeve, pnl in rows:
+        sleeve_name = str(sleeve)
+        by_sleeve[sleeve_name] = by_sleeve.get(sleeve_name, 0) + 1
+        pnl_by_sleeve[sleeve_name] = pnl_by_sleeve.get(sleeve_name, 0.0) + float(
+            pnl or 0.0
+        )
+    return {
+        "realized_pnl_usd": total_pnl,
+        "return_on_10k": total_pnl / float(evidence.INITIAL_NAV_USD),
+        "trade_count": total_trades,
+        "win_rate": (wins / total_trades) if total_trades else 0.0,
+        "core_trade_count": by_sleeve.get("core", 0),
+        "satellite_trade_count": by_sleeve.get("satellite", 0),
+        "core_realized_pnl_usd": pnl_by_sleeve.get("core", 0.0),
+        "satellite_realized_pnl_usd": pnl_by_sleeve.get("satellite", 0.0),
+    }
+
+
 def _materialize_spy_priced_window(
     *,
     cache_dir: Path,
@@ -432,6 +465,7 @@ def run_window(
             )
             strategy_events = int(len(replay["strategy_returns"]))
             if strategy_events < 4:
+                stats = trade_stats(conn, run_id)
                 row.update(
                     {
                         "status": "skipped",
@@ -447,6 +481,7 @@ def run_window(
                         "strategy_events": strategy_events,
                         "satellite_strategy_events": strategy_events,
                         "trade_source_counts": replay.get("trade_source_counts", {}),
+                        **stats,
                     }
                 )
                 evidence.update_run_status(conn, run_id, "aborted")
@@ -467,6 +502,7 @@ def run_window(
                 cost_multiplier=1.5,
             )
             report = evidence.evaluate_full(base_inputs, plus50_inputs)
+            stats = trade_stats(conn, run_id)
             evidence.update_run_status(conn, run_id, "completed")
         finally:
             conn.close()
@@ -508,6 +544,7 @@ def run_window(
             "gates_pass": bool(report.overall_pass),
             "failed_gates": ";".join(report.failed_gates_summary),
             "trade_source_counts": replay.get("trade_source_counts", {}),
+            **stats,
         }
     )
     _write_json(
