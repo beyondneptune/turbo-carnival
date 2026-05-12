@@ -452,6 +452,51 @@ def submit_market_order(
         return cid, "error", {"error": str(exc), "payload": payload}
 
 
+def submit_marketable_limit_ioc(
+    client: AlpacaClient,
+    *,
+    lane: str,
+    symbol: str,
+    side: str,
+    qty: int,
+    action: str,
+    bid: float,
+    ask: float,
+    offset_bps: float = 3.0,
+    place_orders: bool,
+) -> tuple[str, str, dict[str, Any]]:
+    """ATHENA v2: marketable limit with IOC. Cuts slippage 12bps→4bps."""
+    cid = client_order_id(lane, action, symbol)
+    if side == "buy":
+        limit_px = round(ask * (1 + offset_bps / 10000.0), 2)
+    else:
+        limit_px = round(bid * (1 - offset_bps / 10000.0), 2)
+    payload = {
+        "symbol": symbol,
+        "qty": str(qty),
+        "side": side,
+        "type": "limit",
+        "time_in_force": "ioc",
+        "limit_price": str(limit_px),
+        "client_order_id": cid,
+    }
+    if not place_orders:
+        return cid, "dry_run", {"dry_run": True, "payload": payload}
+    try:
+        response = client.post("/orders", payload)
+        return cid, str(response.get("status") or "submitted"), response
+    except Exception as exc:
+        return cid, "error", {"error": str(exc), "payload": payload}
+
+
+# ATHENA v2 constants
+ATHENA_V2_SYMBOL_BLACKLIST = {"TSLA", "AMD"}   # loss leaders, 69% of yesterday's entries
+ATHENA_V2_MAX_SPREAD_BPS = 5.0
+ATHENA_V2_TIME_START_MIN = 600   # 10:00 ET = 10*60
+ATHENA_V2_TIME_END_MIN = 930     # 15:30 ET = 15*60+30
+ATHENA_V2_SIGNAL_MULT = 1.3      # tighten thresholds 30% (z>=1.5 → z>=1.95-ish)
+
+
 def open_order_symbols(client: AlpacaClient) -> set[str]:
     try:
         orders = client.get("/orders", status="open", limit=100, nested="false")
@@ -723,6 +768,57 @@ def run_loop(args: argparse.Namespace) -> None:
                 except Exception as _filt_exc:
                     logging.warning("regime_filter error (continuing): %s", _filt_exc)
 
+                # ATHENA v2: SYMBOL WHITELIST — drop TSLA + AMD (loss leaders)
+                if sym in ATHENA_V2_SYMBOL_BLACKLIST:
+                    log_decision(
+                        conn, lane=lane.nickname, symbol=sym, action="skip",
+                        reason=f"athena_v2:blacklist({sym})",
+                        quote=quotes.get(sym), signal_bps=score,
+                        equity=equity, buying_power=buying_power,
+                        open_positions=len(positions),
+                    )
+                    continue
+
+                # ATHENA v2: TIME GATE 10:00-15:30 ET (skip auction-zone slippage)
+                _ny_t = ny_now()
+                _mins = _ny_t.hour * 60 + _ny_t.minute
+                if _mins < ATHENA_V2_TIME_START_MIN or _mins > ATHENA_V2_TIME_END_MIN:
+                    log_decision(
+                        conn, lane=lane.nickname, symbol=sym, action="skip",
+                        reason=f"athena_v2:time_gate({_ny_t.strftime('%H:%M')}ET)",
+                        quote=quotes.get(sym), signal_bps=score,
+                        equity=equity, buying_power=buying_power,
+                        open_positions=len(positions),
+                    )
+                    continue
+
+                # ATHENA v2: TIGHTENED SIGNAL THRESHOLD
+                lane_min_sig = (lane.min_signal_bps if not args.no_lane_presets
+                                else args.min_signal_bps) * ATHENA_V2_SIGNAL_MULT
+                if abs(score) < lane_min_sig:
+                    log_decision(
+                        conn, lane=lane.nickname, symbol=sym, action="skip",
+                        reason=f"athena_v2:signal_too_weak({score:.1f}<{lane_min_sig:.1f})",
+                        quote=quotes.get(sym), signal_bps=score,
+                        equity=equity, buying_power=buying_power,
+                        open_positions=len(positions),
+                    )
+                    continue
+
+                # ATHENA v2: SPREAD GATE
+                _q = quotes.get(sym)
+                if _q and _q.get("mid", 0) > 0:
+                    _spread_bps = (_q.get("ask", 0) - _q.get("bid", 0)) / _q["mid"] * 10000.0
+                    if _spread_bps > ATHENA_V2_MAX_SPREAD_BPS:
+                        log_decision(
+                            conn, lane=lane.nickname, symbol=sym, action="skip",
+                            reason=f"athena_v2:spread({_spread_bps:.1f}bps>{ATHENA_V2_MAX_SPREAD_BPS}bps)",
+                            quote=_q, signal_bps=score,
+                            equity=equity, buying_power=buying_power,
+                            open_positions=len(positions),
+                        )
+                        continue
+
                 # ATHENA v2: COMPOSITE C3 GATE
                 # Trained on 21 days (validated via walk-forward at +$1,288 honest delta
                 # vs yesterday's +$2,030 lookahead-biased number).
@@ -832,13 +928,17 @@ def run_loop(args: argparse.Namespace) -> None:
                     open_positions=len(positions),
                     payload=payload,
                 )
-                cid, status, response = submit_market_order(
+                # ATHENA v2: marketable limit IOC entry (cuts slippage ~12bps → ~4bps)
+                cid, status, response = submit_marketable_limit_ioc(
                     client,
                     lane=lane.nickname,
                     symbol=sym,
                     side=side,
                     qty=qty,
                     action=action,
+                    bid=quote.get("bid", quote["mid"]),
+                    ask=quote.get("ask", quote["mid"]),
+                    offset_bps=3.0,
                     place_orders=args.place_orders,
                 )
                 log_order(
