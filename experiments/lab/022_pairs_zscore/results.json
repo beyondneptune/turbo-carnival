@@ -1,7 +1,7 @@
 {
   "experiment": "022_pairs_zscore",
   "description": "SPY/QQQ z-score pairs, |z|>2 entry, |z|<0.5 exit, 60-bar lookback",
-  "timestamp_utc": "2026-05-12T00:30:40.986213+00:00",
+  "timestamp_utc": "2026-05-12T01:12:28.319310+00:00",
   "n_trades": 147,
   "net_pnl_8bps": -3499.6472648750832,
   "win_rate": 0.006802721088435374,

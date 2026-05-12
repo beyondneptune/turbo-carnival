@@ -1,7 +1,7 @@
 {
   "experiment": "021_arima",
   "description": "ARIMA(2,0,2) per-symbol; |forecast residual| as anomaly score",
-  "timestamp_utc": "2026-05-12T00:30:40.608663+00:00",
+  "timestamp_utc": "2026-05-12T01:12:27.937066+00:00",
   "train_auc": 0.5314142440147991,
   "test_auc": 0.7334059219531192,
   "train_test_gap": -0.20199167793832007,

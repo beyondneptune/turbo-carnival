@@ -1,7 +1,7 @@
 {
   "experiment": "104_imblearn_smote_lgbm",
   "description": "SMOTE oversampling + LightGBM; handles class imbalance via synthetic minority generation",
-  "timestamp_utc": "2026-05-12T00:59:49.399119+00:00",
+  "timestamp_utc": "2026-05-12T01:12:54.991245+00:00",
   "train_auc": 0.9234433220356342,
   "test_auc": 0.8588251973195156,
   "train_test_gap": 0.06461812471611861,
