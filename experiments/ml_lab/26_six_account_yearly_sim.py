@@ -91,17 +91,19 @@ def simulate_athena_hft(
     *, starting: float, base_per_entry: float,
     decay: float, extra_gate_block_rate: float,
     enable_compounding: bool = True,
-) -> tuple[float, int]:
+) -> tuple[float, int, np.ndarray, int]:
     """Simulate one year of ATHENA HFT lane on an account starting with `starting`.
 
-    Returns (ending_equity, n_circuit_breaker_days).
+    Returns (ending_equity, n_circuit_breaker_days, daily_curve, total_entries).
     """
     equity = starting
     starting_eq = starting
     peak = starting
     n_circuit = 0
+    total_entries = 0
+    curve = np.zeros(TRADING_DAYS + 1)
+    curve[0] = starting
     for d in range(TRADING_DAYS):
-        # Entries per day
         K = int(np.clip(
             rng.normal(ENTRIES_PER_DAY_MEAN, ENTRIES_PER_DAY_MEAN * 0.3),
             15, 50,
@@ -109,7 +111,6 @@ def simulate_athena_hft(
         if extra_gate_block_rate > 0:
             K = int((rng.random(K) > extra_gate_block_rate).sum())
 
-        # Compounding multiplier
         if enable_compounding:
             dd_pct = (peak - equity) / peak if peak > 0 else 0
             if dd_pct > DD_REVERT_PCT:
@@ -121,14 +122,15 @@ def simulate_athena_hft(
             eq_mult = 1.0
         base_notional = base_per_entry * eq_mult
 
-        # Bootstrap K entries with circuit breaker
         session_start = equity
         day_pnl = 0.0
+        entries_taken = 0
         if K > 0:
             sampled = rng.choice(pnl_per_dollar, size=K, replace=True)
             for entry_pnl_per_dollar in sampled:
                 entry_pnl = entry_pnl_per_dollar * base_notional * decay
                 day_pnl += entry_pnl
+                entries_taken += 1
                 if -day_pnl / session_start > CIRCUIT_PCT:
                     n_circuit += 1
                     break
@@ -136,86 +138,119 @@ def simulate_athena_hft(
         day_pnl = max(day_pnl, -equity)
         equity += day_pnl
         peak = max(peak, equity)
+        total_entries += entries_taken
+        curve[d + 1] = equity
         if equity < 50:
+            curve[d + 1:] = equity
             break
-    return equity, n_circuit
+    return equity, n_circuit, curve, total_entries
 
 
-def simulate_svxy(starting: float, rng: np.random.Generator) -> float:
-    """SVXY lognormal walk."""
+def simulate_svxy(starting: float, rng: np.random.Generator) -> tuple[float, np.ndarray, int]:
+    """SVXY lognormal walk. Returns (ending, curve, n_rebalances)."""
     equity = starting
-    for _ in range(TRADING_DAYS):
+    curve = np.zeros(TRADING_DAYS + 1)
+    curve[0] = starting
+    # SVXY rotation rebalances at most once a day, but in practice ~12-15/yr
+    # (regime flips). Simplify: 1 trade per 20 days on average.
+    n_rebalances = max(1, TRADING_DAYS // 20)
+    for d in range(TRADING_DAYS):
         ret = rng.normal(SVXY_DAILY_MU, SVXY_DAILY_SIGMA)
         equity *= (1 + ret)
+        curve[d + 1] = equity
         if equity < 50:
+            curve[d + 1:] = equity
             break
-    return equity
+    return equity, curve, n_rebalances
 
 
-def simulate_condor(starting: float, rng: np.random.Generator) -> float:
-    """Monthly iron condor cycles."""
+def simulate_condor(starting: float, rng: np.random.Generator) -> tuple[float, np.ndarray, int]:
+    """Monthly iron condor cycles. Returns (ending, curve, n_cycles)."""
     equity = starting
-    for _ in range(int(CONDOR_CYCLES_PER_YEAR)):
-        if rng.random() < CONDOR_WIN_PROB:
-            equity *= (1 + CONDOR_WIN_RETURN)
-        else:
-            equity *= (1 + CONDOR_LOSS_RETURN)
-    return equity
+    curve = np.zeros(TRADING_DAYS + 1)
+    curve[0] = starting
+    cycle_length = TRADING_DAYS // int(CONDOR_CYCLES_PER_YEAR)   # ~20 days
+    cycles = 0
+    for d in range(TRADING_DAYS):
+        if d > 0 and d % cycle_length == 0:
+            if rng.random() < CONDOR_WIN_PROB:
+                equity *= (1 + CONDOR_WIN_RETURN)
+            else:
+                equity *= (1 + CONDOR_LOSS_RETURN)
+            cycles += 1
+        curve[d + 1] = equity
+    return equity, curve, cycles
 
 
-def simulate_flat(starting: float) -> float:
-    """Atlas: cash interest only."""
-    return starting * (1 + CASH_ANNUAL_RFR)
+def simulate_flat(starting: float) -> tuple[float, np.ndarray]:
+    """Atlas: cash interest only — smooth growth."""
+    daily_rate = (1 + CASH_ANNUAL_RFR) ** (1 / TRADING_DAYS) - 1
+    curve = starting * np.cumprod(np.ones(TRADING_DAYS + 1) * (1 + daily_rate))
+    curve[0] = starting
+    return float(curve[-1]), curve
 
 
 def simulate_one_year_all_accounts(
     pnl_per_dollar: np.ndarray, rng: np.random.Generator,
     *, decay: float, extra_gate_block_rate: float,
 ) -> dict:
-    """Simulate all 6 accounts for one trial year."""
+    """Simulate all 6 accounts for one trial year.
+
+    Returns dict per account with: end, curve (252+1 array), total_entries, circuit_days
+    """
     results = {}
     for name, params in ACCOUNTS.items():
         start = params["start"]
         strategy = params["strategy"]
         if strategy == "athena_hft":
-            end, n_circ = simulate_athena_hft(
+            end, n_circ, curve, n_entries = simulate_athena_hft(
                 pnl_per_dollar, rng,
                 starting=start,
                 base_per_entry=HFT_BASE_PER_ENTRY.get(name, 12_000.0),
                 decay=decay, extra_gate_block_rate=extra_gate_block_rate,
             )
-            results[name] = {"end": end, "circuit_days": n_circ}
+            results[name] = {"end": end, "curve": curve,
+                              "total_entries": n_entries, "circuit_days": n_circ}
         elif strategy == "svxy_rotation":
-            end = simulate_svxy(start, rng)
-            results[name] = {"end": end, "circuit_days": 0}
+            end, curve, n_trades = simulate_svxy(start, rng)
+            results[name] = {"end": end, "curve": curve,
+                              "total_entries": n_trades, "circuit_days": 0}
         elif strategy == "iron_condor":
-            end = simulate_condor(start, rng)
-            results[name] = {"end": end, "circuit_days": 0}
+            end, curve, n_cycles = simulate_condor(start, rng)
+            results[name] = {"end": end, "curve": curve,
+                              "total_entries": n_cycles, "circuit_days": 0}
         elif strategy == "flat":
-            end = simulate_flat(start)
-            results[name] = {"end": end, "circuit_days": 0}
+            end, curve = simulate_flat(start)
+            results[name] = {"end": end, "curve": curve,
+                              "total_entries": 0, "circuit_days": 0}
         elif strategy == "hybrid":
             hft_start = start * params["hft_pct"]
             svxy_start = start * params["svxy_pct"]
-            hft_end, n_circ = simulate_athena_hft(
+            hft_end, n_circ, hft_curve, n_entries = simulate_athena_hft(
                 pnl_per_dollar, rng,
                 starting=hft_start, base_per_entry=HFT_BASE_PER_ENTRY[name],
                 decay=decay, extra_gate_block_rate=extra_gate_block_rate,
             )
-            svxy_end = simulate_svxy(svxy_start, rng)
+            svxy_end, svxy_curve, n_svxy_trades = simulate_svxy(svxy_start, rng)
             results[name] = {"end": hft_end + svxy_end,
+                              "curve": hft_curve + svxy_curve,
                               "hft_end": hft_end, "svxy_end": svxy_end,
+                              "total_entries": n_entries + n_svxy_trades,
                               "circuit_days": n_circ}
     return results
 
 
-def run_monte_carlo(trials: int, seed: int, decay: float, extra_block: float) -> pd.DataFrame:
+def run_monte_carlo(trials: int, seed: int, decay: float, extra_block: float) -> tuple[pd.DataFrame, dict]:
+    """Returns (per-trial DataFrame, dict of percentile curves + entry counts)."""
     rng = np.random.default_rng(seed)
     pnl_per_dollar = load_hft_pnl_distribution()
     print(f"loaded {len(pnl_per_dollar)} HFT entries (per-$ mean {pnl_per_dollar.mean()*100:+.3f}%)")
     print(f"running {trials} trials · decay {decay:.0%} · extra block {extra_block:.0%}")
 
     rows = []
+    # Track all curves per account for percentile aggregation
+    curves_per_account: dict[str, list[np.ndarray]] = {name: [] for name in ACCOUNTS}
+    entries_per_account: dict[str, list[int]] = {name: [] for name in ACCOUNTS}
     for t in range(trials):
         r = simulate_one_year_all_accounts(
             pnl_per_dollar, np.random.default_rng(rng.integers(0, 2**31)),
@@ -224,11 +259,27 @@ def run_monte_carlo(trials: int, seed: int, decay: float, extra_block: float) ->
         row = {"trial": t}
         for name, acct in r.items():
             row[f"{name}_end"] = acct["end"]
+            row[f"{name}_entries"] = acct["total_entries"]
+            curves_per_account[name].append(acct["curve"])
+            entries_per_account[name].append(acct["total_entries"])
         rows.append(row)
-    return pd.DataFrame(rows)
+
+    # Compute percentile bands per day for each account
+    bands = {}
+    for name in ACCOUNTS:
+        arr = np.array(curves_per_account[name])   # (trials, 253)
+        bands[name] = {
+            "p10": np.percentile(arr, 10, axis=0),
+            "p25": np.percentile(arr, 25, axis=0),
+            "p50": np.percentile(arr, 50, axis=0),
+            "p75": np.percentile(arr, 75, axis=0),
+            "p90": np.percentile(arr, 90, axis=0),
+            "mean_entries_per_year": np.mean(entries_per_account[name]),
+        }
+    return pd.DataFrame(rows), bands
 
 
-def render_charts_html(all_results: dict, yesterday_entries: pd.DataFrame | None = None) -> None:
+def render_charts_html(all_results: dict, all_bands: dict, yesterday_entries: pd.DataFrame | None = None) -> None:
     """Render interactive plotly HTML with charts + yesterday's trades."""
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
@@ -365,10 +416,83 @@ def render_charts_html(all_results: dict, yesterday_entries: pd.DataFrame | None
                       f'<small>{take:+,.0f} ({pct:+.1f}%)</small></td>')
     rows_html += "</tr>"
 
+    # ---- Return-cadence table (central case) ----
+    cadence_rows = ""
+    central_df = all_results.get("Central (20% decay)")
+    central_bands = all_bands.get("Central (20% decay)", {})
+    if central_df is not None and central_bands:
+        for name, params in ACCOUNTS.items():
+            start = params["start"]
+            ends = central_df[f"{name}_end"]
+            median_end = ends.median()
+            total_return = (median_end / start - 1)
+            mean_entries = central_bands[name].get("mean_entries_per_year", 0)
+            # Compute periodic returns from total
+            daily_geometric = (1 + total_return) ** (1 / TRADING_DAYS) - 1
+            weekly = (1 + total_return) ** (5 / TRADING_DAYS) - 1
+            monthly = (1 + total_return) ** (21 / TRADING_DAYS) - 1
+            trades_per_day = mean_entries / TRADING_DAYS
+            strategy_label = params["strategy"]
+            cadence_rows += (
+                f"<tr><td><b>{name}</b></td><td>{strategy_label}</td>"
+                f"<td>{daily_geometric*100:+.3f}%</td>"
+                f"<td>{weekly*100:+.2f}%</td>"
+                f"<td>{monthly*100:+.2f}%</td>"
+                f"<td>{total_return*100:+.1f}%</td>"
+                f"<td>{trades_per_day:.1f}</td>"
+                f"<td>{mean_entries:.0f}</td>"
+                f"</tr>"
+            )
+
+    # ---- 5. Timeline equity-curve fan charts (central scenario) ----
+    central_label = "Central (20% decay)"
+    bands = all_bands.get(central_label, {})
+    fig_timeline = make_subplots(rows=2, cols=3, subplot_titles=list(ACCOUNTS.keys()))
+    for (name, _), (r, c) in zip(ACCOUNTS.items(), positions):
+        b = bands.get(name, {})
+        if not b:
+            continue
+        x = list(range(len(b["p50"])))
+        # P10-P90 fill
+        fig_timeline.add_trace(
+            go.Scatter(x=x, y=b["p90"], mode="lines", line=dict(width=0), showlegend=False),
+            row=r, col=c,
+        )
+        fig_timeline.add_trace(
+            go.Scatter(x=x, y=b["p10"], mode="lines", line=dict(width=0),
+                       fill="tonexty", fillcolor="rgba(37,99,235,0.15)",
+                       name="P10-P90", showlegend=(r==1 and c==1)),
+            row=r, col=c,
+        )
+        # P25-P75 fill (darker)
+        fig_timeline.add_trace(
+            go.Scatter(x=x, y=b["p75"], mode="lines", line=dict(width=0), showlegend=False),
+            row=r, col=c,
+        )
+        fig_timeline.add_trace(
+            go.Scatter(x=x, y=b["p25"], mode="lines", line=dict(width=0),
+                       fill="tonexty", fillcolor="rgba(37,99,235,0.35)",
+                       name="P25-P75", showlegend=(r==1 and c==1)),
+            row=r, col=c,
+        )
+        # Median line
+        fig_timeline.add_trace(
+            go.Scatter(x=x, y=b["p50"], mode="lines",
+                       line=dict(color="#1d4ed8", width=2),
+                       name="Median", showlegend=(r==1 and c==1)),
+            row=r, col=c,
+        )
+    fig_timeline.update_layout(
+        title=f"Equity Timeline Through 252 Trading Days · {central_label}",
+        height=620, template="plotly_white",
+    )
+    fig_timeline.update_xaxes(title_text="Trading day")
+
     # Convert plotly figures to HTML divs
     portfolio_div = pio.to_html(fig_portfolio, full_html=False, include_plotlyjs="cdn")
     accounts_div = pio.to_html(fig_accounts, full_html=False, include_plotlyjs=False)
     takes_div = pio.to_html(fig_takes, full_html=False, include_plotlyjs=False)
+    timeline_div = pio.to_html(fig_timeline, full_html=False, include_plotlyjs=False)
     trades_div = pio.to_html(fig_trades, full_html=False, include_plotlyjs=False) if fig_trades else ""
 
     html = f"""<!DOCTYPE html>
@@ -394,6 +518,16 @@ th {{ background: #f3f4f6; font-weight: 600; }}
 <tr><th>Account</th><th>Start</th><th>Bearish</th><th>Central</th><th>Optimistic</th><th>Edge persists</th></tr>
 {rows_html}
 </table>
+
+<h2>Return Cadence & Trade Frequency (Central case median)</h2>
+<table>
+<tr><th>Account</th><th>Strategy</th><th>Avg Daily</th><th>Avg Weekly</th><th>Avg Monthly</th>
+<th>Annual</th><th>Trades/day</th><th>Trades/yr</th></tr>
+{cadence_rows}
+</table>
+
+<h2>Equity Timeline · Central case · P10/P25/P50/P75/P90 fan</h2>
+{timeline_div}
 
 <h2>Total Portfolio Distribution</h2>
 {portfolio_div}
@@ -474,17 +608,19 @@ def main():
 
     # Always run all 4 scenarios for the HTML chart (cheap)
     all_results = {}
+    all_bands = {}
     for label, decay in [("Bearish (5% decay)", 0.05),
                           ("Central (20% decay)", 0.20),
                           ("Optimistic (40% decay)", 0.40),
                           ("Edge persists (100%)", 1.0)]:
-        df = run_monte_carlo(args.trials, args.seed, decay, args.extra_block)
+        df, bands = run_monte_carlo(args.trials, args.seed, decay, args.extra_block)
         report(df, label)
         all_results[label] = df
+        all_bands[label] = bands
 
     # Load yesterday's actual trade tape for the trades chart
     yesterday_entries = pd.read_parquet(COMPOSITE_PER_ENTRY)
-    render_charts_html(all_results, yesterday_entries=yesterday_entries)
+    render_charts_html(all_results, all_bands, yesterday_entries=yesterday_entries)
     # Save the central case parquet
     all_results["Central (20% decay)"].to_parquet(OUT / "trials.parquet", index=False)
     print(f"wrote {OUT}/trials.parquet")
