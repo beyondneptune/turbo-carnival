@@ -1,18 +1,19 @@
-"""SVXY regime rotation live trading host — runs on Hermes + TERMINATOR.
+"""SVXY regime rotation live trading host.
 
-Strategy (validated walk-forward 2019-2026: +218% / +17.1%/yr / Sharpe 0.66):
+Base strategy (validated walk-forward 2019-2026: +218% / +17.1%/yr / Sharpe 0.66):
   - Fetch VIX, VIX3M at 09:35 ET each market day (post-open)
   - ratio = VIX / VIX3M
   - target = "long SVXY" if ratio < 1.0 (contango — positive roll yield)
   - target = "flat" if ratio >= 1.0 (backwardation — vol-spike risk)
   - If current position doesn't match target, execute trade.
 
-Position sizing:
-  - Hermes ($100k): full position — buy max shares of SVXY at ~30% of equity
-    leaving 70% cash as defensive buffer (so a 3σ SVXY crash doesn't wipe NAV)
-  - TERMINATOR ($1k): 30% allocation = ~$300 in SVXY (fractional shares OK)
+Lane policy:
+  - Hermes: core SVXY contango rotation, 30% allocation when ratio < 1.00.
+  - Atlas: strict/deep-contango control lane, 30% allocation only when ratio < 0.85.
+  - TERMINATOR: HFT-only account; no SVXY overlay.
 
 Run as: .venv/bin/python scripts/svxy_rotation_host.py --lane HERMES
+                                                       --lane ATLAS
                                                        --lane TERMINATOR
 """
 from __future__ import annotations
@@ -43,6 +44,24 @@ DATA_ENDPOINT = "https://data.alpaca.markets/v2"
 SVXY = "SVXY"
 TARGET_ALLOCATION = 0.30  # 30% of equity in SVXY when contango; rest cash
 STOPPED = False
+
+LANE_POLICIES = {
+    "HERMES": {
+        "allocation": 0.30,
+        "entry_ratio": 1.00,
+        "description": "core_contango_rotation",
+    },
+    "ATLAS": {
+        "allocation": 0.30,
+        "entry_ratio": 0.85,
+        "description": "deep_contango_control",
+    },
+    "TERMINATOR": {
+        "allocation": 0.00,
+        "entry_ratio": 0.00,
+        "description": "hft_only_no_svxy_overlay",
+    },
+}
 
 logger = logging.getLogger("svxy_rotation_host")
 
@@ -131,6 +150,17 @@ def submit_order(prefix: str, qty: float, side: str, lane: str) -> dict | None:
     return None
 
 
+def lane_policy(lane: str) -> dict:
+    return LANE_POLICIES.get(
+        lane.upper(),
+        {
+            "allocation": TARGET_ALLOCATION,
+            "entry_ratio": 1.00,
+            "description": "default_contango_rotation",
+        },
+    )
+
+
 def ensure_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB)
     conn.execute("""
@@ -164,7 +194,11 @@ def decide_and_execute(lane: str, prefix: str, conn: sqlite3.Connection,
         return
 
     vix, vix3m, ratio = vix_data
-    target = "long" if ratio < 1.0 else "flat"
+    policy = lane_policy(lane)
+    allocation = float(policy["allocation"])
+    entry_ratio = float(policy["entry_ratio"])
+    policy_name = str(policy["description"])
+    target = "long" if allocation > 0 and ratio < entry_ratio else "flat"
     acct = get_account(prefix)
     if not acct:
         logger.warning(f"{lane}: account unavailable")
@@ -180,14 +214,15 @@ def decide_and_execute(lane: str, prefix: str, conn: sqlite3.Connection,
         return
 
     # Target position in dollars
-    target_usd = equity * TARGET_ALLOCATION if target == "long" else 0.0
+    target_usd = equity * allocation if target == "long" else 0.0
     target_qty = target_usd / svxy_px if svxy_px > 0 else 0.0
     # Fractional shares OK on Alpaca paper. Round to 2 decimals.
     target_qty = round(target_qty, 2)
     delta_qty = target_qty - held_qty
     abs_delta_usd = abs(delta_qty) * svxy_px
 
-    msg = (f"vix={vix:.2f} vix3m={vix3m:.2f} ratio={ratio:.3f} target={target}  "
+    msg = (f"policy={policy_name} alloc={allocation:.0%} trigger<{entry_ratio:.2f}  "
+            f"vix={vix:.2f} vix3m={vix3m:.2f} ratio={ratio:.3f} target={target}  "
             f"eq=${equity:,.2f} held_qty={held_qty:.2f} target_qty={target_qty:.2f}  "
             f"px=${svxy_px:.2f} delta=${delta_qty * svxy_px:+,.2f}")
     logger.info(f"{lane}: {msg}")

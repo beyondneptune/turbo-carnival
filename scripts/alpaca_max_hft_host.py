@@ -70,14 +70,16 @@ class HftLane:
 
 
 LANE_TEMPLATES = [
-    # ATHENA v2 stack: composite C3 gate + vol-inverse sizing + tightened thresholds
-    # Aegis: HFT mean-reversion, tighter signal (z>=25 bps as before but blocked by C3)
+    # Each HFT lane is a DIFFERENT hypothesis being tested — not the same strategy at different capital.
+    # Aegis: validated conservative mean-reversion (signal>=25, slower TP/SL, longer hold)
     HftLane("Aegis", "ALPACA_AEGIS_ACCOUNT", "ALPACA_AEGIS_KEY", "ALPACA_AEGIS_SECRET", "mean_reversion", 25.0, 100.0, 35.0, 1200.0),
-    # Falcon: HFT momentum/breakout
+    # Falcon: breakout momentum (different mode; medium signal threshold, faster TP)
     HftLane("Falcon", "ALPACA_FALCON_ACCOUNT", "ALPACA_FALCON_KEY", "ALPACA_FALCON_SECRET", "breakout", 18.0, 70.0, 25.0, 900.0),
     HftLane("Valk", "ALPACA_VALK_ACCOUNT", "ALPACA_VALK_KEY", "ALPACA_VALK_SECRET", "turbo_hybrid", 18.0, 70.0, 25.0, 900.0),
-    # TERMINATOR: $1k test bed running mean-reversion + composite C3 + Half-Kelly
-    HftLane("TERMINATOR", "ALPACA_TERMINATOR_ACCOUNT", "ALPACA_TERMINATOR_KEY", "ALPACA_TERMINATOR_SECRET", "mean_reversion", 25.0, 100.0, 35.0, 1200.0, 0.30),
+    # TERMINATOR: AGGRESSIVE PROBE lane ($1k) — loose signal threshold, fast turnover, tight risk.
+    # Designed to generate trade volume for the bandit/RL learners and stress-test gates.
+    # Distinct from Aegis (conservative) and Falcon (breakout): aggressive mean-rev at low threshold.
+    HftLane("TERMINATOR", "ALPACA_TERMINATOR_ACCOUNT", "ALPACA_TERMINATOR_KEY", "ALPACA_TERMINATOR_SECRET", "mean_reversion", 10.0, 40.0, 20.0, 300.0, 0.30),
     HftLane("HFT1", "ALPACA_HFT1_ACCOUNT", "ALPACA_HFT1_KEY", "ALPACA_HFT1_SECRET", "momentum", 18.0, 70.0, 25.0, 900.0),
     HftLane("HFT2", "ALPACA_HFT2_ACCOUNT", "ALPACA_HFT2_KEY", "ALPACA_HFT2_SECRET", "mean_reversion", 25.0, 100.0, 35.0, 1200.0),
     HftLane("HFT3", "ALPACA_HFT3_ACCOUNT", "ALPACA_HFT3_KEY", "ALPACA_HFT3_SECRET", "breakout", 18.0, 70.0, 25.0, 900.0),
@@ -891,8 +893,11 @@ def run_loop(args: argparse.Namespace) -> None:
                     continue
 
                 # ATHENA v2: TIGHTENED SIGNAL THRESHOLD
+                # TERMINATOR is the aggressive probe lane — bypass the 1.3x tightening
+                # so it actually generates trade volume (its lane.min_signal_bps is already 10).
+                lane_mult = 1.0 if lane.nickname == "TERMINATOR" else ATHENA_V2_SIGNAL_MULT
                 lane_min_sig = (lane.min_signal_bps if not args.no_lane_presets
-                                else args.min_signal_bps) * ATHENA_V2_SIGNAL_MULT
+                                else args.min_signal_bps) * lane_mult
                 if abs(score) < lane_min_sig:
                     log_decision(
                         conn, lane=lane.nickname, symbol=sym, action="skip",
