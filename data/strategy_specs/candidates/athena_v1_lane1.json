@@ -1,7 +1,7 @@
 {
   "name": "athena_v1_lane1_aegis_alpha",
   "version": "v1",
-  "description": "Mean-reversion HFT with marketable-limit IOC + bracket + LogReg gate + AE hard veto + vol-inverse sizing. Synthesized from 10-Opus debate 2026-05-11.",
+  "description": "Mean-reversion HFT with marketable-limit IOC + bracket + COMPOSITE C3 gate (union of 016 LOF, 017 OCSVM, 018 EllipticEnvelope, 102 RBF+LogReg) + AE hard veto + vol-inverse sizing. C3 chosen empirically on yesterday's data: blocks 82 of 162 entries, counterfactual +$2,030 vs actual.",
   "account": "AEGIS_PAPER",
   "strategy": "mean_reversion_v1",
   "symbols": ["SPY", "QQQ", "AAPL"],
@@ -31,7 +31,7 @@
     "time_exit_min": 10
   },
   "ml_kill": {
-    "logreg_p_vol_exit": 0.7,
+    "composite_c3_mid_trade_exit": true,
     "ae_recon_exit_pctile": 99
   },
   "filter_cascade": [
@@ -39,7 +39,7 @@
     {"type": "news_blackout", "params": {"cooldown_sec": 600}},
     {"type": "spread_gate", "params": {"max_bps": 5.0}},
     {"type": "abs_return_gate", "params": {"threshold_bps": 60}},
-    {"type": "logreg_regime_gate", "params": {"p_vol_block": 0.50}},
+    {"type": "composite_c3_gate", "params": {"block_if_any_subgate_blocks": true}},
     {"type": "ae_anomaly_gate", "params": {"hard_veto_pctile": 99, "size_down_pctile": 95}},
     {"type": "signal_trigger", "params": {"mode": "mean_reversion"}},
     {"type": "position_correlation_check", "params": {"max_open": 2}}
