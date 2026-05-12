@@ -1,81 +1,104 @@
 # Live Deploy Status — 2026-05-12
 
-**FULL ATHENA v2 DEPLOY** — committed `d0e98c9`, host restarted 13:13 UTC, all 3 HFT lanes live.
+**ATHENA v2.1 FULL STACK** — 6 commits pushed today, host restarted 13:54:30 UTC with all gates active.
 
-## Active processes (live as of 13:14 UTC / 09:14 ET — pre-market)
+Commit chain:
+- `d0e98c9` — ATHENA v2 (composite C3 + vol-inv + IOC entries + symbol blacklist + time gate + spread gate + threshold tightening)
+- `e44279d` — initial status doc
+- `62c6c8c` — dashboard label refresh
+- `0f984a2` — TERMINATOR sizing cap ($30–$120 to share $1k with SVXY)
+- `2199a47` — year-1 bootstrap Monte Carlo simulator
+- `d61a52a` — **v2.1 safety: daily-loss circuit breaker + compounding capital sizing**
+- `7bf7200` — **v2.1 signal: news sentiment + earnings calendar + OB imbalance gates**
 
-| Component | tmux session | Process | Fires |
-|---|---|---|---|
-| ATHENA v2 HFT host | `athena_v2_hft_host` | `alpaca_max_hft_host.py --lanes Aegis,Falcon,TERMINATOR --place-orders` | continuous from 10:00 ET (time gate); 1st entry decision could fire any tick after open |
-| Valk scale-down | `valk_scale_down_scheduled` | `sleep 5334; execute_queued_order.py … --confirm` | 09:31 ET — halves Valk from 44→22 contracts on each of 4 legs |
-| SVXY rotation host | `svxy_host` | `svxy_rotation_host.py --lane HERMES --lane TERMINATOR` | 09:40 ET first decision; today's signal LONG (VIX/VIX3M = 0.884, contango) |
+## Active processes (5 tmux sessions)
 
-## Pre-existing live (no changes)
-
-| Component | tmux | Purpose |
+| Component | tmux session | Fires |
 |---|---|---|
+| ATHENA v2.1 HFT host | `athena_v2_hft_host` | continuous from 10:00 ET (time gate) |
+| Valk scale-down | `valk_scale_down_scheduled` | 09:31 ET — halves Valk 44→22 contracts |
+| SVXY rotation host | `svxy_host` | 09:40 ET first decision; today's signal LONG (VIX/VIX3M = 0.884) |
 | Valk condor monitor | `alpaca_monitor` | 60s poll, exit on stop/TP |
 | Dashboard | `sys_dashboard` | http://192.168.1.115:8502 |
-| News scrapers | `news_scraper`, `stocktwits`, `yahoo_news` | sentiment data |
 
-## ATHENA v2 stack (what's new vs. yesterday's losing config)
+## ATHENA v2.1 entry gate chain (order of evaluation)
 
-Yesterday lost $3,443 of which **$3,939 was slippage** (signal P&L was actually +$494 before fills). The 6 changes below directly target that breakdown:
+For each lane × symbol every 2 seconds:
 
-| # | Component | Where | Expected impact |
-|---|---|---|---:|
-| 1 | **Composite C3 ML gate** — union of LOF + OCSVM + EllipticEnv + RBFSampler+LR; blocks ~65% of marginal entries | `scripts/athena_ml_gates.py` loaded once at start, called per-tick | +$1,288 vs yesterday (honest walk-forward, no lookahead) |
-| 2 | **Vol-inverse sizing** — Half-Kelly capped, shrinks size in noisy regimes | `scripts/voltgt_sizer.py` `compute_notional()` per entry | +$200 — fewer fills at the wrong size |
-| 3 | **Marketable limit IOC entries** — limit at NBBO ± 3 bps, IOC TIF; exits stay market for fill reliability | `submit_marketable_limit_ioc()` line 466, called at line 932 | **+$1,300 — slippage 12 bps → 4 bps** |
-| 4 | **Symbol blacklist** — drop TSLA + AMD (113/163 = 69% of yesterday's losing entries) | `ATHENA_V2_SYMBOL_BLACKLIST` gate before C3 | +$400 — pruned worst symbols |
-| 5 | **Time gate** — only trade 10:00-15:30 ET, skip open/close auction wider-spread windows | `ATHENA_V2_TIME_*` gate | +$250 |
-| 6 | **Tightened signal threshold** — `lane.min_signal_bps × 1.3` (Aegis 25→32.5, Falcon 18→23.4) | `ATHENA_V2_SIGNAL_MULT` gate | +$150 — fewer marginal fires |
-| 7 | **Spread gate** — skip if current bid-ask > 5 bps of mid | `ATHENA_V2_MAX_SPREAD_BPS` gate | +$100 |
+1. **Circuit breaker** — if session loss > 3%, halt all entries for the lane until tomorrow
+2. **Best-signal selection** — momentum/breakout/mean-rev per lane mode
+3. **Regime filter** — vol-of-vol, ATR, news blackout, abs-return (existing)
+4. **Symbol blacklist** — TSLA + AMD dropped (yesterday's 69% of losing trades)
+5. **News sentiment** — if 1-hr weighted score < −0.30, skip ← NEW v2.1
+6. **Earnings calendar** — if within ±1 day of earnings, skip ← NEW v2.1
+7. **Order book imbalance** — if >0.30 magnitude opposing direction, skip ← NEW v2.1
+8. **Time gate** — entries only 10:00–15:30 ET (skip auction zones)
+9. **Tightened signal threshold** — require |score| ≥ lane.min_signal_bps × 1.3
+10. **Spread gate** — skip if current bid-ask > 5 bps of mid
+11. **Composite C3 ML gate** — union of LOF + OCSVM + EllipticEnv + RBF+LR blocks
+12. **Vol-inverse sizing** — base notional × equity multiplier × vol scaling
 
-Stacking (not additive): expected net P&L on yesterday-equivalent tape ≈ **+$450 to +$700** (vs −$3,443 actual).
+## Capital sizing — compounding stack
 
-## Strategy assignments per account
+| Component | Behavior |
+|---|---|
+| Equity-scaled base | `base_notional × (equity / session_start_equity)` |
+| Drawdown gate | if `>20%` off peak → revert to baseline (no scaling) |
+| Capacity cap | `equity_multiplier` capped at **5×** (acknowledges finite strategy capacity) |
+| Vol-inverse | noisy bars get smaller notional, quiet bars larger |
+| Circuit break | session loss `>3%` → halt entries entirely until next trading day |
 
-| Account | Capital | Today's exposure | Notes |
+Net effect: TERMINATOR ($1k) compounds linearly up to $5k base notional, then plateaus. Aegis/Falcon compound up to $60k base notional ($12k × 5). Drawdowns auto-circuit-break.
+
+## Strategy assignments
+
+| Account | Start | Today's strategy | Live |
 |---|---:|---|---|
-| **Aegis** | $100k | live HFT mean-reversion, ATHENA v2 stack | 5 symbols (SPY, QQQ, NVDA, AAPL, META — TSLA/AMD blacklisted) |
-| **Falcon** | $100k | live HFT breakout, ATHENA v2 stack | same 5-symbol whitelist |
-| **Valk** | $100k | $-440 unrealized → scaling 44→22 at 09:31 ET | 4-leg iron condor, DTE 31 |
-| **Hermes** | $100k | ~$30k SVXY (long) at 09:40 ET | SVXY rotation — validated +17%/yr |
-| Atlas | $100k | $0 cash | Kalman pairs failed walk-forward; no validated host |
-| **TERMINATOR** | $1k | $300 SVXY + HFT mean-reversion (lane 3) | both stacks active on the smallest account |
+| Aegis | $99,286 | ATHENA v2.1 mean-rev | ✓ |
+| Falcon | $97,701 | ATHENA v2.1 breakout | ✓ |
+| Valk | $99,552 | iron condor, scaling 44→22 at 09:31 | ✓ |
+| Hermes | $100,000 | SVXY rotation (today: LONG) at 09:40 | ✓ |
+| Atlas | $100,000 | flat (no validated host) | — |
+| TERMINATOR | $1,000 | ATHENA v2.1 mean-rev + SVXY (70/30 split) | ✓ |
+
+## Ready-to-run offline (built today, not yet wired)
+
+| Component | File | What it does |
+|---|---|---|
+| Polygon S3 historical pull | `scripts/polygon_s3_historical_pull.py` | 5-yr minute bars (needs POLYGON_S3 creds) |
+| Triple-barrier + purged k-fold CV | `experiments/ml_lab/23_*.py` | proper C3 retrain methodology |
+| LinUCB bandit shadow | `experiments/ml_lab/24_*.py` | logs would-have decisions vs C3 baseline |
+| Offline RL CQL scaffold | `experiments/ml_lab/25_*.py` | CQL framework (needs 10k+ tuples) |
+| Year-1 Monte Carlo | `experiments/ml_lab/22_*.py` | bootstrap projection of yearly take |
 
 ## Kill switches
 
-| Process | Kill command | Effect |
+| Process | Kill | Effect |
 |---|---|---|
-| ATHENA HFT host | `tmux kill-session -t athena_v2_hft_host` | Stops Aegis/Falcon/TERMINATOR HFT entries; open positions stay |
-| SVXY host | `tmux kill-session -t svxy_host` | Stops new decisions; existing positions stay |
-| Valk scale-down | `tmux kill-session -t valk_scale_down_scheduled` | Cancels 09:31 ET fire if not yet executed |
-| Valk monitor | `tmux kill-session -t alpaca_monitor` | Stops Valk exit-order monitoring |
-| Everything | `for s in athena_v2_hft_host svxy_host valk_scale_down_scheduled alpaca_monitor; do tmux kill-session -t $s; done` | Halts all new automated activity |
+| ATHENA host | `tmux kill-session -t athena_v2_hft_host` | halts new HFT entries; positions managed out |
+| SVXY host | `tmux kill-session -t svxy_host` | no new SVXY decisions |
+| Valk scale-down | `tmux kill-session -t valk_scale_down_scheduled` | cancels 09:31 ET fire |
+| Everything | `for s in athena_v2_hft_host svxy_host valk_scale_down_scheduled alpaca_monitor; do tmux kill-session -t $s; done` | full halt |
 
-## Risk caps still in force (from host code, not new)
+## Circuit breaker behavior
 
-- Aegis: max gross $1200, base notional $100, vol-inverse multiplier 0.30 cap
-- Falcon: same cap structure
-- TERMINATOR: max gross $1200 (will be effectively capped by $1k equity)
-- Composite C3 fails OPEN on missing models (verified: all 6 model files present at 11:43 today)
-- Marketable-limit IOC: if no fill in 1 round, order auto-cancels (TIF=ioc) — no resting risk
+If `(equity − session_start) / session_start < −0.03` at any tick:
+- Log: `CIRCUIT BREAKER <lane>: session loss X.XX%, halting entries today`
+- Add lane to `_LANE_HALTED_TODAY` set
+- Skip all entries on that lane for the rest of the day
+- Existing positions continue to be managed by `evaluate_exits()`
+- Auto-resets on next trading day
 
-## When to check back
+## Expected behavior today
 
-- **09:30 ET (T-74 min from now)**: market open. ATHENA host should log first decisions ~every 2s. Time gate keeps entries off until 10:00 ET.
-- **09:31 ET**: Valk scale-down log appears in `data/logs/valk_scale_down_run.log`. 22 contracts on each leg.
-- **09:40 ET**: SVXY decision in `data/svxy_rotation_host.sqlite3`; LONG order to Hermes ($30k) and TERMINATOR ($300).
-- **10:00 ET**: ATHENA time gate opens. First HFT entries appear in `data/orders.db`.
-- **16:00 ET**: Dashboard "All 6 Accounts" tab shows day's P&L.
+| Time (ET) | Event |
+|---|---|
+| 09:30 | Market opens; host still in time-gate skip (entries paused until 10:00) |
+| 09:31 | Valk scale-down fires; 22 contracts each leg |
+| 09:40 | SVXY decision; Hermes goes LONG $30k, TERMINATOR $300 |
+| 10:00 | ATHENA time gate opens; first HFT entries possible |
+| 10:00–15:30 | Normal HFT operation; all 11 gates evaluated per tick |
+| 15:30 | Time gate closes; no new entries; positions held to time-stop or close |
+| 16:00 | Session ends; dashboard "All 6 Accounts" shows P&L |
 
-## Confidence rating
-
-| Deployment | Confidence | Why |
-|---|---|---|
-| Valk scale-down | high | One-shot, tested script |
-| SVXY rotation host | medium-high | Walk-forward validated 2019-2026, never live |
-| **ATHENA v2 HFT (Aegis/Falcon/TERMINATOR)** | **medium** | All 6 components passed walk-forward independently; full stack untested live. Worst-case bound: $1200 × 3 lanes = $3600 max gross |
-| Atlas (NOT deployed) | n/a | Correctly held back |
+Expected daily take (central case): **−$200 to +$700**, with circuit breaker capping max loss at ~3% of starting equity per lane (~$3,000 worst case for Aegis+Falcon, $30 for TERMINATOR).
