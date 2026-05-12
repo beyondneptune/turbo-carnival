@@ -228,6 +228,204 @@ def run_monte_carlo(trials: int, seed: int, decay: float, extra_block: float) ->
     return pd.DataFrame(rows)
 
 
+def render_charts_html(all_results: dict, yesterday_entries: pd.DataFrame | None = None) -> None:
+    """Render interactive plotly HTML with charts + yesterday's trades."""
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    import plotly.io as pio
+
+    SCENARIO_COLORS = {
+        "Bearish (5% decay)": "#dc2626",
+        "Central (20% decay)": "#2563eb",
+        "Optimistic (40% decay)": "#16a34a",
+        "Edge persists (100%)": "#9333ea",
+    }
+
+    # ---- 1. Portfolio total distribution (overlay 4 scenarios) ----
+    fig_portfolio = go.Figure()
+    for label, df in all_results.items():
+        totals = sum(df[f"{name}_end"] for name in ACCOUNTS.keys())
+        fig_portfolio.add_trace(go.Histogram(
+            x=totals, name=label, opacity=0.6, nbinsx=60,
+            marker_color=SCENARIO_COLORS.get(label, "#666"),
+        ))
+    total_start = sum(p["start"] for p in ACCOUNTS.values())
+    fig_portfolio.add_vline(x=total_start, line_dash="dash", line_color="black",
+                              annotation_text=f"Start ${total_start:,.0f}")
+    fig_portfolio.update_layout(
+        barmode="overlay",
+        title=f"Total Portfolio Year-End Distribution · {len(next(iter(all_results.values())))} trials/scenario",
+        xaxis_title="Portfolio Equity ($)", yaxis_title="Trial count",
+        height=420, template="plotly_white",
+    )
+
+    # ---- 2. Per-account box plots × 4 scenarios ----
+    fig_accounts = make_subplots(rows=2, cols=3,
+                                   subplot_titles=list(ACCOUNTS.keys()))
+    positions = [(1,1),(1,2),(1,3),(2,1),(2,2),(2,3)]
+    for (name, params), (r, c) in zip(ACCOUNTS.items(), positions):
+        for label, df in all_results.items():
+            fig_accounts.add_trace(
+                go.Box(y=df[f"{name}_end"], name=label.split(" ")[0],
+                       marker_color=SCENARIO_COLORS.get(label, "#666"),
+                       showlegend=(r==1 and c==1),
+                       boxmean="sd"),
+                row=r, col=c,
+            )
+        # Add starting capital line
+        fig_accounts.add_hline(y=params["start"], line_dash="dot",
+                                 line_color="black", line_width=1,
+                                 row=r, col=c)
+    fig_accounts.update_layout(
+        title="Per-Account Year-End Distribution by Scenario",
+        height=620, template="plotly_white",
+    )
+
+    # ---- 3. Median take by account × scenario (grouped bar) ----
+    fig_takes = go.Figure()
+    accounts = list(ACCOUNTS.keys())
+    for label, df in all_results.items():
+        medians = [df[f"{name}_end"].median() - ACCOUNTS[name]["start"] for name in accounts]
+        fig_takes.add_trace(go.Bar(
+            x=accounts, y=medians, name=label,
+            marker_color=SCENARIO_COLORS.get(label, "#666"),
+            text=[f"${v:+,.0f}" for v in medians], textposition="outside",
+        ))
+    fig_takes.update_layout(
+        title="Median Yearly Take by Account × Scenario",
+        xaxis_title="Account", yaxis_title="Take ($)",
+        barmode="group", height=480, template="plotly_white",
+    )
+
+    # ---- 4. Yesterday's actual trades (if available) ----
+    fig_trades = None
+    if yesterday_entries is not None and len(yesterday_entries) > 0:
+        df = yesterday_entries.copy()
+        df = df.sort_values("entry_ts").reset_index(drop=True)
+        df["pnl_cum"] = df["pnl"].cumsum()
+        fig_trades = make_subplots(
+            rows=2, cols=1, shared_xaxes=True,
+            subplot_titles=("Cumulative P&L over yesterday's session",
+                              "Per-entry P&L (blocked entries shown faded)"),
+            vertical_spacing=0.10, row_heights=[0.5, 0.5],
+        )
+        # Cumulative curve — only kept entries
+        kept = df[~df.get("blocked", False)] if "blocked" in df.columns else df
+        kept_cum = kept["pnl"].cumsum().values
+        fig_trades.add_trace(
+            go.Scatter(x=list(range(len(kept))), y=kept_cum, mode="lines+markers",
+                       name="Cumulative P&L (C3-kept)",
+                       line=dict(color="#16a34a", width=2)),
+            row=1, col=1,
+        )
+        # Per-entry bars
+        colors = ["#9ca3af" if b else ("#16a34a" if p > 0 else "#dc2626" if p < 0 else "#9ca3af")
+                  for p, b in zip(df["pnl"], df.get("blocked", [False]*len(df)))]
+        hover = [f"{lane} · {sym} · {side}<br>P&L: ${p:+.2f}<br>blocked: {b}"
+                 for lane, sym, side, p, b in zip(
+                     df["lane"], df["symbol"], df["side_dir"], df["pnl"],
+                     df.get("blocked", [False]*len(df)))]
+        fig_trades.add_trace(
+            go.Bar(x=list(range(len(df))), y=df["pnl"], marker_color=colors,
+                   text=df["symbol"], hovertext=hover, name="Per-entry P&L"),
+            row=2, col=1,
+        )
+        fig_trades.update_layout(
+            title="Yesterday's 162 ATHENA Entries (C3 gate blocked 82 in grey)",
+            height=560, template="plotly_white", showlegend=False,
+        )
+        fig_trades.update_xaxes(title_text="Entry index (time-ordered)", row=2, col=1)
+        fig_trades.update_yaxes(title_text="Cumulative P&L ($)", row=1, col=1)
+        fig_trades.update_yaxes(title_text="P&L per entry ($)", row=2, col=1)
+
+    # ---- Build summary table ----
+    rows_html = ""
+    for name, params in ACCOUNTS.items():
+        start = params["start"]
+        rows_html += f"<tr><td><b>{name}</b></td><td>${start:,.0f}</td>"
+        for label, df in all_results.items():
+            ends = df[f"{name}_end"]
+            median = ends.median()
+            take = median - start
+            pct = (median / start - 1) * 100
+            color = "#16a34a" if take > 0 else "#dc2626"
+            rows_html += (f'<td style="color:{color}">'
+                          f'${median:,.0f}<br><small>{take:+,.0f} ({pct:+.1f}%)</small></td>')
+        rows_html += "</tr>"
+    # Total row
+    total_start = sum(p["start"] for p in ACCOUNTS.values())
+    rows_html += f'<tr style="background:#f3f4f6;font-weight:bold"><td>TOTAL</td><td>${total_start:,.0f}</td>'
+    for label, df in all_results.items():
+        totals = sum(df[f"{name}_end"] for name in ACCOUNTS.keys())
+        med = totals.median()
+        take = med - total_start
+        pct = (med / total_start - 1) * 100
+        color = "#16a34a" if take > 0 else "#dc2626"
+        rows_html += (f'<td style="color:{color}">${med:,.0f}<br>'
+                      f'<small>{take:+,.0f} ({pct:+.1f}%)</small></td>')
+    rows_html += "</tr>"
+
+    # Convert plotly figures to HTML divs
+    portfolio_div = pio.to_html(fig_portfolio, full_html=False, include_plotlyjs="cdn")
+    accounts_div = pio.to_html(fig_accounts, full_html=False, include_plotlyjs=False)
+    takes_div = pio.to_html(fig_takes, full_html=False, include_plotlyjs=False)
+    trades_div = pio.to_html(fig_trades, full_html=False, include_plotlyjs=False) if fig_trades else ""
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>6-Account Year-1 Simulation</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 1280px;
+       margin: 1.5rem auto; padding: 0 1.5rem; color: #1f2937; }}
+h1 {{ font-size: 1.6rem; margin-bottom: 0.25rem; }}
+h2 {{ font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3rem; }}
+.subtitle {{ color: #6b7280; margin-bottom: 1.5rem; }}
+table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }}
+th, td {{ text-align: right; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e5e7eb; }}
+th:first-child, td:first-child {{ text-align: left; }}
+th {{ background: #f3f4f6; font-weight: 600; }}
+.note {{ background: #fef3c7; border-left: 3px solid #f59e0b;
+        padding: 0.7rem 1rem; margin: 1rem 0; font-size: 0.88rem; }}
+</style></head><body>
+<h1>6-Account Year-1 Monte Carlo · v2.1 Deployed Stack</h1>
+<div class="subtitle">5,000 trials per scenario · live capital snapshot 2026-05-12 · interactive plotly charts</div>
+
+<h2>Summary Table</h2>
+<table>
+<tr><th>Account</th><th>Start</th><th>Bearish</th><th>Central</th><th>Optimistic</th><th>Edge persists</th></tr>
+{rows_html}
+</table>
+
+<h2>Total Portfolio Distribution</h2>
+{portfolio_div}
+
+<h2>Per-Account Year-End Distribution</h2>
+{accounts_div}
+
+<h2>Median Yearly Take by Account × Scenario</h2>
+{takes_div}
+
+<div class="note">
+<b>What the charts show:</b> bearish (red) assumes only 5% of yesterday's HFT edge
+persists — most of the upside comes from Valk's iron condor + Hermes's SVXY rotation
+(both independent of HFT decay). Central (blue, 20% decay) is my honest baseline.
+Edge-persists (purple, 100%) is what happens if yesterday's tape is representative —
+Aegis and Falcon compound until they hit the 5× capacity cap (~$500k base).
+</div>
+
+<h2>Yesterday's 162 ATHENA Entries (the data behind the bootstrap)</h2>
+{trades_div if trades_div else '<p style="color:#9ca3af">No trade data available.</p>'}
+
+<div class="note" style="background:#dbeafe;border-color:#3b82f6">
+<b>What this is NOT:</b> a deterministic backtest. It bootstraps from 1 day (2026-05-11)
+of validated entries to project a range of outcomes. Real outcomes depend entirely on
+whether tomorrow's tape resembles yesterday's. First real signal comes at today's close.
+</div>
+
+</body></html>"""
+    out_path = OUT / "index.html"
+    out_path.write_text(html)
+
+
 def report(df: pd.DataFrame, label: str) -> None:
     print(f"\n{'='*80}")
     print(f"{label}")
@@ -274,19 +472,25 @@ def main():
                           help="Run bearish/central/optimistic side-by-side")
     args = parser.parse_args()
 
-    if args.all_scenarios:
-        for label, decay in [("BEARISH (5% decay)", 0.05),
-                              ("CENTRAL (20% decay)", 0.20),
-                              ("OPTIMISTIC (40% decay)", 0.40),
-                              ("EDGE PERSISTS (100% decay)", 1.0)]:
-            df = run_monte_carlo(args.trials, args.seed, decay, args.extra_block)
-            report(df, label)
-    else:
-        df = run_monte_carlo(args.trials, args.seed, args.decay, args.extra_block)
-        decay_label = "edge persists" if args.decay == 1.0 else f"{args.decay*100:.0f}% decay"
-        report(df, f"6-ACCOUNT YEAR-1 SIM · {decay_label}")
-        df.to_parquet(OUT / "trials.parquet", index=False)
-        print(f"wrote {OUT}/trials.parquet")
+    # Always run all 4 scenarios for the HTML chart (cheap)
+    all_results = {}
+    for label, decay in [("Bearish (5% decay)", 0.05),
+                          ("Central (20% decay)", 0.20),
+                          ("Optimistic (40% decay)", 0.40),
+                          ("Edge persists (100%)", 1.0)]:
+        df = run_monte_carlo(args.trials, args.seed, decay, args.extra_block)
+        report(df, label)
+        all_results[label] = df
+
+    # Load yesterday's actual trade tape for the trades chart
+    yesterday_entries = pd.read_parquet(COMPOSITE_PER_ENTRY)
+    render_charts_html(all_results, yesterday_entries=yesterday_entries)
+    # Save the central case parquet
+    all_results["Central (20% decay)"].to_parquet(OUT / "trials.parquet", index=False)
+    print(f"wrote {OUT}/trials.parquet")
+    print(f"wrote {OUT}/index.html")
+    import subprocess
+    subprocess.run(["open", str(OUT / "index.html")])
 
 
 if __name__ == "__main__":
