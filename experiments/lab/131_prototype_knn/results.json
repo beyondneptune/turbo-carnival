@@ -1,0 +1,12 @@
+{
+  "experiment": "131_prototype_knn",
+  "description": "KMeans-derived class prototypes (K_pos=50, K_neg=50); distance to nearest prototype determines class probability via softmax",
+  "timestamp_utc": "2026-05-12T04:24:13.704219+00:00",
+  "train_auc": 0.7905903865132611,
+  "test_auc": 0.7417733203244568,
+  "train_test_gap": 0.048817066188804326,
+  "test_brier": 0.18601106107234955,
+  "precision_at_top1pct": 0.6024096385542169,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

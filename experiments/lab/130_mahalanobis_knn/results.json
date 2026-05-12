@@ -1,0 +1,17 @@
+{
+  "experiment": "130_mahalanobis_knn",
+  "description": "KNN with Mahalanobis distance metric (accounts for covariance structure), n_neighbors=30",
+  "timestamp_utc": "2026-05-12T04:24:23.946011+00:00",
+  "train_auc": 0.899649748201233,
+  "test_auc": 0.8274896567810293,
+  "train_test_gap": 0.07216009142020374,
+  "test_brier": 0.08492911111111112,
+  "precision_at_top1pct": 0.5263157894736842,
+  "flagged_count": 57,
+  "passes_overfit_gate": false,
+  "extra": {
+    "total_time_seconds": 18.93305206298828,
+    "test_evaluation": "partial (5000 test subsample)",
+    "covariance_condition": 7.8341363647996545
+  }
+}

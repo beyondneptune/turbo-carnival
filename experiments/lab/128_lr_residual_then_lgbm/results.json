@@ -1,0 +1,18 @@
+{
+  "experiment": "128_lr_residual_then_lgbm",
+  "description": "Two-stage stacking: LogReg baseline + LGBM on residuals. Final = sigmoid(linear + non-linear correction).",
+  "timestamp_utc": "2026-05-12T04:23:52.957695+00:00",
+  "train_auc": 0.9210367375221942,
+  "test_auc": 0.8621587219598584,
+  "train_test_gap": 0.05887801556233574,
+  "test_brier": 0.08119351263692785,
+  "precision_at_top1pct": 0.7530120481927711,
+  "flagged_count": 166,
+  "passes_overfit_gate": false,
+  "extra": {
+    "delta_test_mean": -0.306014219709249,
+    "delta_test_std": 0.145649096218574,
+    "delta_test_min": -0.8153046343510173,
+    "delta_test_max": 0.46599826675528977
+  }
+}
