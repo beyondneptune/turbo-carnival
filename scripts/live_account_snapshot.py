@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -61,25 +60,24 @@ def print_accounts() -> None:
     print(f"{'TOTAL':<11} eq=${total:>10,.2f}")
 
 
-def print_hft_counts() -> None:
-    db = REPO / "data" / "alpaca_max_hft_host.sqlite3"
-    if not db.exists():
-        return
-    conn = sqlite3.connect(db)
-    today = datetime.now(timezone.utc).date().isoformat()
-    print("HFT orders today:")
-    for lane, action, status, count in conn.execute(
-        """
-        SELECT lane, action, status, COUNT(*)
-        FROM orders
-        WHERE date(ts_utc) = ?
-        GROUP BY lane, action, status
-        ORDER BY lane, action, status
-        """,
-        (today,),
-    ):
-        print(f"  {lane:<11} {action:<12} {status:<12} {count}")
-    conn.close()
+def print_broker_order_counts() -> None:
+    start_et = datetime.now(NY).replace(hour=0, minute=0, second=0, microsecond=0)
+    after = start_et.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    print("Broker order statuses today:")
+    for name, prefix in ACCOUNTS:
+        h = headers(prefix)
+        orders = requests.get(
+            f"{ENDPOINT}/orders",
+            headers=h,
+            params={"status": "all", "limit": 100, "after": after, "direction": "desc"},
+            timeout=8,
+        ).json() or []
+        counts: dict[str, int] = {}
+        for order in orders:
+            status = str(order.get("status") or "unknown")
+            counts[status] = counts.get(status, 0) + 1
+        summary = ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "none"
+        print(f"  {name:<11} {summary}")
 
 
 def main() -> int:
@@ -87,7 +85,7 @@ def main() -> int:
     print()
     print(f"=== {datetime.now(NY).strftime('%Y-%m-%d %H:%M:%S %Z')} ===")
     print_accounts()
-    print_hft_counts()
+    print_broker_order_counts()
     return 0
 
 

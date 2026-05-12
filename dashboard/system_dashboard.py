@@ -11,7 +11,7 @@ import socket
 import sqlite3
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -606,6 +606,43 @@ def _account_snapshot_for_lane(env: dict[str, str], lane: str) -> dict[str, Any]
         return {"ok": False, "error": str(exc)[:160]}
 
 
+def _recent_broker_orders_for_lane(env: dict[str, str], lane: str, limit: int = 40) -> pd.DataFrame:
+    prefix = LANE_PREFIX[lane]
+    key = env.get(f"ALPACA_{prefix}_KEY")
+    sec = env.get(f"ALPACA_{prefix}_SECRET")
+    if not key or not sec:
+        return pd.DataFrame([{"error": f"missing ALPACA_{prefix}_KEY"}])
+    endpoint = env.get("ALPACA_ENDPOINT", "https://paper-api.alpaca.markets/v2")
+    start_et = datetime.now(NY_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
+    after = start_et.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    try:
+        resp = requests.get(
+            endpoint.rstrip("/") + "/orders",
+            headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": sec},
+            params={"status": "all", "limit": limit, "after": after, "direction": "desc"},
+            timeout=6,
+        )
+        resp.raise_for_status()
+        rows = []
+        for order in resp.json() or []:
+            rows.append(
+                {
+                    "submitted": fmt_ts_et(order.get("submitted_at")),
+                    "symbol": order.get("symbol"),
+                    "side": order.get("side"),
+                    "qty": order.get("qty"),
+                    "status": order.get("status"),
+                    "filled_qty": order.get("filled_qty"),
+                    "avg_fill": order.get("filled_avg_price"),
+                    "intent": order.get("position_intent"),
+                    "client_order_id": order.get("client_order_id"),
+                }
+            )
+        return pd.DataFrame(rows)
+    except Exception as exc:
+        return pd.DataFrame([{"error": str(exc)[:160]}])
+
+
 def _render_snapshot_header(lane: str, snap: dict[str, Any], mode: str) -> None:
     st.markdown(f"### {lane} — {LANE_DESC.get(lane, '')}")
     st.caption(mode)
@@ -639,7 +676,8 @@ def _render_snapshot_header(lane: str, snap: dict[str, Any], mode: str) -> None:
         st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True, height=min(260, 38 * (len(rows) + 1) + 12))
 
 
-def _render_hft_loop(lane: str, snap: dict[str, Any]) -> None:
+def _render_hft_loop(lane: str, snap: dict[str, Any], env: dict[str, str]) -> None:
+    cutoff_15m = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
     recent = sql_df(
         HFT_DB,
         """
@@ -673,12 +711,12 @@ def _render_hft_loop(lane: str, snap: dict[str, Any]) -> None:
         """
         SELECT reason, COUNT(*) AS n
         FROM decisions
-        WHERE lane = ? AND ts_utc >= datetime('now', '-15 minutes')
+        WHERE lane = ? AND ts_utc >= ?
         GROUP BY reason
         ORDER BY n DESC
         LIMIT 16
         """,
-        (lane,),
+        (lane, cutoff_15m),
     )
     orders = sql_df(
         HFT_DB,
@@ -692,6 +730,7 @@ def _render_hft_loop(lane: str, snap: dict[str, Any]) -> None:
         """,
         (lane,),
     )
+    broker_orders = _recent_broker_orders_for_lane(env, lane)
     marks = sql_df(
         HFT_DB,
         """
@@ -715,11 +754,14 @@ def _render_hft_loop(lane: str, snap: dict[str, Any]) -> None:
             recent["et"] = recent["ts_utc"].map(fmt_ts_et)
             recent = recent[["et", "symbol", "action", "reason", "signal_bps", "spread_bps", "mid", "open_positions"]]
         st.dataframe(recent, width="stretch", hide_index=True, height=360)
-    st.markdown("#### Orders")
+    st.markdown("#### Broker orders, actual status")
+    st.dataframe(broker_orders, width="stretch", hide_index=True, height=260)
+    st.markdown("#### Host submission log")
+    st.caption("Raw local DB submission status. Use the broker table above for actual fill/cancel state.")
     if not orders.empty:
         orders["et"] = orders["ts_utc"].map(fmt_ts_et)
         orders = orders[["et", "symbol", "action", "side", "qty", "notional", "status", "client_order_id"]]
-    st.dataframe(orders, width="stretch", hide_index=True, height=260)
+    st.dataframe(orders, width="stretch", hide_index=True, height=220)
     if not marks.empty:
         marks["et"] = marks["ts_utc"].map(fmt_ts_et)
         st.markdown("#### Position exit marks")
@@ -814,7 +856,7 @@ with tab_thinking:
                 if lane in {"Aegis", "Falcon", "TERMINATOR"}:
                     mode = "Reads quotes and account state every ~2 seconds, writes every decision to SQLite."
                     _render_snapshot_header(lane, snap, mode)
-                    _render_hft_loop(lane, snap)
+                    _render_hft_loop(lane, snap, env)
                 elif lane == "Valk":
                     mode = "Reads live option positions and quotes every 60 seconds; exit logic is rule-based."
                     _render_snapshot_header(lane, snap, mode)
