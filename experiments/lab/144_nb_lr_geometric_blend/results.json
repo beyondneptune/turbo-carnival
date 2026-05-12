@@ -1,0 +1,12 @@
+{
+  "experiment": "144_nb_lr_geometric_blend",
+  "description": "geometric mean blend of GaussianNB and LogisticRegression; both scaled; balanced LR",
+  "timestamp_utc": "2026-05-12T06:53:56.755805+00:00",
+  "train_auc": 0.8292835422761334,
+  "test_auc": 0.8281474102496831,
+  "train_test_gap": 0.0011361320264503538,
+  "test_brier": 0.111391562468368,
+  "precision_at_top1pct": 0.6566265060240963,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

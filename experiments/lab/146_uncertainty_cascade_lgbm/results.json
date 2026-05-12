@@ -1,0 +1,16 @@
+{
+  "experiment": "146_uncertainty_cascade_lgbm",
+  "description": "Cascade classifier: Stage 1 (small LGBM) routes uncertain samples (0.3 < p < 0.7) to Stage 2 (large LGBM)",
+  "timestamp_utc": "2026-05-12T06:54:15.616547+00:00",
+  "train_auc": 0.9603773310984376,
+  "test_auc": 0.788345013309502,
+  "train_test_gap": 0.17203231778893557,
+  "test_brier": 0.13472395213809593,
+  "precision_at_top1pct": 0.6987951807228916,
+  "flagged_count": 166,
+  "passes_overfit_gate": false,
+  "stage1_routed_count_train": 11105,
+  "stage1_routed_count_test": 5129,
+  "cascade_routed_pct_train": 29.443737405875492,
+  "cascade_routed_pct_test": 31.01717464925012
+}

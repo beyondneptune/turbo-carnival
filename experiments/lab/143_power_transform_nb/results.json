@@ -1,0 +1,12 @@
+{
+  "experiment": "143_power_transform_nb",
+  "description": "Yeo-Johnson power transform + Gaussian Naive Bayes; Gaussian-assumption-friendly features",
+  "timestamp_utc": "2026-05-12T06:53:48.727388+00:00",
+  "train_auc": 0.8302315042635149,
+  "test_auc": 0.8310742537660151,
+  "train_test_gap": -0.0008427495025001841,
+  "test_brier": 0.12227775156497955,
+  "precision_at_top1pct": 0.5614334470989761,
+  "flagged_count": 586,
+  "passes_overfit_gate": true
+}

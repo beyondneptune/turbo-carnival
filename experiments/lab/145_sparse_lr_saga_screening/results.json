@@ -1,0 +1,29 @@
+{
+  "experiment": "145_sparse_lr_saga_screening",
+  "description": "Safe feature screening: aggressive L1 (C=0.005) identifies nonzero features, then refit L2 (C=1.0) on screened set only",
+  "timestamp_utc": "2026-05-12T06:54:06.544413+00:00",
+  "train_auc": 0.8051777966407834,
+  "test_auc": 0.7988675649897241,
+  "train_test_gap": 0.0063102316510592615,
+  "test_brier": 0.18989640113023543,
+  "precision_at_top1pct": 0.6566265060240963,
+  "flagged_count": 166,
+  "passes_overfit_gate": true,
+  "extra": {
+    "n_screened_features": 8,
+    "screened_feature_names": [
+      "ret3",
+      "ret10",
+      "range_pct",
+      "volume_z",
+      "vwap_dist",
+      "tod_sin",
+      "tod_cos",
+      "vov"
+    ],
+    "screening_C": 0.005,
+    "screening_penalty": "l1",
+    "refit_C": 1.0,
+    "refit_penalty": "l2"
+  }
+}
