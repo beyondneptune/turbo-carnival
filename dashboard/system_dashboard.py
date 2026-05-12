@@ -402,12 +402,12 @@ tab_trading, tab_six, tab_mlzoo, tab_system, tab_power, tab_tmux, tab_news = st.
 # Tab — All 6 Accounts with live equity curves
 # =========================================================================
 LANES_ALL = [
-    ("Aegis",      "AEGIS",      "HFT mean-rev + C3 gate"),
-    ("Falcon",     "FALCON",     "HFT momentum + C3 gate"),
-    ("Valk",       "VALK",       "30-DTE iron condor"),
-    ("Hermes",     "HERMES",     "0DTE credit spreads / SVXY rotation (pending)"),
-    ("Atlas",      "ATLAS",      "Cointegrated pairs (pending)"),
-    ("TERMINATOR", "TERMINATOR", "ATHENA+C3+HalfKelly+2-stage ($1k test bed)"),
+    ("Aegis",      "AEGIS",      "ATHENA v2 mean-rev (C3 gate + vol-inv + IOC entries)"),
+    ("Falcon",     "FALCON",     "ATHENA v2 breakout (C3 gate + vol-inv + IOC entries)"),
+    ("Valk",       "VALK",       "30-DTE iron condor (22 contracts post 09:31 scale-down)"),
+    ("Hermes",     "HERMES",     "SVXY regime rotation — LIVE (today: LONG)"),
+    ("Atlas",      "ATLAS",      "flat (pairs strategy failed walk-forward)"),
+    ("TERMINATOR", "TERMINATOR", "ATHENA v2 mean-rev + SVXY ($1k test bed)"),
 ]
 
 
