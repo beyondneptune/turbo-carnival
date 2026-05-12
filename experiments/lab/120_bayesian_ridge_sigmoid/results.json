@@ -1,0 +1,17 @@
+{
+  "experiment": "120_bayesian_ridge_sigmoid",
+  "description": "Bayesian linear regression (conjugate Gaussian-Gaussian prior) on y\u2208{0,1}, sigmoid-mapped predictions",
+  "timestamp_utc": "2026-05-12T02:44:07.916415+00:00",
+  "train_auc": 0.8061379751623317,
+  "test_auc": 0.8018406638079933,
+  "train_test_gap": 0.004297311354338307,
+  "test_brier": 0.09248079359531403,
+  "precision_at_top1pct": 0.6626506024096386,
+  "flagged_count": 166,
+  "passes_overfit_gate": true,
+  "extra": {
+    "alpha_": 14.073014259338379,
+    "lambda_": 987.8557739257812,
+    "sigma_": 3.905558969563572e-06
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "121_poly_kernel_ridge",
+  "description": "kernel ridge regression with degree-3 polynomial kernel + sigmoid link, subsampled (5k) for efficiency",
+  "timestamp_utc": "2026-05-12T02:44:07.973422+00:00",
+  "train_auc": 0.8283557786341081,
+  "test_auc": 0.8118680036293673,
+  "train_test_gap": 0.016487775004740857,
+  "test_brier": 0.09174871760788657,
+  "precision_at_top1pct": 0.6144578313253012,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

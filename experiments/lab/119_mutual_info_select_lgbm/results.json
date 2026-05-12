@@ -1,0 +1,35 @@
+{
+  "experiment": "119_mutual_info_select_lgbm",
+  "description": "Mutual information feature selection (k=7) \u2192 LightGBM; non-linear dependency measure",
+  "timestamp_utc": "2026-05-12T02:43:57.252265+00:00",
+  "train_auc": 0.9639430320084402,
+  "test_auc": 0.847351474020508,
+  "train_test_gap": 0.11659155798793219,
+  "test_brier": 0.13787487323282466,
+  "precision_at_top1pct": 0.7771084337349398,
+  "flagged_count": 166,
+  "passes_overfit_gate": false,
+  "extra": {
+    "mi_scores": {
+      "ret1": 0.03395807894888181,
+      "ret3": 0.035645187249466526,
+      "ret10": 0.03497199627784453,
+      "range_pct": 0.052474667027983646,
+      "volume_z": 0.000901425889657359,
+      "ret1_z": 0.0004088515876374821,
+      "vwap_dist": 0.015190577962551854,
+      "tod_sin": 0.022477584933664474,
+      "tod_cos": 0.024204294073999044,
+      "vov": 0.0027901511151158243
+    },
+    "selected_features": [
+      "ret1",
+      "ret3",
+      "ret10",
+      "range_pct",
+      "vwap_dist",
+      "tod_sin",
+      "tod_cos"
+    ]
+  }
+}
