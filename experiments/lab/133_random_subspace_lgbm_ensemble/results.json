@@ -1,0 +1,86 @@
+{
+  "experiment": "133_random_subspace_lgbm_ensemble",
+  "description": "10 LightGBM models on random 5-feature subsets; ensemble average. Implements Ho 1998 random subspace method.",
+  "timestamp_utc": "2026-05-12T05:13:56.630060+00:00",
+  "train_auc": 0.9355673039793571,
+  "test_auc": 0.8633127814945998,
+  "train_test_gap": 0.07225452248475728,
+  "test_brier": 0.15432950048559274,
+  "precision_at_top1pct": 0.6807228915662651,
+  "flagged_count": 166,
+  "passes_overfit_gate": false,
+  "extra": {
+    "feature_masks": [
+      [
+        0,
+        3,
+        4,
+        5,
+        7
+      ],
+      [
+        0,
+        3,
+        6,
+        7,
+        9
+      ],
+      [
+        1,
+        3,
+        4,
+        5,
+        8
+      ],
+      [
+        2,
+        3,
+        4,
+        7,
+        8
+      ],
+      [
+        1,
+        2,
+        5,
+        6,
+        8
+      ],
+      [
+        3,
+        5,
+        6,
+        7,
+        9
+      ],
+      [
+        0,
+        1,
+        2,
+        4,
+        7
+      ],
+      [
+        2,
+        3,
+        5,
+        7,
+        8
+      ],
+      [
+        0,
+        2,
+        3,
+        4,
+        5
+      ],
+      [
+        1,
+        2,
+        5,
+        6,
+        7
+      ]
+    ]
+  }
+}

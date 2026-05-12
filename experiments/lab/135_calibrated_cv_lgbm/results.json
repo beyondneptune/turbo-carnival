@@ -1,0 +1,12 @@
+{
+  "experiment": "135_calibrated_cv_lgbm",
+  "description": "LightGBM with CalibratedClassifierCV (5-fold, isotonic). Base: LGBMClassifier(n_estimators=200, max_depth=5, learning_rate=0.05, balanced). Averaged isotonic calibrators across 5 folds reduce calibration overfitting.",
+  "timestamp_utc": "2026-05-12T05:14:20.900828+00:00",
+  "train_auc": 0.931308464467804,
+  "test_auc": 0.8670288347490052,
+  "train_test_gap": 0.06427962971879886,
+  "test_brier": 0.08151876075604375,
+  "precision_at_top1pct": 0.8192771084337349,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

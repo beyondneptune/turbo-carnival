@@ -1,0 +1,12 @@
+{
+  "experiment": "132_gradient_boosted_logreg_stack",
+  "description": "Linear gradient boosting: Ridge regressors on log-loss gradient, 20 rounds, lr=0.1, alpha=1.0",
+  "timestamp_utc": "2026-05-12T05:13:48.640926+00:00",
+  "train_auc": 0.8060064335451382,
+  "test_auc": 0.801624674778084,
+  "train_test_gap": 0.004381758767054267,
+  "test_brier": 0.10233117641358389,
+  "precision_at_top1pct": 0.6626506024096386,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}
