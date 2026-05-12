@@ -318,6 +318,20 @@ def entry_age_sec(conn: sqlite3.Connection, lane: str, symbol: str) -> float:
         return 0.0
 
 
+def entry_opened_today_ny(conn: sqlite3.Connection, lane: str, symbol: str) -> bool:
+    row = conn.execute(
+        "SELECT entry_ts_utc FROM entry_state WHERE lane = ? AND symbol = ?",
+        (lane, symbol),
+    ).fetchone()
+    if not row:
+        return False
+    try:
+        entry_dt = datetime.fromisoformat(str(row[0]))
+        return entry_dt.astimezone(NY).date() == datetime.now(NY).date()
+    except Exception:
+        return True
+
+
 def latest_quotes(data_client: AlpacaClient, symbols: list[str]) -> dict[str, dict[str, float]]:
     payload = data_client.get(
         f"{DATA_BASE}/v2/stocks/quotes/latest",
@@ -509,12 +523,43 @@ ATHENA_V2_SIGNAL_MULT = 1.3      # tighten thresholds 30% (z>=1.5 → z>=1.95-is
 ATHENA_V2_MAX_DAILY_LOSS_PCT = 0.03      # halt entries if session P&L drops >3%
 ATHENA_V2_MAX_PEAK_DRAWDOWN_PCT = 0.20   # off-peak drawdown >20% pauses compounding
 ATHENA_V2_CAPACITY_MULT_CAP = 5.0        # max 5× starting equity scale (capacity acknowledgment)
+PDT_MIN_EQUITY = 25_000.0                # US PDT guard for same-day equity HFT exits
 
 # Module-level state for circuit-breaker + compounding (resets daily)
 _LANE_SESSION_START_EQUITY: dict[str, float] = {}
 _LANE_PEAK_EQUITY: dict[str, float] = {}
 _LANE_HALTED_TODAY: set = set()
 _LANE_SESSION_DATE: dict[str, str] = {}
+_PDT_GUARD_WARNED: set[tuple[str, str, str]] = set()
+
+
+def lane_signal_mult(lane: HftLane) -> float:
+    """Lane presets are already calibrated thresholds; do not secretly tighten them."""
+    if lane.nickname in {"Aegis", "Falcon", "TERMINATOR"}:
+        return 1.0
+    return ATHENA_V2_SIGNAL_MULT
+
+
+def lane_entry_spread_bps(lane: HftLane) -> float:
+    """Different lanes test different execution/risk hypotheses."""
+    if lane.nickname == "TERMINATOR":
+        return 35.0
+    if lane.nickname == "Falcon":
+        return 15.0
+    return ATHENA_V2_MAX_SPREAD_BPS
+
+
+def lane_c3_blocker_threshold(lane: HftLane) -> int | None:
+    """Minimum number of C3 blockers required to reject an entry.
+
+    Aegis is the strict control lane. Falcon only rejects when the full C3
+    stack agrees. TERMINATOR is a low-cap probe, so C3 is advisory there.
+    """
+    if lane.nickname == "TERMINATOR":
+        return None
+    if lane.nickname == "Falcon":
+        return 4
+    return 1
 
 
 def open_order_symbols(client: AlpacaClient) -> set[str]:
@@ -553,6 +598,7 @@ def evaluate_exits(
     stop_loss_bps: float,
     max_hold_sec: float,
     place_orders: bool,
+    equity: float,
     pending_symbols: set[str] | None = None,
 ) -> int:
     exits = 0
@@ -601,6 +647,23 @@ def evaluate_exits(
         conn.commit()
 
         if not reason:
+            continue
+        if (
+            lane.nickname == "TERMINATOR"
+            and equity < PDT_MIN_EQUITY
+            and entry_opened_today_ny(conn, lane.nickname, sym)
+        ):
+            warn_key = (lane.nickname, sym, reason)
+            if warn_key not in _PDT_GUARD_WARNED:
+                logging.warning(
+                    "%s PDT guard: skip same-day %s exit for %s while equity $%.2f < $%.0f",
+                    lane.nickname,
+                    reason,
+                    sym,
+                    equity,
+                    PDT_MIN_EQUITY,
+                )
+                _PDT_GUARD_WARNED.add(warn_key)
             continue
         close_side = "sell" if side == "long" else "buy"
         cid, status, response = submit_market_order(
@@ -716,6 +779,7 @@ def run_loop(args: argparse.Namespace) -> None:
                     stop_loss_bps=lane.stop_loss_bps if not args.no_lane_presets else args.stop_loss_bps,
                     max_hold_sec=lane.max_hold_sec if not args.no_lane_presets else args.max_hold_sec,
                     place_orders=args.place_orders,
+                    equity=equity,
                     pending_symbols=pending_symbols,
                 )
 
@@ -749,6 +813,21 @@ def run_loop(args: argparse.Namespace) -> None:
                     _LANE_PEAK_EQUITY.get(lane.nickname, equity), equity
                 )
 
+                if lane.nickname == "TERMINATOR" and equity < PDT_MIN_EQUITY:
+                    log_decision(
+                        conn,
+                        lane=lane.nickname,
+                        symbol="*",
+                        action="skip",
+                        reason=f"pdt_guard:equity<{PDT_MIN_EQUITY:.0f}_hft_disabled",
+                        quote=None,
+                        signal_bps=0.0,
+                        equity=equity,
+                        buying_power=buying_power,
+                        open_positions=len(positions),
+                    )
+                    continue
+
                 if near_eod() and not args.allow_entries_near_eod:
                     continue
                 if trades_today(conn, lane.nickname) >= args.max_trades_per_day:
@@ -774,7 +853,7 @@ def run_loop(args: argparse.Namespace) -> None:
                     history,
                     min_signal_bps=lane.min_signal_bps if not args.no_lane_presets else args.min_signal_bps,
                     max_spread_bps=args.max_spread_bps,
-                    allow_shorts=not args.long_only,
+                    allow_shorts=not args.long_only and lane.nickname != "TERMINATOR",
                     open_symbols=open_symbols,
                 )
                 if not sym:
@@ -798,9 +877,11 @@ def run_loop(args: argparse.Namespace) -> None:
                 try:
                     from datetime import datetime as _dt, timezone as _tz
                     from scripts.regime_filters import block_entry as _block_entry
-                    blocked, why = _block_entry(
-                        lane.nickname, sym, history[sym], now_utc=_dt.now(_tz.utc),
-                    )
+                    blocked, why = (False, "terminator_probe_bypass")
+                    if lane.nickname != "TERMINATOR":
+                        blocked, why = _block_entry(
+                            lane.nickname, sym, history[sym], now_utc=_dt.now(_tz.utc),
+                        )
                     if blocked:
                         log_decision(
                             conn,
@@ -819,7 +900,8 @@ def run_loop(args: argparse.Namespace) -> None:
                     logging.warning("regime_filter error (continuing): %s", _filt_exc)
 
                 # ATHENA v2: SYMBOL WHITELIST — drop TSLA + AMD (loss leaders)
-                if sym in ATHENA_V2_SYMBOL_BLACKLIST:
+                lane_blacklist = set() if lane.nickname == "TERMINATOR" else ATHENA_V2_SYMBOL_BLACKLIST
+                if sym in lane_blacklist:
                     log_decision(
                         conn, lane=lane.nickname, symbol=sym, action="skip",
                         reason=f"athena_v2:blacklist({sym})",
@@ -866,7 +948,9 @@ def run_loop(args: argparse.Namespace) -> None:
                 try:
                     from scripts.order_book_imbalance import imbalance_blocks
                     _q = quotes.get(sym, {})
-                    _blocked, _why = imbalance_blocks(_q, direction)
+                    _blocked, _why = (False, "terminator_probe_bypass")
+                    if lane.nickname != "TERMINATOR":
+                        _blocked, _why = imbalance_blocks(_q, direction)
                     if _blocked:
                         log_decision(
                             conn, lane=lane.nickname, symbol=sym, action="skip",
@@ -893,9 +977,9 @@ def run_loop(args: argparse.Namespace) -> None:
                     continue
 
                 # ATHENA v2: TIGHTENED SIGNAL THRESHOLD
-                # TERMINATOR is the aggressive probe lane — bypass the 1.3x tightening
-                # so it actually generates trade volume (its lane.min_signal_bps is already 10).
-                lane_mult = 1.0 if lane.nickname == "TERMINATOR" else ATHENA_V2_SIGNAL_MULT
+                # Lane presets are the test design; applying a hidden multiplier made
+                # Aegis/Falcon/TERMINATOR less distinct and starved the live test.
+                lane_mult = lane_signal_mult(lane)
                 lane_min_sig = (lane.min_signal_bps if not args.no_lane_presets
                                 else args.min_signal_bps) * lane_mult
                 if abs(score) < lane_min_sig:
@@ -912,10 +996,11 @@ def run_loop(args: argparse.Namespace) -> None:
                 _q = quotes.get(sym)
                 if _q and _q.get("mid", 0) > 0:
                     _spread_bps = (_q.get("ask", 0) - _q.get("bid", 0)) / _q["mid"] * 10000.0
-                    if _spread_bps > ATHENA_V2_MAX_SPREAD_BPS:
+                    max_spread_bps = lane_entry_spread_bps(lane)
+                    if _spread_bps > max_spread_bps:
                         log_decision(
                             conn, lane=lane.nickname, symbol=sym, action="skip",
-                            reason=f"athena_v2:spread({_spread_bps:.1f}bps>{ATHENA_V2_MAX_SPREAD_BPS}bps)",
+                            reason=f"athena_v2:spread({_spread_bps:.1f}bps>{max_spread_bps}bps)",
                             quote=_q, signal_bps=score,
                             equity=equity, buying_power=buying_power,
                             open_positions=len(positions),
@@ -961,10 +1046,12 @@ def run_loop(args: argparse.Namespace) -> None:
                             "vov": 1.0,
                         }
                         c3_block, c3_info = _c3_blocks(feats)
-                        if c3_block:
+                        c3_threshold = lane_c3_blocker_threshold(lane)
+                        c3_blockers = c3_info.get("blockers", [])
+                        if c3_block and c3_threshold is not None and len(c3_blockers) >= c3_threshold:
                             log_decision(
                                 conn, lane=lane.nickname, symbol=sym, action="skip",
-                                reason=f"composite_c3:{','.join(c3_info.get('blockers', []))}",
+                                reason=f"composite_c3:{','.join(c3_blockers)}",
                                 quote=quotes.get(sym), signal_bps=score,
                                 equity=equity, buying_power=buying_power,
                                 open_positions=len(positions),
@@ -983,9 +1070,9 @@ def run_loop(args: argparse.Namespace) -> None:
                 try:
                     from scripts.voltgt_sizer import compute_notional as _vt_notional, compute_realized_vol_bps as _rv_bps
                     is_tt = lane.nickname == "TERMINATOR"
-                    default_base = 70 if is_tt else 12000
-                    default_floor = 30 if is_tt else 4000
-                    default_ceiling = 120 if is_tt else 20000
+                    default_base = 450 if is_tt else 12000
+                    default_floor = 250 if is_tt else 4000
+                    default_ceiling = 850 if is_tt else 20000
                     # Compounding multiplier — equity vs session-start, capped, drawdown-gated
                     _session_start = _LANE_SESSION_START_EQUITY.get(lane.nickname, equity)
                     _peak = _LANE_PEAK_EQUITY.get(lane.nickname, equity)
@@ -1014,6 +1101,10 @@ def run_loop(args: argparse.Namespace) -> None:
                     logging.warning("voltgt_sizer error (fall back to default): %s", _sz_exc)
                     lane_notional_pct = lane.notional_pct if not args.no_lane_presets else args.notional_pct
                     notional = min(equity * lane_notional_pct, buying_power * args.buying_power_pct)
+                if lane.nickname == "TERMINATOR" and notional < quote["mid"] <= buying_power * args.buying_power_pct:
+                    # TERMINATOR is a $1k probe lane. Integer-share sizing means
+                    # normal vol targeting can otherwise produce zero trades.
+                    notional = quote["mid"]
                 qty = int(notional // quote["mid"])
                 if qty < 1:
                     log_decision(
