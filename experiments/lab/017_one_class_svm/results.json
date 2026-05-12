@@ -1,0 +1,11 @@
+{
+  "experiment": "017_one_class_svm",
+  "description": "OCSVM RBF kernel, trained on 5k subsample, nu=0.1",
+  "timestamp_utc": "2026-05-12T00:23:55.367857+00:00",
+  "train_auc": 0.6555595415182636,
+  "test_auc": 0.6886766405942542,
+  "train_test_gap": -0.033117099075990586,
+  "precision_at_top1pct": 0.5963855421686747,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

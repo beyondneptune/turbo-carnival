@@ -1,0 +1,83 @@
+{
+  "experiment": "026_nn_scaling_curve",
+  "description": "Single hidden layer MLP swept across sizes 2-1024",
+  "timestamp_utc": "2026-05-12T00:20:14.276977+00:00",
+  "test_auc": 0.8500588952293499,
+  "train_test_gap": 0.012317894970915955,
+  "passes_overfit_gate": true,
+  "best_size": 1024,
+  "saturation_size": 128,
+  "sweep": [
+    {
+      "size": 2,
+      "train_auc": 0.6124310524006076,
+      "test_auc": 0.6051196317886659,
+      "train_test_gap": 0.007311420611941677,
+      "iters": 12
+    },
+    {
+      "size": 4,
+      "train_auc": 0.6707791572889297,
+      "test_auc": 0.6524163270967249,
+      "train_test_gap": 0.01836283019220475,
+      "iters": 14
+    },
+    {
+      "size": 8,
+      "train_auc": 0.7923025235107756,
+      "test_auc": 0.800443746857099,
+      "train_test_gap": -0.00814122334632339,
+      "iters": 18
+    },
+    {
+      "size": 16,
+      "train_auc": 0.8149971738998742,
+      "test_auc": 0.8043002228726659,
+      "train_test_gap": 0.010696951027208357,
+      "iters": 18
+    },
+    {
+      "size": 32,
+      "train_auc": 0.8218979201975096,
+      "test_auc": 0.8107289924406401,
+      "train_test_gap": 0.011168927756869507,
+      "iters": 14
+    },
+    {
+      "size": 64,
+      "train_auc": 0.739243027269828,
+      "test_auc": 0.7132212445067558,
+      "train_test_gap": 0.02602178276307221,
+      "iters": 12
+    },
+    {
+      "size": 128,
+      "train_auc": 0.8548054306053251,
+      "test_auc": 0.8447319857120994,
+      "train_test_gap": 0.010073444893225703,
+      "iters": 19
+    },
+    {
+      "size": 256,
+      "train_auc": 0.8599496523091392,
+      "test_auc": 0.8488720914502165,
+      "train_test_gap": 0.011077560858922753,
+      "iters": 20
+    },
+    {
+      "size": 512,
+      "train_auc": 0.8646696146555225,
+      "test_auc": 0.8490441994348245,
+      "train_test_gap": 0.015625415220698047,
+      "iters": 24
+    },
+    {
+      "size": 1024,
+      "train_auc": 0.8623767902002658,
+      "test_auc": 0.8500588952293499,
+      "train_test_gap": 0.012317894970915955,
+      "iters": 18
+    }
+  ],
+  "conclusion": "Test AUC saturates at ~128 hidden neurons (test AUC 0.850). Bigger NN does not help \u2014 likely overfits."
+}

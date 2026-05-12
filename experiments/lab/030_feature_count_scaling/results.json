@@ -1,0 +1,159 @@
+{
+  "experiment": "030_feature_count_scaling",
+  "description": "LogReg with feature subset size 1\u219210 added in importance-rank order",
+  "timestamp_utc": "2026-05-12T00:20:22.607351+00:00",
+  "test_auc": 0.8038509076151122,
+  "train_test_gap": -0.005705172181765916,
+  "passes_overfit_gate": true,
+  "best_k": 7,
+  "saturation_k": 1,
+  "feature_ranking": [
+    "range_pct",
+    "tod_sin",
+    "tod_cos",
+    "ret10",
+    "volume_z",
+    "vov",
+    "ret1",
+    "vwap_dist",
+    "ret1_z",
+    "ret3"
+  ],
+  "sweep": [
+    {
+      "n_features": 1,
+      "features": [
+        "range_pct"
+      ],
+      "train_auc": 0.7894250848546518,
+      "test_auc": 0.7972053291300449,
+      "train_test_gap": -0.0077802442753931444
+    },
+    {
+      "n_features": 2,
+      "features": [
+        "range_pct",
+        "tod_sin"
+      ],
+      "train_auc": 0.7907641299253046,
+      "test_auc": 0.7983510702260702,
+      "train_test_gap": -0.007586940300765566
+    },
+    {
+      "n_features": 3,
+      "features": [
+        "range_pct",
+        "tod_sin",
+        "tod_cos"
+      ],
+      "train_auc": 0.7971226862468166,
+      "test_auc": 0.8036560477611614,
+      "train_test_gap": -0.006533361514344804
+    },
+    {
+      "n_features": 4,
+      "features": [
+        "range_pct",
+        "tod_sin",
+        "tod_cos",
+        "ret10"
+      ],
+      "train_auc": 0.7971335254266413,
+      "test_auc": 0.8035004058441558,
+      "train_test_gap": -0.006366880417514542
+    },
+    {
+      "n_features": 5,
+      "features": [
+        "range_pct",
+        "tod_sin",
+        "tod_cos",
+        "ret10",
+        "volume_z"
+      ],
+      "train_auc": 0.7978513836888892,
+      "test_auc": 0.8033430899908173,
+      "train_test_gap": -0.005491706301928079
+    },
+    {
+      "n_features": 6,
+      "features": [
+        "range_pct",
+        "tod_sin",
+        "tod_cos",
+        "ret10",
+        "volume_z",
+        "vov"
+      ],
+      "train_auc": 0.7981084185411639,
+      "test_auc": 0.8038363887795706,
+      "train_test_gap": -0.0057279702384067654
+    },
+    {
+      "n_features": 7,
+      "features": [
+        "range_pct",
+        "tod_sin",
+        "tod_cos",
+        "ret10",
+        "volume_z",
+        "vov",
+        "ret1"
+      ],
+      "train_auc": 0.7981457354333463,
+      "test_auc": 0.8038509076151122,
+      "train_test_gap": -0.005705172181765916
+    },
+    {
+      "n_features": 8,
+      "features": [
+        "range_pct",
+        "tod_sin",
+        "tod_cos",
+        "ret10",
+        "volume_z",
+        "vov",
+        "ret1",
+        "vwap_dist"
+      ],
+      "train_auc": 0.8051814838440227,
+      "test_auc": 0.7990558315842407,
+      "train_test_gap": 0.006125652259782011
+    },
+    {
+      "n_features": 9,
+      "features": [
+        "range_pct",
+        "tod_sin",
+        "tod_cos",
+        "ret10",
+        "volume_z",
+        "vov",
+        "ret1",
+        "vwap_dist",
+        "ret1_z"
+      ],
+      "train_auc": 0.8053293227284349,
+      "test_auc": 0.798785098003848,
+      "train_test_gap": 0.006544224724586933
+    },
+    {
+      "n_features": 10,
+      "features": [
+        "range_pct",
+        "tod_sin",
+        "tod_cos",
+        "ret10",
+        "volume_z",
+        "vov",
+        "ret1",
+        "vwap_dist",
+        "ret1_z",
+        "ret3"
+      ],
+      "train_auc": 0.805352540987349,
+      "test_auc": 0.7985713124207441,
+      "train_test_gap": 0.006781228566604902
+    }
+  ]
+}

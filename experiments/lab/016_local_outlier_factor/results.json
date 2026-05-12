@@ -1,0 +1,11 @@
+{
+  "experiment": "016_local_outlier_factor",
+  "description": "LOF k=30 novelty mode, scaled features",
+  "timestamp_utc": "2026-05-12T00:23:53.899373+00:00",
+  "train_auc": 0.692309840598782,
+  "test_auc": 0.7032357018507587,
+  "train_test_gap": -0.010925861251976698,
+  "precision_at_top1pct": 0.4879518072289157,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

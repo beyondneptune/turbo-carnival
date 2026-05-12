@@ -1,0 +1,39 @@
+{
+  "experiment": "029_multi_resolution",
+  "description": "Custom: 22-dim multi-resolution features (fast 1-3 / med 5-15 / slow 30-60 bar) + LightGBM",
+  "timestamp_utc": "2026-05-12T00:20:20.015275+00:00",
+  "train_auc": 0.9823289202073222,
+  "test_auc": 0.8731877418667192,
+  "train_test_gap": 0.109141178340603,
+  "test_brier": 0.13421087618600475,
+  "precision_at_top1pct": 0.7590361445783133,
+  "flagged_count": 166,
+  "passes_overfit_gate": false,
+  "extra": {
+    "n_features": 22,
+    "top_feature_importances": {
+      "fast_ret1": 248,
+      "fast_ret3": 465,
+      "fast_abs_ret1": 328,
+      "fast_range_pct": 403,
+      "med_ret5": 437,
+      "med_ret10": 490,
+      "med_ret15": 426,
+      "med_vol_5": 392,
+      "med_vol_15": 650,
+      "med_range_avg_10": 632,
+      "med_vwap_dist": 773,
+      "slow_ret30": 521,
+      "slow_ret60": 604,
+      "slow_vol_30": 703,
+      "slow_vol_60": 641,
+      "slow_vov": 552,
+      "slow_range_p60": 858,
+      "fast_x_slow_sign": 17,
+      "fast_vs_slow_vol_ratio": 449,
+      "range_now_vs_avg": 390,
+      "tod_sin": 873,
+      "tod_cos": 1060
+    }
+  }
+}

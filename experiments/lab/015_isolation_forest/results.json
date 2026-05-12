@@ -1,0 +1,11 @@
+{
+  "experiment": "015_isolation_forest",
+  "description": "300 isolation trees, contamination=auto",
+  "timestamp_utc": "2026-05-12T00:23:50.541938+00:00",
+  "train_auc": 0.7864069464582072,
+  "test_auc": 0.7928267728693865,
+  "train_test_gap": -0.00641982641117933,
+  "precision_at_top1pct": 0.5783132530120482,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

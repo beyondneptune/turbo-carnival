@@ -1,0 +1,12 @@
+{
+  "experiment": "001_logreg",
+  "description": "linear decision boundary, scaled features, balanced class weight",
+  "timestamp_utc": "2026-05-12T00:23:05.552986+00:00",
+  "train_auc": 0.805352540987349,
+  "test_auc": 0.7985713124207441,
+  "train_test_gap": 0.006781228566604902,
+  "test_brier": 0.19001237532055856,
+  "precision_at_top1pct": 0.6566265060240963,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

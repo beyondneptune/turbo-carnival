@@ -1,0 +1,12 @@
+{
+  "experiment": "003_extra_trees",
+  "description": "300 extra-random trees, random split selection per node",
+  "timestamp_utc": "2026-05-12T00:23:09.759540+00:00",
+  "train_auc": 0.8609463349982582,
+  "test_auc": 0.8285677390791027,
+  "train_test_gap": 0.032378595919155484,
+  "test_brier": 0.17650424452286162,
+  "precision_at_top1pct": 0.6445783132530121,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

@@ -80,3 +80,18 @@ build/
 # Allow these even if otherwise excluded
 !.gitignore
 !.gitkeep
+
+# ML model artifacts (regenerable from training scripts)
+experiments/ml_lab/runs/**/*.joblib
+experiments/ml_lab/runs/**/*.parquet
+experiments/lab/runs/
+
+# Large cached data
+data/news/
+data/slippage_log.parquet
+data/trade_attribution.parquet
+data/alpaca_max_hft_host.sqlite3
+data/alpaca_three_lane_host.sqlite3
+
+# Reports (regenerable)
+reports/*.pdf

@@ -1,0 +1,12 @@
+{
+  "experiment": "010_knn",
+  "description": "KNN k=50, Euclidean distance, scaled features",
+  "timestamp_utc": "2026-05-12T00:23:44.543677+00:00",
+  "train_auc": 0.8875759070885695,
+  "test_auc": 0.8341947785484718,
+  "train_test_gap": 0.05338112854009769,
+  "test_brier": 0.0871920174165457,
+  "precision_at_top1pct": 0.5911330049261084,
+  "flagged_count": 203,
+  "passes_overfit_gate": false
+}

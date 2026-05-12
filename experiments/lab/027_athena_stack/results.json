@@ -1,0 +1,34 @@
+{
+  "experiment": "027_athena_stack",
+  "description": "Custom: 3 bases on disjoint features (price/volume/time), geometric mean confluence",
+  "timestamp_utc": "2026-05-12T00:20:16.012954+00:00",
+  "train_auc": 0.8528011661622912,
+  "test_auc": 0.8351086282194238,
+  "train_test_gap": 0.017692537942867403,
+  "test_brier": 0.10210653875541832,
+  "precision_at_top1pct": 0.6867469879518072,
+  "flagged_count": 166,
+  "passes_overfit_gate": true,
+  "extra": {
+    "base_correlations": [
+      [
+        0.9999999999999999,
+        0.00860156905735544,
+        0.000614826997977094
+      ],
+      [
+        0.008601569057355438,
+        1.0,
+        0.5430832859072827
+      ],
+      [
+        0.0006148269979770939,
+        0.5430832859072828,
+        1.0
+      ]
+    ],
+    "base1_auc": 0.4854860496195723,
+    "base2_auc": 0.8017261870599939,
+    "base3_auc": 0.8061770471216494
+  }
+}

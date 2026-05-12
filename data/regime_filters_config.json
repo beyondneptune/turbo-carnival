@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "generated_at_utc": "2026-05-11T21:16:34.454491+00:00",
+    "source": "60-model swarm + strategy_swarm_lab winners",
+    "notes": "Edit this file to tune; no code changes needed to retune."
+  },
+  "Aegis": {
+    "enabled": true,
+    "vol_of_vol_gate": {
+      "enabled": true,
+      "ratio": 1.4
+    },
+    "atr_gate": {
+      "enabled": true,
+      "window": 20,
+      "threshold_bps": 30.0
+    },
+    "news_blackout": {
+      "enabled": true,
+      "cooldown_sec": 300
+    },
+    "abs_return_gate": {
+      "enabled": false,
+      "threshold_bps": 30.0
+    }
+  },
+  "Falcon": {
+    "enabled": false,
+    "_paused_rationale": "60-model unanimous (60/60) pause per Day 1 review. Do not re-enable without rebuild."
+  },
+  "Valk": {
+    "enabled": false,
+    "_note": "Valk is an options lane and uses separate exit logic; HFT regime filters don't apply."
+  },
+  "_default": {
+    "enabled": true,
+    "vol_of_vol_gate": {
+      "enabled": true,
+      "ratio": 1.4
+    },
+    "news_blackout": {
+      "enabled": true,
+      "cooldown_sec": 300
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "005_gradient_boosting",
+  "description": "sklearn GBM, 200 trees, depth-4, lr=0.05",
+  "timestamp_utc": "2026-05-12T00:23:35.291775+00:00",
+  "train_auc": 0.9043149371862685,
+  "test_auc": 0.8650417185928551,
+  "train_test_gap": 0.039273218593413484,
+  "test_brier": 0.08179799342705991,
+  "precision_at_top1pct": 0.7590361445783133,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

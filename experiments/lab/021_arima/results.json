@@ -1,0 +1,7 @@
+{
+  "experiment": "021_arima",
+  "error": "/Users/weeoto/turbo-carnival/.venv/lib/python3.11/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals\n  warnings.warn(\"Maximum Likelihood optimization failed to \"\n/Users/weeoto/turbo-carnival/.venv/lib/python3.11/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals\n  warnings.warn(\"Maximum Likelihood optimization failed to \"\n/Users/weeoto/turbo-carnival/.venv/lib/python3.11/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals\n  warnings.warn(\"Maximum Likelihood optimization failed to \"\n/Users/weeoto/turbo-carnival/.venv/lib/python3.11/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals\n  warnings.warn(\"Maximum Likelihood optimization failed to \"\n/Users/weeoto/tu",
+  "passes_overfit_gate": false,
+  "test_auc": 0.5,
+  "timestamp_utc": "2026-05-12T00:17:56.865527+00:00"
+}

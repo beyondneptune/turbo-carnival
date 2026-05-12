@@ -1,0 +1,12 @@
+{
+  "experiment": "006_hist_gbm",
+  "description": "histogram-binned GBM, 300 iters, L2=0.5",
+  "timestamp_utc": "2026-05-12T00:23:37.245448+00:00",
+  "train_auc": 0.9224876862169169,
+  "test_auc": 0.8658411427587565,
+  "train_test_gap": 0.05664654345816045,
+  "test_brier": 0.15830809025561626,
+  "precision_at_top1pct": 0.7891566265060241,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

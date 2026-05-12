@@ -1,0 +1,53 @@
+{
+  "name": "athena_v1_lane2_falcon_alpha",
+  "version": "v1",
+  "description": "Momentum/breakout HFT with marketable-limit IOC + bracket + LogReg gate + AE hard veto + vol-inverse sizing. Synthesized from 10-Opus debate 2026-05-11.",
+  "account": "FALCON_PAPER",
+  "strategy": "momentum_breakout_v1",
+  "symbols": ["SPY", "QQQ", "NVDA"],
+  "max_entries_per_day": 25,
+  "order": {
+    "type": "marketable_limit_ioc_bracket",
+    "limit_offset_bps": 3.0,
+    "ioc_timeout_sec": 3.0,
+    "sl_type": "stop_limit",
+    "sl_limit_offset_bps": 3.0
+  },
+  "position_sizing": {
+    "formula": "vol_inverse",
+    "base_notional_usd": 12000,
+    "target_vol_bps": 15,
+    "min_notional_usd": 4000,
+    "max_notional_usd": 20000
+  },
+  "entry_thresholds": {
+    "ret5_z_min": 1.4,
+    "range_pct_min_pctile": 60,
+    "spread_max_bps": 6.0
+  },
+  "exit_rules": {
+    "tp_bps": 30.0,
+    "sl_bps": 18.0,
+    "time_exit_min": 15
+  },
+  "ml_kill": {
+    "logreg_p_vol_exit": 0.7,
+    "ae_recon_exit_pctile": 99
+  },
+  "filter_cascade": [
+    {"type": "time_gate", "params": {"start_et": "10:00", "end_et": "15:30"}},
+    {"type": "news_blackout", "params": {"cooldown_sec": 600}},
+    {"type": "spread_gate", "params": {"max_bps": 6.0}},
+    {"type": "abs_return_gate", "params": {"threshold_bps": 80}},
+    {"type": "logreg_regime_gate", "params": {"p_vol_block": 0.50}},
+    {"type": "ae_anomaly_gate", "params": {"hard_veto_pctile": 99, "size_down_pctile": 95}},
+    {"type": "signal_trigger", "params": {"mode": "momentum_breakout"}},
+    {"type": "position_correlation_check", "params": {"max_open": 2}},
+    {"type": "lane_conflict_check", "params": {"yields_to": "Aegis"}}
+  ],
+  "slippage_bps_assumed": 8.0,
+  "rollback": {
+    "intraday_dd_pause_pct": 1.0,
+    "noon_combined_dd_hard_stop_pct": 0.5
+  }
+}
