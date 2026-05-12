@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import sqlite3
 import subprocess
 import time
 from datetime import datetime
@@ -39,12 +40,26 @@ KNOWN_LOGS = [
     "system_dashboard.log",
 ]
 
-LANES = ("Aegis", "Falcon", "Valk")
+LANES = ("Aegis", "Falcon", "Valk", "Hermes", "Atlas", "TERMINATOR")
 LANE_DESC = {
     "Aegis": "HFT mean-reversion",
     "Falcon": "HFT breakout",
     "Valk": "SPY iron condor",
+    "Hermes": "SVXY core rotation",
+    "Atlas": "SVXY deep-contango control",
+    "TERMINATOR": "PDT-guarded $1k probe",
 }
+LANE_PREFIX = {
+    "Aegis": "AEGIS",
+    "Falcon": "FALCON",
+    "Valk": "VALK",
+    "Hermes": "HERMES",
+    "Atlas": "ATLAS",
+    "TERMINATOR": "TERMINATOR",
+}
+HFT_DB = REPO_ROOT / "data" / "alpaca_max_hft_host.sqlite3"
+SVXY_DB = REPO_ROOT / "data" / "svxy_rotation_host.sqlite3"
+VALK_DB = REPO_ROOT / "data" / "alpaca_three_lane_host.sqlite3"
 
 st.set_page_config(
     page_title="Mac Mini Trading Dashboard",
@@ -214,6 +229,47 @@ def read_tail(path: Path, n: int = 30) -> str:
         return "\n".join(text.splitlines()[-n:])
     except Exception as exc:
         return f"(read error: {exc})"
+
+
+def connect_readonly(path: Path) -> sqlite3.Connection | None:
+    if not path.exists():
+        return None
+    try:
+        return sqlite3.connect(f"file:{path.resolve().as_posix()}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return None
+
+
+def sql_df(path: Path, query: str, params: tuple[Any, ...] = ()) -> pd.DataFrame:
+    conn = connect_readonly(path)
+    if conn is None:
+        return pd.DataFrame()
+    try:
+        return pd.read_sql_query(query, conn, params=params)
+    except Exception:
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
+
+def fmt_ts_et(value: Any) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    try:
+        ts = pd.to_datetime(value, utc=True)
+        return ts.tz_convert("America/New_York").strftime("%H:%M:%S")
+    except Exception:
+        return str(value)
+
+
+def age_seconds_from_utc(value: Any) -> float | None:
+    if value is None or pd.isna(value):
+        return None
+    try:
+        ts = pd.to_datetime(value, utc=True).to_pydatetime()
+        return max(0.0, (datetime.now(tz=NY_TZ) - ts.astimezone(NY_TZ)).total_seconds())
+    except Exception:
+        return None
 
 
 def alpaca_lane_creds(env: dict[str, str], lane: str) -> tuple[str | None, str | None, str]:
@@ -393,8 +449,17 @@ def kpi_bar() -> None:
 
 kpi_bar()
 
-tab_trading, tab_six, tab_mlzoo, tab_system, tab_power, tab_tmux, tab_news = st.tabs(
-    ["Live Trading", "All 6 Accounts", "ML Zoo (today)", "System", "Mac Power", "Tmux & Logs", "News Feed"],
+tab_trading, tab_six, tab_thinking, tab_mlzoo, tab_system, tab_power, tab_tmux, tab_news = st.tabs(
+    [
+        "Live Trading",
+        "All 6 Accounts",
+        "Thinking Loops",
+        "ML Zoo (today)",
+        "System",
+        "Mac Power",
+        "Tmux & Logs",
+        "News Feed",
+    ],
 )
 
 
@@ -406,8 +471,8 @@ LANES_ALL = [
     ("Falcon",     "FALCON",     "ATHENA v2 breakout (C3 gate + vol-inv + IOC entries)"),
     ("Valk",       "VALK",       "30-DTE iron condor (22 contracts post 09:31 scale-down)"),
     ("Hermes",     "HERMES",     "SVXY regime rotation — LIVE (today: LONG)"),
-    ("Atlas",      "ATLAS",      "flat (pairs strategy failed walk-forward)"),
-    ("TERMINATOR", "TERMINATOR", "ATHENA v2 mean-rev + SVXY ($1k test bed)"),
+    ("Atlas",      "ATLAS",      "SVXY deep-contango control — flat unless ratio < 0.85"),
+    ("TERMINATOR", "TERMINATOR", "PDT-guarded $1k probe — no same-day HFT below $25k"),
 ]
 
 
@@ -513,13 +578,254 @@ with tab_trading:
             st.error(f"Could not load credentials from {ENV_LOCAL_PATH}.")
             return
         lanes = fetch_all_lanes(env)
-        cols = st.columns(len(LANES), gap="medium")
-        for idx, lane in enumerate(LANES):
-            with cols[idx]:
-                render_lane_card(lane, lanes.get(lane, {"ok": False, "error": "no data"}))
+        for row in (LANES[:3], LANES[3:]):
+            cols = st.columns(len(row), gap="medium")
+            for idx, lane in enumerate(row):
+                with cols[idx]:
+                    render_lane_card(lane, lanes.get(lane, {"ok": False, "error": "no data"}))
         st.caption(f"Refreshed {datetime.now().strftime('%H:%M:%S')} • auto-refresh 15s")
 
     trading_fragment()
+
+
+# =========================================================================
+# Tab — Per-lane thinking loops
+# =========================================================================
+def _account_snapshot_for_lane(env: dict[str, str], lane: str) -> dict[str, Any]:
+    prefix = LANE_PREFIX[lane]
+    key = env.get(f"ALPACA_{prefix}_KEY")
+    sec = env.get(f"ALPACA_{prefix}_SECRET")
+    if not key or not sec:
+        return {"ok": False, "error": f"missing ALPACA_{prefix}_KEY"}
+    endpoint = env.get("ALPACA_ENDPOINT", "https://paper-api.alpaca.markets/v2")
+    try:
+        acct = alpaca_fetch(endpoint, key, sec, "/account")
+        pos = alpaca_fetch(endpoint, key, sec, "/positions") or []
+        return {"ok": True, "account": acct, "positions": pos}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:160]}
+
+
+def _render_snapshot_header(lane: str, snap: dict[str, Any], mode: str) -> None:
+    st.markdown(f"### {lane} — {LANE_DESC.get(lane, '')}")
+    st.caption(mode)
+    if not snap.get("ok"):
+        st.error(snap.get("error", "account unavailable"))
+        return
+    acct = snap["account"]
+    positions = snap["positions"]
+    eq = float(acct.get("equity") or 0.0)
+    last = float(acct.get("last_equity") or 0.0)
+    day = eq - last
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Equity", f"${eq:,.2f}")
+    c2.metric("Day P&L", f"${day:+,.2f}")
+    c3.metric("Positions", len(positions))
+    c4.metric("Buying power", f"${float(acct.get('buying_power') or 0):,.0f}")
+    c5.metric("Day trades", acct.get("daytrade_count", "n/a"))
+    if positions:
+        rows = []
+        for p in positions:
+            rows.append(
+                {
+                    "symbol": p.get("symbol"),
+                    "qty": p.get("qty"),
+                    "side": p.get("side"),
+                    "avg": p.get("avg_entry_price"),
+                    "upl": p.get("unrealized_pl"),
+                    "current": p.get("current_price"),
+                }
+            )
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True, height=min(260, 38 * (len(rows) + 1) + 12))
+
+
+def _render_hft_loop(lane: str, snap: dict[str, Any]) -> None:
+    recent = sql_df(
+        HFT_DB,
+        """
+        SELECT ts_utc, symbol, action, reason, ROUND(signal_bps, 2) AS signal_bps,
+               ROUND(spread_bps, 2) AS spread_bps, ROUND(mid, 2) AS mid,
+               open_positions
+        FROM decisions
+        WHERE lane = ?
+        ORDER BY ts_utc DESC
+        LIMIT 60
+        """,
+        (lane,),
+    )
+    latest_ts = recent["ts_utc"].iloc[0] if not recent.empty else None
+    age = age_seconds_from_utc(latest_ts)
+    pos_count = len(snap.get("positions") or []) if snap.get("ok") else 0
+    if lane == "TERMINATOR":
+        posture = "PDT guarded: below $25k, no new same-day HFT entries; existing NVDA cannot be closed intraday."
+    elif pos_count:
+        posture = "Holding; exit loop checks TP/SL/time-exit every HFT cycle."
+    else:
+        posture = "Flat but scanning; can open again before the 15:30 ET entry cutoff."
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Loop", "HFT 2s")
+    c2.metric("Latest decision", fmt_ts_et(latest_ts) or "none", f"{age:.0f}s ago" if age is not None else None)
+    c3.metric("Current posture", "holding" if pos_count else "flat/scanning")
+    st.info(posture)
+
+    counts = sql_df(
+        HFT_DB,
+        """
+        SELECT reason, COUNT(*) AS n
+        FROM decisions
+        WHERE lane = ? AND ts_utc >= datetime('now', '-15 minutes')
+        GROUP BY reason
+        ORDER BY n DESC
+        LIMIT 16
+        """,
+        (lane,),
+    )
+    orders = sql_df(
+        HFT_DB,
+        """
+        SELECT ts_utc, symbol, action, side, qty, ROUND(notional, 2) AS notional,
+               status, client_order_id
+        FROM orders
+        WHERE lane = ?
+        ORDER BY ts_utc DESC
+        LIMIT 40
+        """,
+        (lane,),
+    )
+    marks = sql_df(
+        HFT_DB,
+        """
+        SELECT ts_utc, symbol, side, qty, ROUND(avg_entry, 2) AS avg_entry,
+               ROUND(mid, 2) AS mid, ROUND(pnl_bps, 2) AS pnl_bps,
+               ROUND(age_sec, 1) AS age_sec, exit_reason
+        FROM position_marks
+        WHERE lane = ?
+        ORDER BY ts_utc DESC
+        LIMIT 30
+        """,
+        (lane,),
+    )
+    left, right = st.columns([1, 2])
+    with left:
+        st.markdown("#### Gate reasons, last 15 min")
+        st.dataframe(counts, width="stretch", hide_index=True, height=360)
+    with right:
+        st.markdown("#### Live thinking loop")
+        if not recent.empty:
+            recent["et"] = recent["ts_utc"].map(fmt_ts_et)
+            recent = recent[["et", "symbol", "action", "reason", "signal_bps", "spread_bps", "mid", "open_positions"]]
+        st.dataframe(recent, width="stretch", hide_index=True, height=360)
+    st.markdown("#### Orders")
+    if not orders.empty:
+        orders["et"] = orders["ts_utc"].map(fmt_ts_et)
+        orders = orders[["et", "symbol", "action", "side", "qty", "notional", "status", "client_order_id"]]
+    st.dataframe(orders, width="stretch", hide_index=True, height=260)
+    if not marks.empty:
+        marks["et"] = marks["ts_utc"].map(fmt_ts_et)
+        st.markdown("#### Position exit marks")
+        st.dataframe(marks[["et", "symbol", "side", "qty", "avg_entry", "mid", "pnl_bps", "age_sec", "exit_reason"]], width="stretch", hide_index=True, height=220)
+
+
+def _render_valk_loop(snap: dict[str, Any]) -> None:
+    latest_order = sql_df(
+        VALK_DB,
+        """
+        SELECT trade_date, status, spy_price, expiry, long_put, short_put,
+               short_call, long_call, quantity, credit, limit_price, created_at_utc
+        FROM lane_orders
+        WHERE lane = 'Valk'
+        ORDER BY created_at_utc DESC
+        LIMIT 5
+        """,
+    )
+    events = sql_df(
+        VALK_DB,
+        """
+        SELECT ts_utc, event_type, close_reason, ROUND(close_debit, 2) AS close_debit,
+               ROUND(entry_credit, 2) AS entry_credit, ROUND(pnl_estimate, 2) AS pnl_estimate,
+               response_json
+        FROM monitor_events
+        WHERE lane = 'Valk'
+        ORDER BY ts_utc DESC
+        LIMIT 80
+        """,
+    )
+    latest_ts = events["ts_utc"].iloc[0] if not events.empty else None
+    age = age_seconds_from_utc(latest_ts)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Loop", "options monitor 60s")
+    c2.metric("Latest mark", fmt_ts_et(latest_ts) or "none", f"{age:.0f}s ago" if age is not None else None)
+    c3.metric("Current posture", "holding condor")
+    st.info("Holding the 22-contract SPY condor. Monitor reads live leg quantities and only closes on profit target, stop loss, DTE close, or manual force-close.")
+    if not latest_order.empty:
+        st.markdown("#### Current condor order")
+        st.dataframe(latest_order, width="stretch", hide_index=True, height=220)
+    st.markdown("#### Monitor thinking loop")
+    if not events.empty:
+        events["et"] = events["ts_utc"].map(fmt_ts_et)
+        events = events[["et", "event_type", "close_reason", "close_debit", "entry_credit", "pnl_estimate", "response_json"]]
+    st.dataframe(events, width="stretch", hide_index=True, height=420)
+
+
+def _render_svxy_loop(lane: str, snap: dict[str, Any]) -> None:
+    recent = sql_df(
+        SVXY_DB,
+        """
+        SELECT ts_utc, lane, ROUND(vix, 2) AS vix, ROUND(vix3m, 2) AS vix3m,
+               ROUND(ratio, 3) AS ratio, target, ROUND(held_qty, 2) AS held_qty,
+               ROUND(equity, 2) AS equity, ROUND(svxy_price, 2) AS svxy_price,
+               action, order_id, note
+        FROM decisions
+        WHERE lane = ?
+        ORDER BY ts_utc DESC
+        LIMIT 30
+        """,
+        (lane.upper(),),
+    )
+    latest_ts = recent["ts_utc"].iloc[0] if not recent.empty else None
+    target = recent["target"].iloc[0] if not recent.empty else "unknown"
+    ratio = recent["ratio"].iloc[0] if not recent.empty else None
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Loop", "daily SVXY")
+    c2.metric("Latest decision", fmt_ts_et(latest_ts) or "none")
+    c3.metric("Target", str(target))
+    c4.metric("VIX/VIX3M", f"{ratio:.3f}" if ratio is not None else "n/a")
+    if lane == "Hermes":
+        st.info("Hermes is the core SVXY rotation lane: long when VIX/VIX3M < 1.00, otherwise flat. It is not an HFT lane.")
+    elif lane == "Atlas":
+        st.info("Atlas is the strict control lane: long only when VIX/VIX3M < 0.85. If ratio stays above 0.85, it remains flat by design.")
+    else:
+        st.info("TERMINATOR has no SVXY overlay now; this page shows the last SVXY flat decision only.")
+    if not recent.empty:
+        recent["et"] = recent["ts_utc"].map(fmt_ts_et)
+        recent = recent[["et", "vix", "vix3m", "ratio", "target", "held_qty", "equity", "svxy_price", "action", "note", "order_id"]]
+    st.markdown("#### Rotation decision loop")
+    st.dataframe(recent, width="stretch", hide_index=True, height=420)
+
+
+with tab_thinking:
+    @st.fragment(run_every=5)
+    def thinking_fragment() -> None:
+        env = load_env_local()
+        lane_tabs = st.tabs(list(LANES))
+        for lane, page in zip(LANES, lane_tabs):
+            with page:
+                snap = _account_snapshot_for_lane(env, lane)
+                if lane in {"Aegis", "Falcon", "TERMINATOR"}:
+                    mode = "Reads quotes and account state every ~2 seconds, writes every decision to SQLite."
+                    _render_snapshot_header(lane, snap, mode)
+                    _render_hft_loop(lane, snap)
+                elif lane == "Valk":
+                    mode = "Reads live option positions and quotes every 60 seconds; exit logic is rule-based."
+                    _render_snapshot_header(lane, snap, mode)
+                    _render_valk_loop(snap)
+                else:
+                    mode = "Daily volatility-regime rotation; not intraday HFT."
+                    _render_snapshot_header(lane, snap, mode)
+                    _render_svxy_loop(lane, snap)
+        st.caption(f"Refreshed {datetime.now().strftime('%H:%M:%S')} • auto-refresh 5s")
+
+    thinking_fragment()
 
 
 # =========================================================================
