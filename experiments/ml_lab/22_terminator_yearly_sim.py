@@ -98,12 +98,28 @@ def simulate_one_year(
     *,
     starting_capital: float = STARTING_CAPITAL,
     entries_per_day_mean: float = ENTRIES_PER_DAY_MEAN,
-    hft_decay_factor: float = 0.20,  # 20% of yesterday's edge persists
+    hft_decay_factor: float = 0.20,
+    # ATHENA v2.1 sizing + safety params
+    enable_compounding: bool = True,
+    capacity_mult_cap: float = 5.0,          # max 5× starting equity scale
+    drawdown_revert_pct: float = 0.20,        # >20% off peak → baseline sizing
+    circuit_breaker_pct: float = 0.03,        # halt entries at -3% daily loss
+    extra_gate_block_rate: float = 0.15,      # news+earnings+OB imbalance block ~15% extra
 ) -> dict:
-    """Simulate one full trading year. Returns equity curve + summary."""
+    """Simulate one full trading year. Returns equity curve + summary.
+
+    v2.1 changes:
+      - enable_compounding: base_notional scales with HFT equity (capped at 5×)
+      - drawdown_revert: when HFT drawdown > 20%, sizing reverts to baseline
+      - circuit_breaker: if intraday HFT loss > 3%, stop entries for that day
+      - extra_gate_block_rate: ~15% additional block rate from news/earnings/OB gates
+    """
     equity = starting_capital
     svxy_equity = starting_capital * SVXY_PCT
     hft_equity = starting_capital * HFT_PCT
+    hft_starting = hft_equity
+    hft_peak = hft_equity
+    n_circuit_breaker_days = 0
 
     curve = np.zeros(TRADING_DAYS + 1)
     curve[0] = starting_capital
@@ -114,21 +130,52 @@ def simulate_one_year(
         svxy_ret = rng.normal(SVXY_DAILY_MU, SVXY_DAILY_SIGMA)
         svxy_equity *= (1 + svxy_ret)
 
-        # === HFT portion: bootstrap K entries ===
-        # K varies day to day (random entries-per-day count)
+        # === HFT portion: bootstrap K entries with v2.1 logic ===
         K = int(np.clip(
             rng.normal(entries_per_day_mean, entries_per_day_mean * 0.3),
             ENTRIES_PER_DAY_MIN, ENTRIES_PER_DAY_MAX,
         ))
-        # Sample K entry-returns (P&L per $1 notional)
-        sampled = rng.choice(pnl_per_dollar, size=K, replace=True)
-        # Sum × size × decay (we don't believe yesterday is a typical day)
-        day_hft_notional = K * HFT_BASE_PER_ENTRY
-        day_hft_pnl = sampled.sum() * HFT_BASE_PER_ENTRY * hft_decay_factor
+        # Apply extra-gate filter (news/earnings/OB imbalance block additional ~15%)
+        if extra_gate_block_rate > 0:
+            keep_mask = rng.random(K) > extra_gate_block_rate
+            K_after_gates = int(keep_mask.sum())
+        else:
+            K_after_gates = K
 
-        # Cap HFT loss at available HFT capital (can't lose more than you have)
+        # Equity multiplier for compounding
+        if enable_compounding:
+            hft_dd_pct = (hft_peak - hft_equity) / hft_peak if hft_peak > 0 else 0
+            if hft_dd_pct > drawdown_revert_pct:
+                eq_mult = 1.0   # in big drawdown, revert to baseline
+            else:
+                eq_mult = min(hft_equity / hft_starting if hft_starting > 0 else 1.0,
+                              capacity_mult_cap)
+        else:
+            eq_mult = 1.0
+        base_notional = HFT_BASE_PER_ENTRY * eq_mult
+
+        # Track intraday P&L for circuit breaker
+        # Bootstrap one entry at a time; if cumulative session P&L drops below
+        # -3% of session start, halt remaining entries.
+        session_start_equity = hft_equity
+        day_hft_pnl = 0.0
+        circuit_tripped = False
+        if K_after_gates > 0:
+            sampled = rng.choice(pnl_per_dollar, size=K_after_gates, replace=True)
+            for entry_pnl_per_dollar in sampled:
+                entry_pnl = entry_pnl_per_dollar * base_notional * hft_decay_factor
+                day_hft_pnl += entry_pnl
+                current_intraday_loss_pct = -day_hft_pnl / session_start_equity if session_start_equity > 0 else 0
+                if current_intraday_loss_pct > circuit_breaker_pct:
+                    circuit_tripped = True
+                    break
+        if circuit_tripped:
+            n_circuit_breaker_days += 1
+
+        # Cap HFT loss at available HFT capital
         day_hft_pnl = max(day_hft_pnl, -hft_equity)
         hft_equity += day_hft_pnl
+        hft_peak = max(hft_peak, hft_equity)
 
         equity = svxy_equity + hft_equity
         curve[d + 1] = equity
@@ -143,6 +190,7 @@ def simulate_one_year(
         "ending_equity": float(equity),
         "ending_svxy": float(svxy_equity),
         "ending_hft": float(hft_equity),
+        "circuit_breaker_days": n_circuit_breaker_days,
         "curve": curve,
         "daily_pnl": daily_pnl,
         "max_dd_pct": float(_max_drawdown(curve)),
@@ -159,18 +207,31 @@ def _max_drawdown(curve: np.ndarray) -> float:
     return float(dd.min())
 
 
-def run_monte_carlo(trials: int, seed: int, *, hft_decay: float = 0.20) -> pd.DataFrame:
+def run_monte_carlo(
+    trials: int, seed: int, *,
+    hft_decay: float = 0.20,
+    enable_compounding: bool = True,
+    circuit_breaker_pct: float = 0.03,
+    extra_gate_block_rate: float = 0.15,
+) -> pd.DataFrame:
     """Run N Monte Carlo trials, return per-trial results."""
     rng = np.random.default_rng(seed)
     pnl_per_dollar = load_yesterday_kept_entries()
     print(f"  loaded {len(pnl_per_dollar)} kept entries (after C3 gate)")
     print(f"  per-$ P&L: mean={pnl_per_dollar.mean()*100:+.3f}%  std={pnl_per_dollar.std()*100:.3f}%")
     print(f"  positive entries: {(pnl_per_dollar > 0).sum()} / {len(pnl_per_dollar)}")
+    print(f"  compounding: {enable_compounding}  circuit: {circuit_breaker_pct*100:.1f}%  "
+          f"extra-gates: {extra_gate_block_rate*100:.0f}% extra block rate")
 
     results = []
     for t in range(trials):
         trial_rng = np.random.default_rng(rng.integers(0, 2**31))
-        r = simulate_one_year(pnl_per_dollar, trial_rng, hft_decay_factor=hft_decay)
+        r = simulate_one_year(
+            pnl_per_dollar, trial_rng, hft_decay_factor=hft_decay,
+            enable_compounding=enable_compounding,
+            circuit_breaker_pct=circuit_breaker_pct,
+            extra_gate_block_rate=extra_gate_block_rate,
+        )
         results.append({
             "trial": t,
             "ending_equity": r["ending_equity"],
@@ -180,6 +241,7 @@ def run_monte_carlo(trials: int, seed: int, *, hft_decay: float = 0.20) -> pd.Da
             "winning_days": r["winning_days"],
             "losing_days": r["losing_days"],
             "survived": r["survived"],
+            "circuit_breaker_days": r["circuit_breaker_days"],
         })
 
     return pd.DataFrame(results)
@@ -284,6 +346,12 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="RNG seed")
     parser.add_argument("--decay", type=float, default=0.20,
                           help="HFT edge decay factor (0=no edge, 1=yesterday persists). Default 0.20")
+    parser.add_argument("--no-compounding", action="store_true",
+                          help="Disable v2.1 compounding (fixed $70 base, like pre-v2.1 host)")
+    parser.add_argument("--circuit-pct", type=float, default=0.03,
+                          help="Daily-loss circuit breaker threshold (default 3%%)")
+    parser.add_argument("--extra-gate-block", type=float, default=0.15,
+                          help="Extra entries blocked by news+earnings+OB gates (default 15%%)")
     parser.add_argument("--no-html", action="store_true", help="Skip HTML report")
     args = parser.parse_args()
 
@@ -293,7 +361,12 @@ def main():
     print(f"Trials: {args.trials:,}  ·  HFT decay: {args.decay:.0%}  ·  Seed: {args.seed}")
     print()
 
-    results = run_monte_carlo(args.trials, args.seed, hft_decay=args.decay)
+    results = run_monte_carlo(
+        args.trials, args.seed, hft_decay=args.decay,
+        enable_compounding=not args.no_compounding,
+        circuit_breaker_pct=args.circuit_pct,
+        extra_gate_block_rate=args.extra_gate_block,
+    )
 
     end = results["ending_equity"].values
     p5, p10, p25, p50, p75, p90, p95 = np.percentile(end, [5, 10, 25, 50, 75, 90, 95])
