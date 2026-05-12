@@ -1,0 +1,19 @@
+{
+  "experiment": "141_hard_negative_mining_mlp",
+  "description": "Two-stage MLP: initial training + hard-negative mining + retraining on curated set",
+  "timestamp_utc": "2026-05-12T06:04:24.937189+00:00",
+  "train_auc": 0.8663224355888584,
+  "test_auc": 0.846303726523897,
+  "train_test_gap": 0.020018709064961393,
+  "test_brier": 0.08539076894521713,
+  "precision_at_top1pct": 0.6325301204819277,
+  "flagged_count": 166,
+  "passes_overfit_gate": true,
+  "extra": {
+    "curated_set_size": 18503,
+    "positives": 3407,
+    "hard_negatives": 10293,
+    "random_negatives": 4803,
+    "reduction_ratio": 0.4905875490508007
+  }
+}
