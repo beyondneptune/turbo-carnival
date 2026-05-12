@@ -1,0 +1,15 @@
+{
+  "experiment": "122_enn_undersample_lgbm",
+  "description": "ENN undersampling (k=3, mode) removes majority samples with disagreeing class labels, then LGBM trains on sharpened boundaries",
+  "timestamp_utc": "2026-05-12T03:33:52.306249+00:00",
+  "train_auc": 0.9441744639822397,
+  "test_auc": 0.8662662371824303,
+  "train_test_gap": 0.07790822679980935,
+  "test_brier": 0.1507604566469184,
+  "precision_at_top1pct": 0.7349397590361446,
+  "flagged_count": 166,
+  "passes_overfit_gate": false,
+  "enn_removed_count": 1021,
+  "enn_original_train_size": 37716,
+  "enn_resampled_train_size": 36695
+}

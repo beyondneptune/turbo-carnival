@@ -1,0 +1,22 @@
+{
+  "experiment": "123_kmeans_cluster_then_logreg",
+  "description": "local-expert mixture: KMeans (k=5) routing + per-cluster LogReg, fallback to global classifier",
+  "timestamp_utc": "2026-05-12T03:33:52.164238+00:00",
+  "train_auc": 0.7636086865135785,
+  "test_auc": 0.7504282885674931,
+  "train_test_gap": 0.013180397946085387,
+  "test_brier": 0.21856194695077427,
+  "precision_at_top1pct": 0.572289156626506,
+  "flagged_count": 166,
+  "passes_overfit_gate": true,
+  "extra": {
+    "n_clusters_with_model": 5,
+    "cluster_sizes": {
+      "0": 114,
+      "1": 4327,
+      "2": 14237,
+      "3": 5084,
+      "4": 13954
+    }
+  }
+}

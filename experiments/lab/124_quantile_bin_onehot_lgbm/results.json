@@ -1,0 +1,23 @@
+{
+  "experiment": "124_quantile_bin_onehot_lgbm",
+  "description": "Quantile-binning (10 deciles) + one-hot + LightGBM. Treats continuous features as categorical.",
+  "timestamp_utc": "2026-05-12T03:34:02.222955+00:00",
+  "train_auc": 0.9223770572872383,
+  "test_auc": 0.8439573631334996,
+  "train_test_gap": 0.07841969415373873,
+  "test_brier": 0.1673305428177535,
+  "precision_at_top1pct": 0.5662650602409639,
+  "flagged_count": 166,
+  "passes_overfit_gate": false,
+  "n_original_features": 10,
+  "n_binary_features_onehot": 100,
+  "n_bins": 10,
+  "extra": {
+    "architecture": "quantile binning \u2192 one-hot encoding \u2192 gradient boosting",
+    "n_original_features": 10,
+    "n_binary_onehot_features": 100,
+    "lgbm_n_estimators": 200,
+    "lgbm_max_depth": 5,
+    "strategy": "quantile"
+  }
+}
