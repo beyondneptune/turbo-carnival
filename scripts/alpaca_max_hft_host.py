@@ -496,6 +496,17 @@ ATHENA_V2_TIME_START_MIN = 600   # 10:00 ET = 10*60
 ATHENA_V2_TIME_END_MIN = 930     # 15:30 ET = 15*60+30
 ATHENA_V2_SIGNAL_MULT = 1.3      # tighten thresholds 30% (z>=1.5 → z>=1.95-ish)
 
+# ATHENA v2.1 safety + capital sizing constants
+ATHENA_V2_MAX_DAILY_LOSS_PCT = 0.03      # halt entries if session P&L drops >3%
+ATHENA_V2_MAX_PEAK_DRAWDOWN_PCT = 0.20   # off-peak drawdown >20% pauses compounding
+ATHENA_V2_CAPACITY_MULT_CAP = 5.0        # max 5× starting equity scale (capacity acknowledgment)
+
+# Module-level state for circuit-breaker + compounding (resets daily)
+_LANE_SESSION_START_EQUITY: dict[str, float] = {}
+_LANE_PEAK_EQUITY: dict[str, float] = {}
+_LANE_HALTED_TODAY: set = set()
+_LANE_SESSION_DATE: dict[str, str] = {}
+
 
 def open_order_symbols(client: AlpacaClient) -> set[str]:
     try:
@@ -699,6 +710,36 @@ def run_loop(args: argparse.Namespace) -> None:
                     pending_symbols=pending_symbols,
                 )
 
+                # ATHENA v2.1: DAILY-LOSS CIRCUIT BREAKER
+                # Session-start equity is recorded once per trading day; reset on date change.
+                _today_str = ny_now().strftime("%Y-%m-%d")
+                if _LANE_SESSION_DATE.get(lane.nickname) != _today_str:
+                    _LANE_SESSION_START_EQUITY[lane.nickname] = equity
+                    _LANE_PEAK_EQUITY[lane.nickname] = equity
+                    _LANE_HALTED_TODAY.discard(lane.nickname)
+                    _LANE_SESSION_DATE[lane.nickname] = _today_str
+                _session_start = _LANE_SESSION_START_EQUITY[lane.nickname]
+                _session_pnl_pct = (equity - _session_start) / _session_start if _session_start > 0 else 0.0
+                if _session_pnl_pct < -ATHENA_V2_MAX_DAILY_LOSS_PCT:
+                    if lane.nickname not in _LANE_HALTED_TODAY:
+                        logging.error(
+                            "CIRCUIT BREAKER %s: session loss %.2f%% (eq $%.2f -> $%.2f), halting entries until tomorrow",
+                            lane.nickname, _session_pnl_pct * 100, _session_start, equity,
+                        )
+                        _LANE_HALTED_TODAY.add(lane.nickname)
+                    log_decision(
+                        conn, lane=lane.nickname, symbol="*", action="skip",
+                        reason=f"circuit_breaker:{_session_pnl_pct*100:.2f}%",
+                        quote=None, signal_bps=0.0,
+                        equity=equity, buying_power=buying_power,
+                        open_positions=len(positions),
+                    )
+                    continue
+                # Update peak (used by sizing's drawdown gate)
+                _LANE_PEAK_EQUITY[lane.nickname] = max(
+                    _LANE_PEAK_EQUITY.get(lane.nickname, equity), equity
+                )
+
                 if near_eod() and not args.allow_entries_near_eod:
                     continue
                 if trades_today(conn, lane.nickname) >= args.max_trades_per_day:
@@ -872,28 +913,41 @@ def run_loop(args: argparse.Namespace) -> None:
                     logging.warning("composite_c3 error (continuing — fail open): %s", _c3_exc)
 
                 quote = quotes[sym]
-                # ATHENA v2: VOL-INVERSE SIZING (vs old fixed notional_pct)
-                # Sizes position inversely to recent realized vol — quiet bars get more,
-                # noisy bars get less. For TERMINATOR ($1k), uses Half-Kelly cap.
+                # ATHENA v2.1: COMPOUNDING + VOL-INVERSE SIZING
+                # Scales base_notional with equity (compounds), gated by:
+                #   - drawdown gate: pause scaling when >20% off peak (reverts to baseline)
+                #   - capacity cap: max 5× starting equity scale (strategy can't absorb infinite size)
+                #   - vol-inverse: noisy bars shrink notional, quiet bars enlarge it
                 try:
                     from scripts.voltgt_sizer import compute_notional as _vt_notional, compute_realized_vol_bps as _rv_bps
+                    is_tt = lane.nickname == "TERMINATOR"
+                    default_base = 70 if is_tt else 12000
+                    default_floor = 30 if is_tt else 4000
+                    default_ceiling = 120 if is_tt else 20000
+                    # Compounding multiplier — equity vs session-start, capped, drawdown-gated
+                    _session_start = _LANE_SESSION_START_EQUITY.get(lane.nickname, equity)
+                    _peak = _LANE_PEAK_EQUITY.get(lane.nickname, equity)
+                    _dd_pct = (_peak - equity) / _peak if _peak > 0 else 0.0
+                    if _dd_pct > ATHENA_V2_MAX_PEAK_DRAWDOWN_PCT:
+                        _eq_mult = 1.0   # in big drawdown → baseline sizing
+                    else:
+                        _eq_mult = min(
+                            equity / _session_start if _session_start > 0 else 1.0,
+                            ATHENA_V2_CAPACITY_MULT_CAP,
+                        )
+                    base_notional = default_base * _eq_mult
+                    floor = default_floor * _eq_mult
+                    ceiling = default_ceiling * _eq_mult
                     if len(history[sym]) >= 6:
                         recent_rets = [(history[sym][i] / history[sym][i-1] - 1)
                                        for i in range(-5, 0) if history[sym][i-1] > 0]
                         rv = _rv_bps(recent_rets)
-                        # TERMINATOR uses much smaller base ($12k → $70 since $1k account).
-                        # Cut from $150 base to leave room for SVXY's $300 claim at 09:40 ET:
-                        # worst case 5 positions × $120 ceiling + $300 SVXY = $900 ≤ $1k.
-                        is_tt = lane.nickname == "TERMINATOR"
-                        base_notional = 70 if is_tt else 12000
-                        floor = 30 if is_tt else 4000
-                        ceiling = 120 if is_tt else 20000
                         notional = _vt_notional(rv, base_notional=base_notional,
                                                  floor=floor, ceiling=ceiling)
                     else:
-                        # Fall back to old sizing if no vol estimate yet
+                        # Fall back to baseline notional × equity multiplier if no vol estimate yet
                         lane_notional_pct = lane.notional_pct if not args.no_lane_presets else args.notional_pct
-                        notional = min(equity * lane_notional_pct, buying_power * args.buying_power_pct)
+                        notional = min(equity * lane_notional_pct, buying_power * args.buying_power_pct, ceiling)
                 except Exception as _sz_exc:
                     logging.warning("voltgt_sizer error (fall back to default): %s", _sz_exc)
                     lane_notional_pct = lane.notional_pct if not args.no_lane_presets else args.notional_pct
