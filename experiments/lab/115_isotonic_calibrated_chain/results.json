@@ -1,0 +1,12 @@
+{
+  "experiment": "115_isotonic_calibrated_chain",
+  "description": "per-feature isotonic regression (non-parametric monotonic feature transform) stacked with logistic regression meta-learner",
+  "timestamp_utc": "2026-05-12T01:53:58.755578+00:00",
+  "train_auc": 0.8474732216436982,
+  "test_auc": 0.8299890818356728,
+  "train_test_gap": 0.017484139808025434,
+  "test_brier": 0.1723921847605147,
+  "precision_at_top1pct": 0.608433734939759,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

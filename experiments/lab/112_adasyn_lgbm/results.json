@@ -1,0 +1,12 @@
+{
+  "experiment": "112_adasyn_lgbm",
+  "description": "ADASYN adaptive oversampling + LightGBM; generates more samples for hard-to-classify minority examples near decision boundary",
+  "timestamp_utc": "2026-05-12T01:53:43.720308+00:00",
+  "train_auc": 0.9229738751897786,
+  "test_auc": 0.8546706410697887,
+  "train_test_gap": 0.06830323411998984,
+  "test_brier": 0.15918884512193424,
+  "precision_at_top1pct": 0.7724550898203593,
+  "flagged_count": 167,
+  "passes_overfit_gate": false
+}

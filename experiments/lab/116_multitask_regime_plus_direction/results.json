@@ -1,0 +1,18 @@
+{
+  "experiment": "116_multitask_regime_plus_direction",
+  "description": "Multi-task neural network with shared-weight hidden layers; two output heads (regime + direction); averaged loss training; final prediction uses regime head only",
+  "timestamp_utc": "2026-05-12T01:54:14.335634+00:00",
+  "train_auc": 0.8234960575969549,
+  "test_auc": 0.8144977917705191,
+  "train_test_gap": 0.008998265826435814,
+  "test_brier": 0.08762988448143005,
+  "precision_at_top1pct": 0.6506024096385542,
+  "flagged_count": 166,
+  "passes_overfit_gate": true,
+  "extra": {
+    "architecture": "MultiOutputClassifier(MLPClassifier)",
+    "hidden_layers": "(32, 16)",
+    "direction_task_train_size": 20182,
+    "direction_task_test_size": 8433
+  }
+}
