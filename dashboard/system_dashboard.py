@@ -393,9 +393,113 @@ def kpi_bar() -> None:
 
 kpi_bar()
 
-tab_trading, tab_mlzoo, tab_system, tab_power, tab_tmux, tab_news = st.tabs(
-    ["Live Trading", "ML Zoo (today)", "System", "Mac Power", "Tmux & Logs", "News Feed"],
+tab_trading, tab_six, tab_mlzoo, tab_system, tab_power, tab_tmux, tab_news = st.tabs(
+    ["Live Trading", "All 6 Accounts", "ML Zoo (today)", "System", "Mac Power", "Tmux & Logs", "News Feed"],
 )
+
+
+# =========================================================================
+# Tab — All 6 Accounts with live equity curves
+# =========================================================================
+LANES_ALL = [
+    ("Aegis",      "AEGIS",      "HFT mean-rev + C3 gate"),
+    ("Falcon",     "FALCON",     "HFT momentum + C3 gate"),
+    ("Valk",       "VALK",       "30-DTE iron condor"),
+    ("Hermes",     "HERMES",     "0DTE credit spreads / SVXY rotation (pending)"),
+    ("Atlas",      "ATLAS",      "Cointegrated pairs (pending)"),
+    ("TERMINATOR", "TERMINATOR", "ATHENA+C3+HalfKelly+2-stage ($1k test bed)"),
+]
+
+
+def _fetch_account_and_history(prefix: str, env: dict) -> dict:
+    key = env.get(f"ALPACA_{prefix}_KEY")
+    sec = env.get(f"ALPACA_{prefix}_SECRET")
+    if not key or not sec:
+        return {"ok": False, "error": f"missing ALPACA_{prefix}_KEY"}
+    H = {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": sec}
+    try:
+        acct = requests.get("https://paper-api.alpaca.markets/v2/account",
+                              headers=H, timeout=8).json()
+        hist = requests.get("https://paper-api.alpaca.markets/v2/account/portfolio/history",
+                              headers=H, params={"period": "5D", "timeframe": "15Min"},
+                              timeout=8).json()
+        pos = requests.get("https://paper-api.alpaca.markets/v2/positions",
+                            headers=H, timeout=8).json() or []
+        eq_now = float(acct.get("equity", 0))
+        eq_last = float(acct.get("last_equity", 0))
+        pnl_today = eq_now - eq_last
+        base = float(hist.get("base_value", 0)) if hist.get("base_value") else (eq_now - float(hist.get("profit_loss", [0])[-1] if hist.get("profit_loss") else 0))
+        ts = hist.get("timestamp", []) or []
+        pl = hist.get("profit_loss", []) or []
+        # Build curve: equity[i] = base + pl[i]
+        curve = pd.DataFrame({
+            "ts": pd.to_datetime([int(t) * 10**9 for t in ts], utc=True).tz_convert("America/New_York"),
+            "equity": [base + p for p in pl],
+        }) if ts else pd.DataFrame()
+        return {"ok": True, "equity": eq_now, "last_equity": eq_last,
+                "pnl_today": pnl_today,
+                "buying_power": float(acct.get("buying_power", 0)),
+                "status": acct.get("status", "?"),
+                "n_positions": len(pos), "curve": curve}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:120]}
+
+
+def _render_account_card(nickname: str, strategy: str, data: dict) -> None:
+    if not data.get("ok"):
+        st.markdown(f"**{nickname}**")
+        st.caption(strategy)
+        st.error(data.get("error", "unknown error"))
+        return
+    eq = data["equity"]
+    last_eq = data["last_equity"]
+    pnl = data["pnl_today"]
+    pct = (pnl / last_eq * 100) if last_eq > 0 else 0
+    color = "#4ade80" if pnl > 0 else "#f87171" if pnl < 0 else "#cbd5e1"
+    st.markdown(
+        f'<div class="lane-card">'
+        f'<div class="lane-title">{nickname}</div>'
+        f'<div class="lane-subtitle">{strategy}</div>'
+        f'<div class="kpi-bar">'
+        f'<div class="kpi"><div class="kpi-label">Equity</div>'
+        f'<div class="kpi-value">${eq:,.2f}</div></div>'
+        f'<div class="kpi"><div class="kpi-label">Δ today</div>'
+        f'<div class="kpi-value" style="color:{color}">${pnl:+,.2f} ({pct:+.2f}%)</div></div>'
+        f'<div class="kpi"><div class="kpi-label">Positions</div>'
+        f'<div class="kpi-value">{data["n_positions"]}</div></div>'
+        f'<div class="kpi"><div class="kpi-label">BP</div>'
+        f'<div class="kpi-value">${data["buying_power"]:,.0f}</div></div>'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    curve = data["curve"]
+    if not curve.empty:
+        curve = curve.set_index("ts")
+        st.line_chart(curve, height=180, use_container_width=True)
+    else:
+        st.caption("No equity history yet (account just opened).")
+
+
+with tab_six:
+    @st.fragment(run_every=15)
+    def six_accounts_fragment() -> None:
+        env = load_env_local()
+        if not env:
+            st.error("could not load env")
+            return
+        st.markdown("### Live equity across all 6 paper accounts")
+        st.caption("Polled from Alpaca `/v2/account/portfolio/history` every 15s · 5-day window @ 15-min granularity")
+        row1 = st.columns(3, gap="medium")
+        row2 = st.columns(3, gap="medium")
+        for idx, (nickname, prefix, strategy) in enumerate(LANES_ALL):
+            data = _fetch_account_and_history(prefix, env)
+            col = row1[idx] if idx < 3 else row2[idx - 3]
+            with col:
+                _render_account_card(nickname, strategy, data)
+        st.caption(f"Refreshed {datetime.now().strftime('%H:%M:%S')} • auto-refresh 15s")
+
+    six_accounts_fragment()
 
 
 # =========================================================================
