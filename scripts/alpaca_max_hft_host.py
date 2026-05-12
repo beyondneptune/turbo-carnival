@@ -881,11 +881,13 @@ def run_loop(args: argparse.Namespace) -> None:
                         recent_rets = [(history[sym][i] / history[sym][i-1] - 1)
                                        for i in range(-5, 0) if history[sym][i-1] > 0]
                         rv = _rv_bps(recent_rets)
-                        # TERMINATOR uses much smaller base ($12k → $150 since $1k account)
+                        # TERMINATOR uses much smaller base ($12k → $70 since $1k account).
+                        # Cut from $150 base to leave room for SVXY's $300 claim at 09:40 ET:
+                        # worst case 5 positions × $120 ceiling + $300 SVXY = $900 ≤ $1k.
                         is_tt = lane.nickname == "TERMINATOR"
-                        base_notional = 150 if is_tt else 12000
-                        floor = 50 if is_tt else 4000
-                        ceiling = 300 if is_tt else 20000
+                        base_notional = 70 if is_tt else 12000
+                        floor = 30 if is_tt else 4000
+                        ceiling = 120 if is_tt else 20000
                         notional = _vt_notional(rv, base_notional=base_notional,
                                                  floor=floor, ceiling=ceiling)
                     else:
