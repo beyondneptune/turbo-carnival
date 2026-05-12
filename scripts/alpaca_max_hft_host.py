@@ -329,11 +329,18 @@ def latest_quotes(data_client: AlpacaClient, symbols: list[str]) -> dict[str, di
         if bid <= 0 or ask <= 0 or ask < bid:
             continue
         mid = (bid + ask) / 2.0
+        # ATHENA v2.1: extract bid/ask SIZES for order-book imbalance signal
+        bid_size = float(q.get("bs") or 0.0)
+        ask_size = float(q.get("as") or 0.0)
+        imbalance = (bid_size - ask_size) / (bid_size + ask_size) if (bid_size + ask_size) > 0 else 0.0
         out[sym] = {
             "bid": bid,
             "ask": ask,
+            "bid_size": bid_size,
+            "ask_size": ask_size,
             "mid": mid,
             "spread_bps": (ask - bid) / mid * 10000.0 if mid else 9999.0,
+            "imbalance": imbalance,
         }
     return out
 
@@ -819,6 +826,56 @@ def run_loop(args: argparse.Namespace) -> None:
                         open_positions=len(positions),
                     )
                     continue
+
+                # ATHENA v2.1: NEWS-SENTIMENT GATE (uses live scrapers)
+                # Fails open if module missing or score unavailable.
+                try:
+                    from scripts.news_sentiment_gate import sentiment_score_for_symbol, NEWS_BLACKOUT_THRESHOLD
+                    _sent = sentiment_score_for_symbol(sym)
+                    if _sent is not None and _sent < NEWS_BLACKOUT_THRESHOLD:
+                        log_decision(
+                            conn, lane=lane.nickname, symbol=sym, action="skip",
+                            reason=f"news_sentiment:{_sent:+.2f}",
+                            quote=quotes.get(sym), signal_bps=score,
+                            equity=equity, buying_power=buying_power,
+                            open_positions=len(positions),
+                        )
+                        continue
+                except Exception as _ns_exc:
+                    logging.warning("news_sentiment error (fail open): %s", _ns_exc)
+
+                # ATHENA v2.1: EARNINGS CALENDAR GATE
+                try:
+                    from scripts.earnings_calendar_gate import is_earnings_blackout
+                    if is_earnings_blackout(sym):
+                        log_decision(
+                            conn, lane=lane.nickname, symbol=sym, action="skip",
+                            reason="earnings_blackout",
+                            quote=quotes.get(sym), signal_bps=score,
+                            equity=equity, buying_power=buying_power,
+                            open_positions=len(positions),
+                        )
+                        continue
+                except Exception as _ec_exc:
+                    logging.warning("earnings_calendar error (fail open): %s", _ec_exc)
+
+                # ATHENA v2.1: ORDER BOOK IMBALANCE GATE
+                # Block if heavy opposing-side pressure (>0.30 magnitude).
+                try:
+                    from scripts.order_book_imbalance import imbalance_blocks
+                    _q = quotes.get(sym, {})
+                    _blocked, _why = imbalance_blocks(_q, direction)
+                    if _blocked:
+                        log_decision(
+                            conn, lane=lane.nickname, symbol=sym, action="skip",
+                            reason=_why,
+                            quote=_q, signal_bps=score,
+                            equity=equity, buying_power=buying_power,
+                            open_positions=len(positions),
+                        )
+                        continue
+                except Exception as _ob_exc:
+                    logging.warning("ob_imbalance error (fail open): %s", _ob_exc)
 
                 # ATHENA v2: TIME GATE 10:00-15:30 ET (skip auction-zone slippage)
                 _ny_t = ny_now()
