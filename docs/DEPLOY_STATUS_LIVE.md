@@ -58,7 +58,7 @@ Net effect: TERMINATOR ($1k) compounds linearly up to $5k base notional, then pl
 | Falcon | $97,701 | ATHENA v2.1 breakout | ✓ |
 | Valk | $99,552 | iron condor, scaling 44→22 at 09:31 | ✓ |
 | Hermes | $100,000 | SVXY rotation (today: LONG) at 09:40 | ✓ |
-| Atlas | $100,000 | flat (no validated host) | — |
+| Atlas | $100,000 | SVXY regime rotation (added at market open 09:30:29 EDT) | ✓ |
 | TERMINATOR | $1,000 | ATHENA v2.1 mean-rev + SVXY (70/30 split) | ✓ |
 
 ## Ready-to-run offline (built today, not yet wired)
