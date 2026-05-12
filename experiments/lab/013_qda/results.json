@@ -1,7 +1,7 @@
 {
   "experiment": "013_qda",
   "description": "QDA \u2014 per-class covariance with 0.1 shrinkage regularization",
-  "timestamp_utc": "2026-05-12T01:05:58.863753+00:00",
+  "timestamp_utc": "2026-05-12T01:55:08.834272+00:00",
   "train_auc": 0.8393076534199713,
   "test_auc": 0.8357160108935677,
   "train_test_gap": 0.003591642526403538,

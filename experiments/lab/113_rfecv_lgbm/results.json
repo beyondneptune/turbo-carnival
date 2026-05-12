@@ -1,7 +1,7 @@
 {
   "experiment": "113_rfecv_lgbm",
   "description": "RFECV (LogReg base, roc_auc scoring) finds optimal feature subset; LightGBM trains on selected features only",
-  "timestamp_utc": "2026-05-12T01:53:52.172472+00:00",
+  "timestamp_utc": "2026-05-12T02:02:18.494409+00:00",
   "train_auc": 0.970047107143958,
   "test_auc": 0.8491918303708077,
   "train_test_gap": 0.12085527677315033,

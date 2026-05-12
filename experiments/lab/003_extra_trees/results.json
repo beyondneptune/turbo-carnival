@@ -1,7 +1,7 @@
 {
   "experiment": "003_extra_trees",
   "description": "300 extra-random trees, random split selection per node",
-  "timestamp_utc": "2026-05-12T01:05:22.351928+00:00",
+  "timestamp_utc": "2026-05-12T01:54:35.646940+00:00",
   "train_auc": 0.8609463349982582,
   "test_auc": 0.8285677390791027,
   "train_test_gap": 0.032378595919155484,

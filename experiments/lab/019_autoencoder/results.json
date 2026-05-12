@@ -1,7 +1,7 @@
 {
   "experiment": "019_autoencoder",
   "description": "MLP-AE 180->90->45->90->180, trained on normal windows only",
-  "timestamp_utc": "2026-05-12T01:06:13.644894+00:00",
+  "timestamp_utc": "2026-05-12T01:55:23.159242+00:00",
   "train_auc": 0.7743989392072079,
   "test_auc": 0.7755458228114478,
   "train_test_gap": -0.0011468836042398678,

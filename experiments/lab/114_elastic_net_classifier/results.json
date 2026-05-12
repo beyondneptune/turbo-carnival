@@ -1,7 +1,7 @@
 {
   "experiment": "114_elastic_net_classifier",
   "description": "elastic-net logistic regression: l1_ratio=0.5 combines feature selection (L1) with shrinkage (L2), saga solver",
-  "timestamp_utc": "2026-05-12T01:53:56.902536+00:00",
+  "timestamp_utc": "2026-05-12T02:02:19.551521+00:00",
   "train_auc": 0.8053135387609712,
   "test_auc": 0.7985528307971488,
   "train_test_gap": 0.006760707963822443,

@@ -1,7 +1,7 @@
 {
   "experiment": "023_bollinger_meanrev",
   "description": "Bollinger 2\u03c3 mean-rev, entry at band touch, exit at SMA cross or 20-bar timeout",
-  "timestamp_utc": "2026-05-12T01:12:29.156815+00:00",
+  "timestamp_utc": "2026-05-12T02:01:22.151794+00:00",
   "n_trades": 1939,
   "net_pnl_8bps": -21008.9560393743,
   "win_rate": 0.39556472408457966,

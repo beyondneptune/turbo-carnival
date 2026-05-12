@@ -1,7 +1,7 @@
 {
   "experiment": "026_nn_scaling_curve",
   "description": "Single hidden layer MLP swept across sizes 2-1024",
-  "timestamp_utc": "2026-05-12T01:12:44.404143+00:00",
+  "timestamp_utc": "2026-05-12T02:01:37.354773+00:00",
   "test_auc": 0.8500588952293499,
   "train_test_gap": 0.012317894970915955,
   "passes_overfit_gate": true,

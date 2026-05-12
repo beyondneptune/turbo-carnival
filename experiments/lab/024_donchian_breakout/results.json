@@ -1,7 +1,7 @@
 {
   "experiment": "024_donchian_breakout",
   "description": "30-bar Donchian breakout, opposite-channel stop, 20-bar timeout",
-  "timestamp_utc": "2026-05-12T01:12:29.955146+00:00",
+  "timestamp_utc": "2026-05-12T02:01:22.947568+00:00",
   "n_trades": 1624,
   "net_pnl_8bps": -13035.831484028064,
   "win_rate": 0.34051724137931033,

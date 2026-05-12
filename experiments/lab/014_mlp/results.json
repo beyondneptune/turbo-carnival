@@ -1,7 +1,7 @@
 {
   "experiment": "014_mlp",
   "description": "MLP 64-32-16, ReLU, Adam, early stopping on 10% val",
-  "timestamp_utc": "2026-05-12T01:06:00.679549+00:00",
+  "timestamp_utc": "2026-05-12T01:55:10.587044+00:00",
   "train_auc": 0.8837354496522536,
   "test_auc": 0.8550855893895667,
   "train_test_gap": 0.0286498602626869,

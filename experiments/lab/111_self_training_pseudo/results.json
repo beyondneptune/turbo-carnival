@@ -1,7 +1,7 @@
 {
   "experiment": "111_self_training_pseudo",
   "description": "semi-supervised self-training with confidence-thresholded pseudo-labels; 60/40 split; 3 iterations; high-margin acceptance",
-  "timestamp_utc": "2026-05-12T01:13:20.829136+00:00",
+  "timestamp_utc": "2026-05-12T02:02:13.546824+00:00",
   "train_auc": 0.9214139444020911,
   "test_auc": 0.8628170230442959,
   "train_test_gap": 0.05859692135779526,

@@ -1,7 +1,7 @@
 {
   "experiment": "011_gaussian_nb",
   "description": "Gaussian NB \u2014 independent Gaussian likelihoods per feature",
-  "timestamp_utc": "2026-05-12T01:05:57.095894+00:00",
+  "timestamp_utc": "2026-05-12T01:55:07.237659+00:00",
   "train_auc": 0.8278773362100477,
   "test_auc": 0.827891110099917,
   "train_test_gap": -1.3773889869339584e-05,

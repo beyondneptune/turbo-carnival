@@ -1,7 +1,7 @@
 {
   "experiment": "008_xgboost",
   "description": "XGBoost hist, 300 trees, depth-6, scale_pos_weight balanced",
-  "timestamp_utc": "2026-05-12T01:05:52.614294+00:00",
+  "timestamp_utc": "2026-05-12T01:55:03.048651+00:00",
   "train_auc": 0.9682731859659433,
   "test_auc": 0.8575370862302681,
   "train_test_gap": 0.11073609973567511,
