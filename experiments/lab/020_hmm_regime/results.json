@@ -1,7 +1,7 @@
 {
   "experiment": "020_hmm_regime",
   "description": "3-state Gaussian HMM with diagonal covariance",
-  "timestamp_utc": "2026-05-12T00:24:06.659631+00:00",
+  "timestamp_utc": "2026-05-12T01:06:17.755870+00:00",
   "train_auc": 0.39994025019752844,
   "test_auc": 0.40804083858061135,
   "train_test_gap": -0.008100588383082918,

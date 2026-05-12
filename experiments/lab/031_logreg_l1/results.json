@@ -1,0 +1,12 @@
+{
+  "experiment": "031_logreg_l1",
+  "description": "L1-penalized logistic regression \u2014 sparse linear",
+  "timestamp_utc": "2026-05-12T00:30:53.652918+00:00",
+  "train_auc": 0.8053455173357026,
+  "test_auc": 0.7985856604464558,
+  "train_test_gap": 0.00675985688924674,
+  "test_brier": 0.19005347290905833,
+  "precision_at_top1pct": 0.6566265060240963,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

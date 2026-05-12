@@ -1,0 +1,12 @@
+{
+  "experiment": "076_voting_soft_arith",
+  "description": "Soft-vote ensemble: arithmetic mean of probabilities",
+  "timestamp_utc": "2026-05-12T00:31:52.640758+00:00",
+  "train_auc": 0.9753757788372037,
+  "test_auc": 0.8594847282347282,
+  "train_test_gap": 0.11589105060247551,
+  "test_brier": 0.11202526883718808,
+  "precision_at_top1pct": 0.6265060240963856,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

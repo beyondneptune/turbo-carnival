@@ -1,7 +1,7 @@
 {
   "experiment": "007_lightgbm",
   "description": "LightGBM leaf-wise, 300 trees, 31 leaves",
-  "timestamp_utc": "2026-05-12T00:23:39.390487+00:00",
+  "timestamp_utc": "2026-05-12T01:05:51.232945+00:00",
   "train_auc": 0.9549199965441241,
   "test_auc": 0.8628540204534522,
   "train_test_gap": 0.09206597609067191,

@@ -1,0 +1,12 @@
+{
+  "experiment": "100_meta_bma",
+  "description": "Bayesian model averaging via NLL-weighted posterior",
+  "timestamp_utc": "2026-05-12T00:32:41.625639+00:00",
+  "train_auc": 0.9588922265825232,
+  "test_auc": 0.8644495550745553,
+  "train_test_gap": 0.09444267150796781,
+  "test_brier": 0.08238750592366027,
+  "precision_at_top1pct": 0.7831325301204819,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

@@ -1,0 +1,15 @@
+{
+  "experiment": "040_nu_svc",
+  "description": "Nu-SVC \u2014 alternative SVM parameterization with bound on errors",
+  "timestamp_utc": "2026-05-12T00:30:57.492719+00:00",
+  "train_auc": 0.5,
+  "test_auc": 0.5,
+  "train_test_gap": 0.0,
+  "test_brier": 0.12191582002902758,
+  "precision_at_top1pct": 0.12191582002902758,
+  "flagged_count": 16536,
+  "passes_overfit_gate": false,
+  "extra": {
+    "error": "specified nu is infeasible"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "094_meta_quantile_median",
+  "description": "Median across 5 LGBMs with different seeds",
+  "timestamp_utc": "2026-05-12T00:32:33.217730+00:00",
+  "train_auc": 0.9463209381223733,
+  "test_auc": 0.8683247347664961,
+  "train_test_gap": 0.0779962033558772,
+  "test_brier": 0.15004527376521595,
+  "precision_at_top1pct": 0.7771084337349398,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

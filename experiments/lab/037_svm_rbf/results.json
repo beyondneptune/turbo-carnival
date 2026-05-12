@@ -1,0 +1,12 @@
+{
+  "experiment": "037_svm_rbf",
+  "description": "SVM with RBF kernel on 5k subsample",
+  "timestamp_utc": "2026-05-12T00:30:55.498899+00:00",
+  "train_auc": 0.6434200450894483,
+  "test_auc": 0.6048016692903057,
+  "train_test_gap": 0.038618375799142624,
+  "test_brier": 0.14679884033471777,
+  "precision_at_top1pct": 0.3253012048192771,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

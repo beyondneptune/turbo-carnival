@@ -1,0 +1,12 @@
+{
+  "experiment": "068_nn_bottleneck",
+  "description": "MLP bottleneck 64\u21928\u219264 (autoencoder-like inside classifier)",
+  "timestamp_utc": "2026-05-12T00:31:38.637814+00:00",
+  "train_auc": 0.8483201020768425,
+  "test_auc": 0.8383993820783594,
+  "train_test_gap": 0.009920719998483096,
+  "test_brier": 0.08546597510576248,
+  "precision_at_top1pct": 0.6807228915662651,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

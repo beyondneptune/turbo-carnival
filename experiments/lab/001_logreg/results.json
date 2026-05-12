@@ -1,7 +1,7 @@
 {
   "experiment": "001_logreg",
   "description": "linear decision boundary, scaled features, balanced class weight",
-  "timestamp_utc": "2026-05-12T00:23:05.552986+00:00",
+  "timestamp_utc": "2026-05-12T01:05:18.463163+00:00",
   "train_auc": 0.805352540987349,
   "test_auc": 0.7985713124207441,
   "train_test_gap": 0.006781228566604902,

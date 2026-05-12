@@ -1,0 +1,12 @@
+{
+  "experiment": "036_passive_aggressive",
+  "description": "Passive-Aggressive online learner",
+  "timestamp_utc": "2026-05-12T00:30:53.795203+00:00",
+  "train_auc": 0.648411504508701,
+  "test_auc": 0.6571072945362719,
+  "train_test_gap": -0.008695790027570927,
+  "test_brier": 0.4467322772427414,
+  "precision_at_top1pct": 0.39759036144578314,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

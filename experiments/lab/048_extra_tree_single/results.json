@@ -1,0 +1,12 @@
+{
+  "experiment": "048_extra_tree_single",
+  "description": "Single ExtraTree \u2014 single tree with random splits",
+  "timestamp_utc": "2026-05-12T00:31:19.746796+00:00",
+  "train_auc": 0.8241378619455159,
+  "test_auc": 0.7646668935021208,
+  "train_test_gap": 0.059470968443395056,
+  "test_brier": 0.18474858694031557,
+  "precision_at_top1pct": 0.6666666666666666,
+  "flagged_count": 216,
+  "passes_overfit_gate": false
+}

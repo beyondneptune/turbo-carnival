@@ -1,0 +1,7 @@
+{
+  "experiment": "066_ewma_deviation",
+  "description": "EWMA span-30 deviation as anomaly score",
+  "error": "y_prob contains values greater than 1: 19725.59589794846",
+  "test_auc": 0.5,
+  "passes_overfit_gate": false
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "080_custom_per_symbol_ensemble",
+  "description": "Per-symbol specialist LightGBMs, predictions concatenated",
+  "timestamp_utc": "2026-05-12T00:32:04.247680+00:00",
+  "train_auc": 0.9994518471917238,
+  "test_auc": 0.8572952878350607,
+  "train_test_gap": 0.14215655935666305,
+  "test_brier": 0.09757643672610918,
+  "precision_at_top1pct": 0.6987951807228916,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

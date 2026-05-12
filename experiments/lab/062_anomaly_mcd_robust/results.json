@@ -1,0 +1,7 @@
+{
+  "experiment": "062_anomaly_mcd_robust",
+  "description": "Robust Mahalanobis via Minimum Covariance Determinant",
+  "error": "y_prob contains values greater than 1: 526364.5394273963",
+  "test_auc": 0.5,
+  "passes_overfit_gate": false
+}

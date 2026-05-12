@@ -1,7 +1,7 @@
 {
   "experiment": "006_hist_gbm",
   "description": "histogram-binned GBM, 300 iters, L2=0.5",
-  "timestamp_utc": "2026-05-12T00:23:37.245448+00:00",
+  "timestamp_utc": "2026-05-12T01:05:49.100616+00:00",
   "train_auc": 0.9224876862169169,
   "test_auc": 0.8658411427587565,
   "train_test_gap": 0.05664654345816045,

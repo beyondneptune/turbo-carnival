@@ -1,0 +1,12 @@
+{
+  "experiment": "045_xgb_dart",
+  "description": "XGBoost DART \u2014 dropout regularization on boosting",
+  "timestamp_utc": "2026-05-12T00:31:09.443301+00:00",
+  "train_auc": 0.9933961633906009,
+  "test_auc": 0.8406211738598102,
+  "train_test_gap": 0.15277498953079072,
+  "test_brier": 0.12389510869979858,
+  "precision_at_top1pct": 0.6987951807228916,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

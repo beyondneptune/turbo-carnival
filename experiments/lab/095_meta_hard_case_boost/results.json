@@ -1,0 +1,12 @@
+{
+  "experiment": "095_meta_hard_case_boost",
+  "description": "Second model specialized on uncertain (0.3<p<0.7) cases",
+  "timestamp_utc": "2026-05-12T00:32:34.255006+00:00",
+  "train_auc": 0.2905141871646436,
+  "test_auc": 0.18178398569023568,
+  "train_test_gap": 0.10873020147440793,
+  "test_brier": 0.3337646672171661,
+  "precision_at_top1pct": 0.0,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

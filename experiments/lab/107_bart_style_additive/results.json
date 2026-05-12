@@ -1,0 +1,12 @@
+{
+  "experiment": "107_bart_style_additive",
+  "description": "BART-style additive ensemble: 50 shallow regression trees (depth=3) with shrinkage=0.1, sigmoid final",
+  "timestamp_utc": "2026-05-12T01:03:52.561720+00:00",
+  "train_auc": 0.8829708640023164,
+  "test_auc": 0.8592759644606236,
+  "train_test_gap": 0.023694899541692793,
+  "test_brier": 0.17724868835633126,
+  "precision_at_top1pct": 0.7604790419161677,
+  "flagged_count": 167,
+  "passes_overfit_gate": true
+}

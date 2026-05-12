@@ -1,0 +1,20 @@
+{
+  "experiment": "110_quantile_regression_meta",
+  "description": "LightGBM quantile regressors (Q25/Q50/Q75) on binary targets, median prediction calibrated via sigmoid(5*(q50-0.5))",
+  "timestamp_utc": "2026-05-12T01:04:16.065265+00:00",
+  "train_auc": 0.6378645761769902,
+  "test_auc": 0.6412370457825003,
+  "train_test_gap": -0.0033724696055100756,
+  "test_brier": 0.10240153857600287,
+  "precision_at_top1pct": 0.5574912891986062,
+  "flagged_count": 1148,
+  "passes_overfit_gate": true,
+  "extra": {
+    "q50_median_train": 0.0,
+    "q50_median_test": 0.0,
+    "q25_median": 0.0,
+    "q75_median": 0.0,
+    "steepness_param": 5.0,
+    "quantile_spread_test": 0.0
+  }
+}

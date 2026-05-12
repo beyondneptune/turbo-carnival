@@ -1,7 +1,7 @@
 {
   "experiment": "030_feature_count_scaling",
   "description": "LogReg with feature subset size 1\u219210 added in importance-rank order",
-  "timestamp_utc": "2026-05-12T00:20:22.607351+00:00",
+  "timestamp_utc": "2026-05-12T00:31:08.312835+00:00",
   "test_auc": 0.8038509076151122,
   "train_test_gap": -0.005705172181765916,
   "passes_overfit_gate": true,

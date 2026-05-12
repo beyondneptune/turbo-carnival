@@ -1,0 +1,12 @@
+{
+  "experiment": "108_cotraining_disjoint_views",
+  "description": "Co-training with disjoint feature views (price vs volume+time). LogReg on View A (price), LightGBM on View B (vol+time). 3 rounds of pseudo-label augmentation. Final ensemble averages both.",
+  "timestamp_utc": "2026-05-12T01:04:14.078258+00:00",
+  "train_auc": 0.9072967639025504,
+  "test_auc": 0.8066693381324064,
+  "train_test_gap": 0.10062742577014405,
+  "test_brier": 0.12372815544870754,
+  "precision_at_top1pct": 0.7349397590361446,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "073_nn_sgd_solver",
+  "description": "MLP trained with SGD solver instead of Adam",
+  "timestamp_utc": "2026-05-12T00:31:43.789487+00:00",
+  "train_auc": 0.7531088021044058,
+  "test_auc": 0.7517151015020334,
+  "train_test_gap": 0.0013937006023724274,
+  "test_brier": 0.09470357745885849,
+  "precision_at_top1pct": 0.6445783132530121,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

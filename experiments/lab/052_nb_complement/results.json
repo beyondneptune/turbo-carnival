@@ -1,0 +1,12 @@
+{
+  "experiment": "052_nb_complement",
+  "description": "Complement NB \u2014 Multinomial variant for imbalanced data",
+  "timestamp_utc": "2026-05-12T00:31:24.088187+00:00",
+  "train_auc": 0.7398066090132375,
+  "test_auc": 0.7550246786042242,
+  "train_test_gap": -0.015218069590986705,
+  "test_brier": 0.23968420605391758,
+  "precision_at_top1pct": 0.6867469879518072,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

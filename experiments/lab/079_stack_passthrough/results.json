@@ -1,0 +1,12 @@
+{
+  "experiment": "079_stack_passthrough",
+  "description": "Stack with passthrough \u2014 meta sees both predictions AND original features",
+  "timestamp_utc": "2026-05-12T00:32:00.453153+00:00",
+  "train_auc": 0.9513088472183212,
+  "test_auc": 0.8640383474900519,
+  "train_test_gap": 0.08727049972826928,
+  "test_brier": 0.08226608807693442,
+  "precision_at_top1pct": 0.6927710843373494,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

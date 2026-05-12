@@ -1,0 +1,12 @@
+{
+  "experiment": "044_lgbm_rf",
+  "description": "LightGBM in random-forest mode (no boosting)",
+  "timestamp_utc": "2026-05-12T00:31:00.564663+00:00",
+  "train_auc": 0.8754690265816811,
+  "test_auc": 0.8489611346145437,
+  "train_test_gap": 0.02650789196713743,
+  "test_brier": 0.17243716404812218,
+  "precision_at_top1pct": 0.6867469879518072,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

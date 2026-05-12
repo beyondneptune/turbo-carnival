@@ -1,0 +1,12 @@
+{
+  "experiment": "033_sgd_hinge",
+  "description": "SGD with hinge loss \u2014 linear SVM via SGD",
+  "timestamp_utc": "2026-05-12T00:30:53.713264+00:00",
+  "train_auc": 0.7681758780204044,
+  "test_auc": 0.7643907281691371,
+  "train_test_gap": 0.003785149851267322,
+  "test_brier": 0.2470152562907538,
+  "precision_at_top1pct": 0.6204819277108434,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

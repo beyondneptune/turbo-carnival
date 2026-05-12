@@ -1,0 +1,12 @@
+{
+  "experiment": "074_nn_lbfgs_solver",
+  "description": "MLP trained with L-BFGS solver \u2014 batch optimization",
+  "timestamp_utc": "2026-05-12T00:31:50.831026+00:00",
+  "train_auc": 0.9439213687055837,
+  "test_auc": 0.817373238609034,
+  "train_test_gap": 0.12654813009654975,
+  "test_brier": 0.10070562243297194,
+  "precision_at_top1pct": 0.5963855421686747,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

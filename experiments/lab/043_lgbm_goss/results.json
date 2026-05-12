@@ -1,0 +1,12 @@
+{
+  "experiment": "043_lgbm_goss",
+  "description": "LightGBM GOSS \u2014 gradient-based one-side sampling",
+  "timestamp_utc": "2026-05-12T00:30:59.811954+00:00",
+  "train_auc": 0.9478380853754886,
+  "test_auc": 0.8622832423258558,
+  "train_test_gap": 0.08555484304963279,
+  "test_brier": 0.14993870480155896,
+  "precision_at_top1pct": 0.7530120481927711,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "101_interaction_poly_logreg",
+  "description": "Pairwise polynomial interactions + LogReg",
+  "timestamp_utc": "2026-05-12T00:32:41.720866+00:00",
+  "train_auc": 0.8214077360415553,
+  "test_auc": 0.8076894485985395,
+  "train_test_gap": 0.013718287443015731,
+  "test_brier": 0.18674309337452513,
+  "precision_at_top1pct": 0.6626506024096386,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

@@ -1,0 +1,7 @@
+{
+  "experiment": "057_anomaly_kmeans_dist",
+  "description": "K-means: distance to nearest of 5 centroids as anomaly score",
+  "error": "y_prob contains values greater than 1: 147.57586669921875",
+  "test_auc": 0.5,
+  "passes_overfit_gate": false
+}

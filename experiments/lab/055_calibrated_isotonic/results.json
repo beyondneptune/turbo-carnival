@@ -1,0 +1,12 @@
+{
+  "experiment": "055_calibrated_isotonic",
+  "description": "Calibrated linear SVM with isotonic calibration",
+  "timestamp_utc": "2026-05-12T00:31:24.214450+00:00",
+  "train_auc": 0.7303217962569036,
+  "test_auc": 0.7213723066706021,
+  "train_test_gap": 0.008949489586301485,
+  "test_brier": 0.09933423801224202,
+  "precision_at_top1pct": 0.47752808988764045,
+  "flagged_count": 178,
+  "passes_overfit_gate": true
+}

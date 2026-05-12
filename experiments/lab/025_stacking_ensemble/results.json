@@ -1,7 +1,7 @@
 {
   "experiment": "025_stacking_ensemble",
   "description": "Stack: LogReg + LightGBM + HistGBM, meta: LogReg on 3-fold OOF preds",
-  "timestamp_utc": "2026-05-12T00:19:32.453991+00:00",
+  "timestamp_utc": "2026-05-12T00:30:47.531961+00:00",
   "train_auc": 0.9333321401965695,
   "test_auc": 0.8643941443657354,
   "train_test_gap": 0.06893799583083415,

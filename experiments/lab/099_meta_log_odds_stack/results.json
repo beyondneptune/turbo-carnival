@@ -1,0 +1,12 @@
+{
+  "experiment": "099_meta_log_odds_stack",
+  "description": "Log-odds stacking of LGBM and LogReg",
+  "timestamp_utc": "2026-05-12T00:32:39.073976+00:00",
+  "train_auc": 0.939432938768652,
+  "test_auc": 0.8594263112729021,
+  "train_test_gap": 0.08000662749574983,
+  "test_brier": 0.09697175678724253,
+  "precision_at_top1pct": 0.6746987951807228,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

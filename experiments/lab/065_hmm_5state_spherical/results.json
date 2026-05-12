@@ -1,0 +1,7 @@
+{
+  "experiment": "065_hmm_5state_spherical",
+  "description": "5-state HMM with spherical covariance",
+  "error": "y_prob contains values greater than 1: 11269.004788047852",
+  "test_auc": 0.5,
+  "passes_overfit_gate": false
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "035_perceptron",
+  "description": "Perceptron \u2014 classic linear, no probability calibration",
+  "timestamp_utc": "2026-05-12T00:30:53.775131+00:00",
+  "train_auc": 0.6184031752791279,
+  "test_auc": 0.623979787047969,
+  "train_test_gap": -0.0055766117688410555,
+  "test_brier": 0.4016637098971715,
+  "precision_at_top1pct": 0.23666274970622797,
+  "flagged_count": 4255,
+  "passes_overfit_gate": true
+}

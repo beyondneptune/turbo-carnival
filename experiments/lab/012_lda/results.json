@@ -1,7 +1,7 @@
 {
   "experiment": "012_lda",
   "description": "LDA \u2014 Bayes-optimal linear under Gaussian-with-shared-cov assumption",
-  "timestamp_utc": "2026-05-12T00:23:46.330878+00:00",
+  "timestamp_utc": "2026-05-12T01:05:57.975272+00:00",
   "train_auc": 0.8061357038109163,
   "test_auc": 0.801848384412305,
   "train_test_gap": 0.004287319398611267,

@@ -1,0 +1,12 @@
+{
+  "experiment": "090_random_projection_lgbm",
+  "description": "Gaussian random projection (5 dims) \u2192 LightGBM",
+  "timestamp_utc": "2026-05-12T00:32:28.012284+00:00",
+  "train_auc": 0.920470901537361,
+  "test_auc": 0.819496951386156,
+  "train_test_gap": 0.10097395015120503,
+  "test_brier": 0.15697161562272777,
+  "precision_at_top1pct": 0.6494252873563219,
+  "flagged_count": 174,
+  "passes_overfit_gate": false
+}

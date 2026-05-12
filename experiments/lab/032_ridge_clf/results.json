@@ -1,0 +1,12 @@
+{
+  "experiment": "032_ridge_clf",
+  "description": "Ridge classifier \u2014 squared loss, not log loss",
+  "timestamp_utc": "2026-05-12T00:30:53.670647+00:00",
+  "train_auc": 0.7861982729978416,
+  "test_auc": 0.781570046378285,
+  "train_test_gap": 0.004628226619556641,
+  "test_brier": 0.21023127436637878,
+  "precision_at_top1pct": 0.6204819277108434,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

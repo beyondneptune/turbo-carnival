@@ -1,7 +1,7 @@
 {
   "experiment": "002_random_forest",
   "description": "300 bagged trees, depth-8, sqrt(n_features) per split",
-  "timestamp_utc": "2026-05-12T00:23:08.353825+00:00",
+  "timestamp_utc": "2026-05-12T01:05:21.005281+00:00",
   "train_auc": 0.9126085865313411,
   "test_auc": 0.8546201326030871,
   "train_test_gap": 0.057988453928254025,

@@ -1,0 +1,12 @@
+{
+  "experiment": "086_pca_then_lgbm",
+  "description": "PCA-5 \u2192 LightGBM (linear features \u2192 tree)",
+  "timestamp_utc": "2026-05-12T00:32:25.288545+00:00",
+  "train_auc": 0.9216632327055646,
+  "test_auc": 0.8183959112226157,
+  "train_test_gap": 0.10326732148294893,
+  "test_brier": 0.15948737080285846,
+  "precision_at_top1pct": 0.6144578313253012,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

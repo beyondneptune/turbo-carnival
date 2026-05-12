@@ -1,7 +1,11 @@
 {
   "experiment": "021_arima",
-  "error": "/Users/weeoto/turbo-carnival/.venv/lib/python3.11/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals\n  warnings.warn(\"Maximum Likelihood optimization failed to \"\n/Users/weeoto/turbo-carnival/.venv/lib/python3.11/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals\n  warnings.warn(\"Maximum Likelihood optimization failed to \"\n/Users/weeoto/turbo-carnival/.venv/lib/python3.11/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals\n  warnings.warn(\"Maximum Likelihood optimization failed to \"\n/Users/weeoto/turbo-carnival/.venv/lib/python3.11/site-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals\n  warnings.warn(\"Maximum Likelihood optimization failed to \"\n/Users/weeoto/tu",
-  "passes_overfit_gate": false,
-  "test_auc": 0.5,
-  "timestamp_utc": "2026-05-12T00:17:56.865527+00:00"
+  "description": "ARIMA(2,0,2) per-symbol; |forecast residual| as anomaly score",
+  "timestamp_utc": "2026-05-12T00:30:40.608663+00:00",
+  "train_auc": 0.5314142440147991,
+  "test_auc": 0.7334059219531192,
+  "train_test_gap": -0.20199167793832007,
+  "precision_at_top1pct": 0.5783132530120482,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
 }

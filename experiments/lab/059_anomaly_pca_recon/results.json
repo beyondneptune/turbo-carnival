@@ -1,0 +1,7 @@
+{
+  "experiment": "059_anomaly_pca_recon",
+  "description": "PCA reconstruction error from 5 components",
+  "error": "y_prob contains values greater than 1: 638.0614624023438",
+  "test_auc": 0.5,
+  "passes_overfit_gate": false
+}

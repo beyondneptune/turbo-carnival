@@ -1,7 +1,7 @@
 {
   "experiment": "004_adaboost",
   "description": "200 boosted stumps (depth-1), AdaBoost.R2",
-  "timestamp_utc": "2026-05-12T00:23:15.924945+00:00",
+  "timestamp_utc": "2026-05-12T01:05:28.422520+00:00",
   "train_auc": 0.869079193195103,
   "test_auc": 0.8517252134439635,
   "train_test_gap": 0.017353979751139503,

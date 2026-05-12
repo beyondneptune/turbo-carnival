@@ -1,0 +1,7 @@
+{
+  "experiment": "058_anomaly_gmm_loglik",
+  "description": "GMM 3-component: negative log-likelihood as anomaly score",
+  "error": "y_prob contains values greater than 1: 956.7491455078125",
+  "test_auc": 0.5,
+  "passes_overfit_gate": false
+}

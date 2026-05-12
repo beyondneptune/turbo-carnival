@@ -1,0 +1,7 @@
+{
+  "experiment": "063_hmm_2state_full",
+  "description": "2-state HMM with full covariance \u2014 regime switching",
+  "error": "y_prob contains values greater than 1: 3119.141553350903",
+  "test_auc": 0.5,
+  "passes_overfit_gate": false
+}

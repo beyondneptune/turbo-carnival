@@ -1,0 +1,12 @@
+{
+  "experiment": "047_gbm_exponential",
+  "description": "Sklearn GBM with exponential loss (AdaBoost-style)",
+  "timestamp_utc": "2026-05-12T00:31:19.735468+00:00",
+  "train_auc": 0.9021193488145851,
+  "test_auc": 0.8684545502372206,
+  "train_test_gap": 0.033664798577364485,
+  "test_brier": 0.08155605488930492,
+  "precision_at_top1pct": 0.8132530120481928,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

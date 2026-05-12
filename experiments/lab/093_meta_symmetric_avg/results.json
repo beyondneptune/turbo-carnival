@@ -1,0 +1,12 @@
+{
+  "experiment": "093_meta_symmetric_avg",
+  "description": "Average prob from model trained on y and model on 1-y",
+  "timestamp_utc": "2026-05-12T00:32:31.007191+00:00",
+  "train_auc": 0.9621583229805762,
+  "test_auc": 0.8659023268398268,
+  "train_test_gap": 0.09625599614074942,
+  "test_brier": 0.14280604416448947,
+  "precision_at_top1pct": 0.7530120481927711,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

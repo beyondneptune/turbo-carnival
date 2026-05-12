@@ -1,7 +1,7 @@
 {
   "experiment": "010_knn",
   "description": "KNN k=50, Euclidean distance, scaled features",
-  "timestamp_utc": "2026-05-12T00:23:44.543677+00:00",
+  "timestamp_utc": "2026-05-12T01:05:56.242106+00:00",
   "train_auc": 0.8875759070885695,
   "test_auc": 0.8341947785484718,
   "train_test_gap": 0.05338112854009769,

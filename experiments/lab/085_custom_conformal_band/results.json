@@ -1,0 +1,12 @@
+{
+  "experiment": "085_custom_conformal_band",
+  "description": "Conformal-prediction calibrated LGBM with q=0.9 band",
+  "timestamp_utc": "2026-05-12T00:32:24.669279+00:00",
+  "train_auc": 0.961939708614957,
+  "test_auc": 0.8638489193886921,
+  "train_test_gap": 0.09809078922626491,
+  "test_brier": 0.13054987939981602,
+  "precision_at_top1pct": 0.7650602409638554,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

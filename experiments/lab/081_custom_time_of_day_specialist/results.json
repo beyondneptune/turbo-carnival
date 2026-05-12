@@ -1,0 +1,12 @@
+{
+  "experiment": "081_custom_time_of_day_specialist",
+  "description": "4 time-of-day specialists (open/morning/midday/close)",
+  "timestamp_utc": "2026-05-12T00:32:06.563671+00:00",
+  "train_auc": 0.9981229226812388,
+  "test_auc": 0.8337556777187459,
+  "train_test_gap": 0.1643672449624929,
+  "test_brier": 0.11191226540013374,
+  "precision_at_top1pct": 0.7650602409638554,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

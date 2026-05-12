@@ -1,0 +1,12 @@
+{
+  "experiment": "041_linear_svc",
+  "description": "LinearSVC \u2014 efficient linear SVM (separate from sgd_hinge)",
+  "timestamp_utc": "2026-05-12T00:30:57.517171+00:00",
+  "train_auc": 0.8025938970045049,
+  "test_auc": 0.79604216543137,
+  "train_test_gap": 0.0065517315731349335,
+  "test_brier": 0.20758794909086256,
+  "precision_at_top1pct": 0.6566265060240963,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "102_rbf_sampler_logreg",
+  "description": "RBF kernel approximation (64 features) + LogReg",
+  "timestamp_utc": "2026-05-12T00:32:41.759109+00:00",
+  "train_auc": 0.7632547406675751,
+  "test_auc": 0.7387365948445495,
+  "train_test_gap": 0.024518145823025694,
+  "test_brier": 0.21935176633934303,
+  "precision_at_top1pct": 0.3433734939759036,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

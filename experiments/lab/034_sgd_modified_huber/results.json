@@ -1,0 +1,12 @@
+{
+  "experiment": "034_sgd_modified_huber",
+  "description": "SGD with modified Huber \u2014 robust to outliers",
+  "timestamp_utc": "2026-05-12T00:30:53.756509+00:00",
+  "train_auc": 0.6878593563462324,
+  "test_auc": 0.6916620889632252,
+  "train_test_gap": -0.003802732616992821,
+  "test_brier": 0.25006083426567777,
+  "precision_at_top1pct": 0.38817285822592873,
+  "flagged_count": 1319,
+  "passes_overfit_gate": true
+}

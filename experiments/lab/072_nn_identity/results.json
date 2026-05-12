@@ -1,0 +1,12 @@
+{
+  "experiment": "072_nn_identity",
+  "description": "MLP with identity activation \u2014 equivalent to linear stacking",
+  "timestamp_utc": "2026-05-12T00:31:41.873622+00:00",
+  "train_auc": 0.7955091370222298,
+  "test_auc": 0.7880620497452884,
+  "train_test_gap": 0.007447087276941433,
+  "test_brier": 0.09194543957710266,
+  "precision_at_top1pct": 0.6385542168674698,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

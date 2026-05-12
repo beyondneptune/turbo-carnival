@@ -1,7 +1,7 @@
 {
   "experiment": "015_isolation_forest",
   "description": "300 isolation trees, contamination=auto",
-  "timestamp_utc": "2026-05-12T00:23:50.541938+00:00",
+  "timestamp_utc": "2026-05-12T01:06:02.085759+00:00",
   "train_auc": 0.7864069464582072,
   "test_auc": 0.7928267728693865,
   "train_test_gap": -0.00641982641117933,

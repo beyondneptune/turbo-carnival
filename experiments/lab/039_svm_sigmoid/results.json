@@ -1,0 +1,12 @@
+{
+  "experiment": "039_svm_sigmoid",
+  "description": "SVM with sigmoid kernel on 5k subsample",
+  "timestamp_utc": "2026-05-12T00:30:57.488149+00:00",
+  "train_auc": 0.6990701823034555,
+  "test_auc": 0.6793085754733483,
+  "train_test_gap": 0.019761606830107192,
+  "test_brier": 0.10350882184876815,
+  "precision_at_top1pct": 0.3192771084337349,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

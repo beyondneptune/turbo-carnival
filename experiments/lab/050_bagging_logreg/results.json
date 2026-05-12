@@ -1,0 +1,12 @@
+{
+  "experiment": "050_bagging_logreg",
+  "description": "Bagging with logistic regression base \u2014 pasted linear ensemble",
+  "timestamp_utc": "2026-05-12T00:31:24.041827+00:00",
+  "train_auc": 0.7124003288437769,
+  "test_auc": 0.7134093573724256,
+  "train_test_gap": -0.0010090285286487033,
+  "test_brier": 0.21825664943877354,
+  "precision_at_top1pct": 0.41566265060240964,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

@@ -1,7 +1,7 @@
 {
   "experiment": "017_one_class_svm",
   "description": "OCSVM RBF kernel, trained on 5k subsample, nu=0.1",
-  "timestamp_utc": "2026-05-12T00:23:55.367857+00:00",
+  "timestamp_utc": "2026-05-12T01:06:06.805760+00:00",
   "train_auc": 0.6555595415182636,
   "test_auc": 0.6886766405942542,
   "train_test_gap": -0.033117099075990586,

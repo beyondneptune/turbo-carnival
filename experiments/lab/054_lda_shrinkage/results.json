@@ -1,0 +1,12 @@
+{
+  "experiment": "054_lda_shrinkage",
+  "description": "LDA with Ledoit-Wolf shrinkage estimator",
+  "timestamp_utc": "2026-05-12T00:31:24.119341+00:00",
+  "train_auc": 0.8060577079131565,
+  "test_auc": 0.8017188251563252,
+  "train_test_gap": 0.004338882756831253,
+  "test_brier": 0.09527682512998581,
+  "precision_at_top1pct": 0.6626506024096386,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

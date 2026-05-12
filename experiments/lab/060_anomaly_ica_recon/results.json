@@ -1,0 +1,7 @@
+{
+  "experiment": "060_anomaly_ica_recon",
+  "description": "Independent Component Analysis reconstruction error",
+  "error": "y_prob contains values greater than 1: 638.061767578125",
+  "test_auc": 0.5,
+  "passes_overfit_gate": false
+}

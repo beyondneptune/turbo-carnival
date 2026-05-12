@@ -1,0 +1,7 @@
+{
+  "experiment": "061_anomaly_mahalanobis",
+  "description": "Empirical-covariance Mahalanobis distance",
+  "error": "y_prob contains values greater than 1: 23578.657045343905",
+  "test_auc": 0.5,
+  "passes_overfit_gate": false
+}

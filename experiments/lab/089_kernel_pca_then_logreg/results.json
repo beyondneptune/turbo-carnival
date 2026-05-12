@@ -1,0 +1,12 @@
+{
+  "experiment": "089_kernel_pca_then_logreg",
+  "description": "Kernel PCA with RBF (8 components) \u2192 LogReg",
+  "timestamp_utc": "2026-05-12T00:32:27.397824+00:00",
+  "train_auc": 0.8140715233418401,
+  "test_auc": 0.813360471599108,
+  "train_test_gap": 0.0007110517427321161,
+  "test_brier": 0.19509384000604385,
+  "precision_at_top1pct": 0.42771084337349397,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "070_nn_tanh",
+  "description": "MLP with tanh activation \u2014 different non-linearity family",
+  "timestamp_utc": "2026-05-12T00:31:40.947462+00:00",
+  "train_auc": 0.8667753541826055,
+  "test_auc": 0.8524594224168088,
+  "train_test_gap": 0.014315931765796708,
+  "test_brier": 0.08499222248792648,
+  "precision_at_top1pct": 0.6385542168674698,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

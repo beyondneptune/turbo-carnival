@@ -1,0 +1,12 @@
+{
+  "experiment": "103_nystroem_logreg",
+  "description": "Nystroem method kernel approximation + LogReg",
+  "timestamp_utc": "2026-05-12T00:32:41.829889+00:00",
+  "train_auc": 0.847173706959206,
+  "test_auc": 0.8370552624458876,
+  "train_test_gap": 0.010118444513318448,
+  "test_brier": 0.19312142288268977,
+  "precision_at_top1pct": 0.42168674698795183,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

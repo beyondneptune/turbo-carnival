@@ -1,0 +1,12 @@
+{
+  "experiment": "071_nn_logistic",
+  "description": "MLP with logistic activation \u2014 classic NN approach",
+  "timestamp_utc": "2026-05-12T00:31:41.469774+00:00",
+  "train_auc": 0.7905377134034106,
+  "test_auc": 0.7848156893611441,
+  "train_test_gap": 0.005722024042266516,
+  "test_brier": 0.09017059952020645,
+  "precision_at_top1pct": 0.6445783132530121,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

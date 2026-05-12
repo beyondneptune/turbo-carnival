@@ -1,0 +1,12 @@
+{
+  "experiment": "092_meta_monotonic_lgbm",
+  "description": "LGBM with monotonic constraints on price-momentum features",
+  "timestamp_utc": "2026-05-12T00:32:29.720653+00:00",
+  "train_auc": 0.9693016076899079,
+  "test_auc": 0.8614532432004023,
+  "train_test_gap": 0.10784836448950563,
+  "test_brier": 0.13893990891649033,
+  "precision_at_top1pct": 0.7831325301204819,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

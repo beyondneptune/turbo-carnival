@@ -1,0 +1,12 @@
+{
+  "experiment": "075_voting_hard",
+  "description": "Hard-vote ensemble: LogReg + LGBM + XGB \u2014 majority class",
+  "timestamp_utc": "2026-05-12T00:31:51.768562+00:00",
+  "train_auc": 0.8895143237280435,
+  "test_auc": 0.75420233175915,
+  "train_test_gap": 0.13531199196889354,
+  "test_brier": 0.1852322206095791,
+  "precision_at_top1pct": 0.3609561752988048,
+  "flagged_count": 3765,
+  "passes_overfit_gate": false
+}

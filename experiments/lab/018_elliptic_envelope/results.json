@@ -1,7 +1,7 @@
 {
   "experiment": "018_elliptic_envelope",
   "description": "robust Gaussian envelope, contamination=0.1",
-  "timestamp_utc": "2026-05-12T00:23:57.616170+00:00",
+  "timestamp_utc": "2026-05-12T01:06:08.964476+00:00",
   "train_auc": 0.815705574614138,
   "test_auc": 0.8209236575713847,
   "train_test_gap": -0.005218082957246795,

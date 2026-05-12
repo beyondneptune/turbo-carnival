@@ -1,0 +1,12 @@
+{
+  "experiment": "051_nb_bernoulli",
+  "description": "Bernoulli NB on binarized features",
+  "timestamp_utc": "2026-05-12T00:31:24.074970+00:00",
+  "train_auc": 0.7761192644452155,
+  "test_auc": 0.7653262536075036,
+  "train_test_gap": 0.010793010837711892,
+  "test_brier": 0.09538276664632106,
+  "precision_at_top1pct": 0.4702702702702703,
+  "flagged_count": 185,
+  "passes_overfit_gate": true
+}

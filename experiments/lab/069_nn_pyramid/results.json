@@ -1,0 +1,12 @@
+{
+  "experiment": "069_nn_pyramid",
+  "description": "MLP inverse pyramid 16\u219232\u219264\u2192128",
+  "timestamp_utc": "2026-05-12T00:31:40.305691+00:00",
+  "train_auc": 0.8836374863940276,
+  "test_auc": 0.8496071715531943,
+  "train_test_gap": 0.0340303148408333,
+  "test_brier": 0.08449657261371613,
+  "precision_at_top1pct": 0.6506024096385542,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

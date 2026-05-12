@@ -1,0 +1,12 @@
+{
+  "experiment": "077_stack_meta_logreg",
+  "description": "Stack: 3 bases \u2192 LogReg meta-learner",
+  "timestamp_utc": "2026-05-12T00:31:55.187197+00:00",
+  "train_auc": 0.9527630853089735,
+  "test_auc": 0.8646237811010539,
+  "train_test_gap": 0.0881393042079196,
+  "test_brier": 0.08266418123018969,
+  "precision_at_top1pct": 0.6807228915662651,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

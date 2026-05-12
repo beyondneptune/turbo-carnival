@@ -1,0 +1,12 @@
+{
+  "experiment": "067_nn_funnel",
+  "description": "MLP funnel topology 128\u219264\u219232\u219216",
+  "timestamp_utc": "2026-05-12T00:31:38.103231+00:00",
+  "train_auc": 0.9082534819282513,
+  "test_auc": 0.8596306852343785,
+  "train_test_gap": 0.048622796693872816,
+  "test_brier": 0.08432891964912415,
+  "precision_at_top1pct": 0.6807228915662651,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

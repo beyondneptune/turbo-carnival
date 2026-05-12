@@ -1,0 +1,7 @@
+{
+  "experiment": "083_custom_self_distillation",
+  "description": "Self-distillation: teacher LGBM \u2192 soft labels \u2192 GB regressor student",
+  "error": "y_prob contains values greater than 1: 1.2575674284557574",
+  "test_auc": 0.5,
+  "passes_overfit_gate": false
+}

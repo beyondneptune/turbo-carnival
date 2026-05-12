@@ -1,0 +1,12 @@
+{
+  "experiment": "098_meta_youden_threshold",
+  "description": "LGBM with Youden's J optimal threshold (proxy)",
+  "timestamp_utc": "2026-05-12T00:32:38.405630+00:00",
+  "train_auc": 0.9787161839297772,
+  "test_auc": 0.8628039731732914,
+  "train_test_gap": 0.11591221075648583,
+  "test_brier": 0.08321547788667108,
+  "precision_at_top1pct": 0.7650602409638554,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "084_custom_mixture_of_experts",
+  "description": "Gated mixture: linear expert + tree expert + LGBM gate",
+  "timestamp_utc": "2026-05-12T00:32:23.820229+00:00",
+  "train_auc": 0.9468067635079087,
+  "test_auc": 0.8606930028094801,
+  "train_test_gap": 0.08611376069842858,
+  "test_brier": 0.1352551341884512,
+  "precision_at_top1pct": 0.6626506024096386,
+  "flagged_count": 166,
+  "passes_overfit_gate": false
+}

@@ -1,0 +1,12 @@
+{
+  "experiment": "088_truncated_svd_logreg",
+  "description": "Truncated SVD-5 \u2192 Logistic Regression",
+  "timestamp_utc": "2026-05-12T00:32:25.938023+00:00",
+  "train_auc": 0.7800590026091283,
+  "test_auc": 0.782039722167563,
+  "train_test_gap": -0.001980719558434707,
+  "test_brier": 0.19748974107266268,
+  "precision_at_top1pct": 0.6144578313253012,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}

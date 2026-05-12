@@ -1,0 +1,12 @@
+{
+  "experiment": "038_svm_poly",
+  "description": "SVM with polynomial kernel (degree 3) on 5k subsample",
+  "timestamp_utc": "2026-05-12T00:30:56.239368+00:00",
+  "train_auc": 0.6103301934986941,
+  "test_auc": 0.629599703747431,
+  "train_test_gap": -0.01926951024873691,
+  "test_brier": 0.10800628107519894,
+  "precision_at_top1pct": 0.5843373493975904,
+  "flagged_count": 166,
+  "passes_overfit_gate": true
+}
