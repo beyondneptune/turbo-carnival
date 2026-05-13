@@ -1,0 +1,1 @@
+{"ts_utc":"2026-05-13T19:15:33Z","reason":"validation_failure","detail":"all Phase 3 hurdles failed per prereg §9 — White RC p=0.921, PBO=0.677, t=1.49, OOS Sharpe=-0.28. Candidate killed. See reports/postmortem_candidate_v1.md."}
