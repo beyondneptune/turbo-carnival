@@ -6,12 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This repo has grown into two distinct workloads with different rules. Don't conflate them.
 
-### Layer A — `paper_v1` evidence run (the original)
+### Layer A — `paper_v1` evidence run (the original, **only thing currently live**)
 A Year 1 train / Year 2 held-out OOS validation of a hybrid options strategy.
 Lives in: `ingest/`, `features/`, `signals/`, `risk/`, `paper_exec/`, `eval/`, `experiments/`, `dashboard/app.py`.
+Status: running under `com.turbo.paper-v1-watchdog` (launchd). 90-day cycle freeze applies — no code edits mid-cycle.
 
-### Layer B — Multi-strategy live paper trading (added 2026-05-13)
-Five live strategies running on Alpaca paper + Kraken Futures Demo, observed via a custom dashboard. Designed as a **30-day shadow validation** before any real capital. Lives in: `research/`, `council/`, `dashboard/pro_live.py`.
+### Layer B — Multi-strategy live paper trading (RETIRED 2026-05-13)
+Was 9 strategies on Alpaca paper + Kraken Futures Demo. **All shut down 2026-05-13** after a literature review against the NotebookLM corpus (notebook `ae961d42-…f91e`) showed every Layer-B thesis was either empirically dead (HFT signal vanishes by 30s; spread eats edge), 100× below profitability threshold (Kraken funding carry), or not validated in literature (ADR, Nikkei, SVXY ETP). All 6 broker accounts flattened; STOP files in `research/live/STOP_*` set with `reason=full_shutdown`. Do not relaunch without preregistered thesis + White's RC / Harvey-Liu-Zhu t>3 hurdle declared in advance.
+
+Code paths still exist under `research/`, `council/`, `dashboard/pro_live.py` — preserved for reference and possible later use after the gap papers (Bailey PBO, Lopez de Prado HRP, Rockafellar-Uryasev CVaR, Harvey-Liu-Zhu, Perold) are added to the research corpus.
 
 ---
 

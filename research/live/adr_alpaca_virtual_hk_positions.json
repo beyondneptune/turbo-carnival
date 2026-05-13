@@ -1,1 +1,9 @@
-{}
+{
+  "TCOM/9961.HK": {
+    "hk_symbol": "9961.HK",
+    "qty": 145,
+    "avg_cost_hkd": 402.3999938964844,
+    "opened_at_utc": "2026-05-13T17:27:57.681535+00:00",
+    "note": "sim open dir=short_us_long_hk [scaled to 48.4%]"
+  }
+}

@@ -1643,14 +1643,16 @@ def run_cycle(
                 f"${nav_usd:,.2f}"
             )
 
-    # Hard kill: total gross exposure > 100% NAV
+    # Hard kill: total real-capital gross exposure > 100% NAV.
+    # Virtual HK does not consume real margin, so it must NOT be counted toward
+    # the kill threshold — otherwise asymmetric US-fail / HK-sim-success cycles
+    # double-count notional and trigger false-positive kills (see 2026-05-13).
     gross = 0.0
     for st in states.values():
         gross += abs(st.us_qty * st.avg_us_cost)
-        gross += abs(st.hk_qty * st.avg_hk_cost) * USD_PER_HKD
     if gross > MAX_TOTAL_GROSS_NAV_FRAC * nav_usd:
         raise KillSwitch(
-            f"Gross exposure ${gross:,.2f} > {MAX_TOTAL_GROSS_NAV_FRAC * 100:.0f}% "
+            f"Real US gross exposure ${gross:,.2f} > {MAX_TOTAL_GROSS_NAV_FRAC * 100:.0f}% "
             f"of NAV ${nav_usd:,.2f}"
         )
 

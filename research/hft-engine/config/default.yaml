@@ -2,15 +2,18 @@
 # Read at startup. Env vars override where indicated.
 
 # Selective gate thresholds (the "spaceship gravity assist" alignment).
+# Calibrated 2026-05-13: observed pred magnitudes on SPY 30s rarely exceed
+# 1.0 bps, median ~0.27 bps. Old 1.5 floor + 3x mult fired ~1×/7h. Loosened
+# to fire on realistic edges while still rejecting pure noise.
 gate:
   # Predicted return must exceed this multiple of the current bid/ask spread (bps).
-  predicted_spread_multiplier: 3.0
+  predicted_spread_multiplier: 2.0
   # Rolling 50-trade hit-rate floor. Below this, do not fire.
-  confidence_floor: 0.55
+  confidence_floor: 0.50
   # Round-trip 99th percentile latency cap (ms). Above this, do not fire.
   latency_p99_cap_ms: 250.0
   # Minimum |predicted_bps| in absolute terms (kills pure noise even on tight spreads).
-  min_predicted_bps_abs: 1.5
+  min_predicted_bps_abs: 0.5
 
 # Trade sizing.
 sizing:
