@@ -493,16 +493,38 @@ def fetch_latest_run_id(conn: sqlite3.Connection | None) -> str | None:
     return str(row[0])
 
 
+def fetch_active_live_run_id(conn: sqlite3.Connection | None) -> str | None:
+    """Prefer the active forward-paper run over older completed smoke runs."""
+    if conn is None:
+        return None
+    try:
+        row = conn.execute(
+            """
+            SELECT run_id FROM runs
+            WHERE status IN ('running', 'planned')
+              AND run_type = 'paper_frozen'
+              AND run_id LIKE 'paper_v1_live_%'
+            ORDER BY started_at_utc DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if not row or not row[0]:
+        return None
+    return str(row[0])
+
+
 def resolve_live_run_id(
     conn: sqlite3.Connection | None,
     status: dict[str, Any] | None,
 ) -> str | None:
-    """Use status run_id first, then fall back to the newest DB run."""
+    """Use status run_id first, then active live paper, then newest DB run."""
     if isinstance(status, dict):
         run_id = status.get("run_id")
         if isinstance(run_id, str) and run_id.strip():
             return run_id.strip()
-    return fetch_latest_run_id(conn)
+    return fetch_active_live_run_id(conn) or fetch_latest_run_id(conn)
 
 
 def fetch_live_simulation_summary(
@@ -571,6 +593,112 @@ def fetch_live_simulation_summary(
         closed_with_pnl = int(trades[7] or 0)
         out["win_rate"] = (wins / closed_with_pnl) if closed_with_pnl else None
     return out
+
+
+def _empty_open_positions() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "trade_id",
+            "sleeve",
+            "strategy_type",
+            "underlying_ticker",
+            "entry_at_utc",
+            "days_open",
+            "legs",
+            "earliest_expiry",
+            "dte",
+            "long_debit_usd",
+            "short_credit_usd",
+            "entry_net_credit_usd",
+            "entry_delta",
+            "entry_vega",
+            "notes",
+        ]
+    )
+
+
+def fetch_open_positions(
+    conn: sqlite3.Connection | None,
+    run_id: str | None,
+    *,
+    as_of: datetime | None = None,
+) -> pd.DataFrame:
+    """Open-position tape with entry risk and leg-level cash summary."""
+    if conn is None or not run_id:
+        return _empty_open_positions()
+    try:
+        df = pd.read_sql_query(
+            """
+            SELECT
+                t.trade_id,
+                t.sleeve,
+                t.strategy_type,
+                t.underlying_ticker,
+                t.entry_at_utc,
+                t.entry_delta,
+                t.entry_vega,
+                t.notes,
+                COUNT(l.leg_id) AS legs,
+                MIN(l.expiry) AS earliest_expiry,
+                COALESCE(SUM(
+                    CASE WHEN l.direction = 'long'
+                         THEN l.entry_fill_price * l.quantity * l.multiplier
+                         ELSE 0 END
+                ), 0.0) AS long_debit_usd,
+                COALESCE(SUM(
+                    CASE WHEN l.direction = 'short'
+                         THEN l.entry_fill_price * l.quantity * l.multiplier
+                         ELSE 0 END
+                ), 0.0) AS short_credit_usd
+            FROM trades t
+            LEFT JOIN trade_legs l ON l.trade_id = t.trade_id
+            WHERE t.run_id = ?
+              AND t.status = 'open'
+            GROUP BY
+                t.trade_id, t.sleeve, t.strategy_type, t.underlying_ticker,
+                t.entry_at_utc, t.entry_delta, t.entry_vega, t.notes
+            ORDER BY t.entry_at_utc DESC
+            """,
+            conn,
+            params=(run_id,),
+        )
+    except (pd.errors.DatabaseError, sqlite3.OperationalError):
+        return _empty_open_positions()
+    if df.empty:
+        return _empty_open_positions()
+
+    now = as_of if as_of is not None else datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    now = now.astimezone(timezone.utc)
+
+    entry_ts = pd.to_datetime(df["entry_at_utc"], utc=True, errors="coerce")
+    df["days_open"] = ((now - entry_ts).dt.total_seconds() // 86_400).fillna(0).astype(int)
+    expiry_ts = pd.to_datetime(df["earliest_expiry"], utc=True, errors="coerce")
+    today_ts = pd.Timestamp(now.date(), tz=timezone.utc)
+    df["dte"] = (expiry_ts - today_ts).dt.days.fillna(0).astype(int)
+    df["long_debit_usd"] = df["long_debit_usd"].astype(float)
+    df["short_credit_usd"] = df["short_credit_usd"].astype(float)
+    df["entry_net_credit_usd"] = df["short_credit_usd"] - df["long_debit_usd"]
+    return df[
+        [
+            "trade_id",
+            "sleeve",
+            "strategy_type",
+            "underlying_ticker",
+            "entry_at_utc",
+            "days_open",
+            "legs",
+            "earliest_expiry",
+            "dte",
+            "long_debit_usd",
+            "short_credit_usd",
+            "entry_net_credit_usd",
+            "entry_delta",
+            "entry_vega",
+            "notes",
+        ]
+    ]
 
 
 def fetch_prediction_actuals(
@@ -2450,6 +2578,36 @@ def _render_trades_table(trades_df: pd.DataFrame) -> None:
     )
 
 
+def _render_open_positions_table(open_df: pd.DataFrame) -> None:
+    """Open-position table focused on what an investor asks first: what is held."""
+    out = open_df.sort_values("entry_at_utc", ascending=False).copy()
+    column_config = {
+        "trade_id": st.column_config.NumberColumn("ID", format="%d"),
+        "sleeve": st.column_config.TextColumn("Sleeve"),
+        "strategy_type": st.column_config.TextColumn("Strategy"),
+        "underlying_ticker": st.column_config.TextColumn("Ticker"),
+        "entry_at_utc": st.column_config.DatetimeColumn("Entry (UTC)", format="YYYY-MM-DD HH:mm"),
+        "days_open": st.column_config.NumberColumn("Days open", format="%d"),
+        "legs": st.column_config.NumberColumn("Legs", format="%d"),
+        "earliest_expiry": st.column_config.TextColumn("Expiry"),
+        "dte": st.column_config.NumberColumn("DTE", format="%d"),
+        "long_debit_usd": st.column_config.NumberColumn("Long debit", format="$%.2f"),
+        "short_credit_usd": st.column_config.NumberColumn("Short credit", format="$%.2f"),
+        "entry_net_credit_usd": st.column_config.NumberColumn("Entry net credit", format="$%.2f"),
+        "entry_delta": st.column_config.NumberColumn("Δ", format="%.3f"),
+        "entry_vega": st.column_config.NumberColumn("V", format="%.3f"),
+        "notes": st.column_config.TextColumn("Notes"),
+    }
+    column_config = {k: v for k, v in column_config.items() if k in out.columns}
+    st.dataframe(
+        out,
+        use_container_width=True,
+        hide_index=True,
+        height=320,
+        column_config=column_config,
+    )
+
+
 def _render_legs_table(legs: pd.DataFrame) -> None:
     """Trade legs tab with structured columns."""
     column_config = {
@@ -2592,6 +2750,7 @@ def show_live_simulation(conn: sqlite3.Connection | None) -> None:
     summary = fetch_live_simulation_summary(conn, run_id)
     pred_df = fetch_prediction_actuals(conn, run_id, limit=300)
     trades_df = fetch_run_trades(conn, run_id, limit=300)
+    open_df = fetch_open_positions(conn, run_id)
     equity_df = fetch_run_equity_curve(conn, run_id)
     daily_returns = fetch_run_daily_returns(conn, run_id)
     weekly_returns = fetch_run_weekly_returns(conn, run_id)
@@ -2620,14 +2779,19 @@ def show_live_simulation(conn: sqlite3.Connection | None) -> None:
     _render_return_tape(daily_returns, weekly_returns)
 
     # 6. Tabs.
-    tab_predictions, tab_trades, tab_legs, tab_logs = st.tabs(
-        ["Predictions", "Trades", "Legs", "Logs"]
+    tab_predictions, tab_open, tab_trades, tab_legs, tab_logs = st.tabs(
+        ["Predictions", "Open positions", "Trades", "Legs", "Logs"]
     )
     with tab_predictions:
         if pred_df.empty:
             _empty_state("🎯", "No decisions yet", "Gate decisions stream here during replay.")
         else:
             _render_predictions_table(pred_df)
+    with tab_open:
+        if open_df.empty:
+            _empty_state("💼", "No open positions", "Open trades appear here until they close.")
+        else:
+            _render_open_positions_table(open_df)
     with tab_trades:
         if trades_df.empty:
             _empty_state("💼", "No trades yet", "Approved decisions become trades here.")

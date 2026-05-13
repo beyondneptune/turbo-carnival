@@ -1,0 +1,112 @@
+{
+  "run_at_utc": "2026-05-12T17:57:51.896894+00:00",
+  "in_sample_window": [
+    "2010-01-01",
+    "2019-12-31"
+  ],
+  "out_of_sample_window": [
+    "2020-01-01",
+    "2026-05-12"
+  ],
+  "pairs_tested": 4,
+  "pairs_with_cointegration": 0,
+  "pairs_tradeable": 0,
+  "total_trades_oos": 0,
+  "win_rate": NaN,
+  "mean_return_per_trade_bps": NaN,
+  "ann_return_pct": NaN,
+  "sharpe_oos": NaN,
+  "max_dd_pct": NaN,
+  "verdict": "FAIL",
+  "per_pair_diagnostics": [
+    {
+      "pair": "USO/XLE",
+      "leg_a": "USO",
+      "leg_b": "XLE",
+      "overlap_days": 4114,
+      "start": "2010-01-04",
+      "end": "2026-05-12",
+      "rolling_coint": {
+        "rolling_window_days": 252,
+        "rolling_step_days": 21,
+        "IS_pass": 1,
+        "IS_windows": 108,
+        "IS_pass_pct": 0.009259259259259259,
+        "OOS_pass": 13,
+        "OOS_windows": 76,
+        "OOS_pass_pct": 0.17105263157894737
+      },
+      "coint_pvalue_in_sample": 0.891011074302746,
+      "coint_pvalue": 0.6286207560442572,
+      "hedge_ratio": -0.2506360963734917,
+      "status": "coint_fail (p=0.6286)"
+    },
+    {
+      "pair": "GLD/SLV",
+      "leg_a": "GLD",
+      "leg_b": "SLV",
+      "overlap_days": 4114,
+      "start": "2010-01-04",
+      "end": "2026-05-12",
+      "rolling_coint": {
+        "rolling_window_days": 252,
+        "rolling_step_days": 21,
+        "IS_pass": 12,
+        "IS_windows": 108,
+        "IS_pass_pct": 0.1111111111111111,
+        "OOS_pass": 0,
+        "OOS_windows": 76,
+        "OOS_pass_pct": 0.0
+      },
+      "coint_pvalue_in_sample": 0.582439604742569,
+      "coint_pvalue": 0.7158043990943117,
+      "hedge_ratio": 0.7260908250696614,
+      "status": "coint_fail (p=0.7158)"
+    },
+    {
+      "pair": "UNG/XOP",
+      "leg_a": "UNG",
+      "leg_b": "XOP",
+      "overlap_days": 4114,
+      "start": "2010-01-04",
+      "end": "2026-05-12",
+      "rolling_coint": {
+        "rolling_window_days": 252,
+        "rolling_step_days": 21,
+        "IS_pass": 5,
+        "IS_windows": 108,
+        "IS_pass_pct": 0.046296296296296294,
+        "OOS_pass": 2,
+        "OOS_windows": 76,
+        "OOS_pass_pct": 0.02631578947368421
+      },
+      "coint_pvalue_in_sample": 0.12877775253010187,
+      "coint_pvalue": 0.9315164368685731,
+      "hedge_ratio": 1.3665350513391175,
+      "status": "coint_fail (p=0.9315)"
+    },
+    {
+      "pair": "DBA/CORN",
+      "leg_a": "DBA",
+      "leg_b": "CORN",
+      "overlap_days": 4006,
+      "start": "2010-06-09",
+      "end": "2026-05-12",
+      "rolling_coint": {
+        "rolling_window_days": 252,
+        "rolling_step_days": 21,
+        "IS_pass": 3,
+        "IS_windows": 103,
+        "IS_pass_pct": 0.02912621359223301,
+        "OOS_pass": 15,
+        "OOS_windows": 76,
+        "OOS_pass_pct": 0.19736842105263158
+      },
+      "coint_pvalue_in_sample": 0.4684657116044206,
+      "coint_pvalue": 0.993638388072577,
+      "hedge_ratio": 0.44323786422441486,
+      "status": "coint_fail (p=0.9936)"
+    }
+  ],
+  "cost_per_round_trip_bp": 4.0
+}

@@ -1,7 +1,7 @@
 {
   "experiment": "116_multitask_regime_plus_direction",
   "description": "Multi-task neural network with shared-weight hidden layers; two output heads (regime + direction); averaged loss training; final prediction uses regime head only",
-  "timestamp_utc": "2026-05-12T02:02:22.867636+00:00",
+  "timestamp_utc": "2026-05-12T07:02:16.790252+00:00",
   "train_auc": 0.8234960575969549,
   "test_auc": 0.8144977917705191,
   "train_test_gap": 0.008998265826435814,

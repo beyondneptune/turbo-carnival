@@ -1,7 +1,7 @@
 {
   "experiment": "146_uncertainty_cascade_lgbm",
   "description": "Cascade classifier: Stage 1 (small LGBM) routes uncertain samples (0.3 < p < 0.7) to Stage 2 (large LGBM)",
-  "timestamp_utc": "2026-05-12T06:54:15.616547+00:00",
+  "timestamp_utc": "2026-05-12T07:03:40.105353+00:00",
   "train_auc": 0.9603773310984376,
   "test_auc": 0.788345013309502,
   "train_test_gap": 0.17203231778893557,

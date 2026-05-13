@@ -1,11 +1,11 @@
 {
   "experiment": "002_random_forest",
   "description": "300 bagged trees, depth-8, sqrt(n_features) per split",
-  "timestamp_utc": "2026-05-12T01:54:34.421265+00:00",
+  "timestamp_utc": "2026-05-12T06:54:31.384237+00:00",
   "train_auc": 0.9126085865313411,
   "test_auc": 0.8546201326030871,
   "train_test_gap": 0.057988453928254025,
-  "test_brier": 0.14778317193129484,
+  "test_brier": 0.1477831719312948,
   "precision_at_top1pct": 0.6927710843373494,
   "flagged_count": 166,
   "passes_overfit_gate": false

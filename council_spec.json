@@ -1,0 +1,40 @@
+{
+  "strategies": [
+    {
+      "name": "Aggressive_Theta_Macro_V3",
+      "entry_mode": "daily_ladder",
+      "gate": "macro_aware_v3",
+      "target_delta": 0.16,
+      "target_dte": 14,
+      "wing_width": 5.0,
+      "profit_take": 0.50,
+      "stop_loss_credit_mult": 1.50,
+      "close_dte": 1,
+      "min_credit": 0.20
+    },
+    {
+      "name": "Conservative_Wide_VRP",
+      "entry_mode": "mwf_ladder",
+      "gate": "vrp_positive",
+      "target_delta": 0.05,
+      "target_dte": 45,
+      "wing_width": 10.0,
+      "profit_take": 0.25,
+      "stop_loss_credit_mult": 3.00,
+      "close_dte": 21,
+      "min_credit": 0.10
+    },
+    {
+      "name": "High_IV_Rank_Trap",
+      "entry_mode": "single_reentry",
+      "gate": "iv_rank_50",
+      "target_delta": 0.12,
+      "target_dte": 30,
+      "wing_width": 5.0,
+      "profit_take": 0.50,
+      "stop_loss_credit_mult": 2.00,
+      "close_dte": 14,
+      "min_credit": 0.20
+    }
+  ]
+}

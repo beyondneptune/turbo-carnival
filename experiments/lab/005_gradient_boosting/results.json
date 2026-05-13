@@ -1,7 +1,7 @@
 {
   "experiment": "005_gradient_boosting",
   "description": "sklearn GBM, 200 trees, depth-4, lr=0.05",
-  "timestamp_utc": "2026-05-12T01:54:58.619465+00:00",
+  "timestamp_utc": "2026-05-12T06:54:55.666891+00:00",
   "train_auc": 0.9043149371862685,
   "test_auc": 0.8650417185928551,
   "train_test_gap": 0.039273218593413484,

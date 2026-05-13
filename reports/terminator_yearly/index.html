@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>TERMINATOR — Year-1 Bootstrap Sim</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #1f2937; }
+h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+.subtitle { color: #6b7280; margin-bottom: 1.5rem; }
+.kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+.kpi { background: #f9fafb; padding: 0.75rem; border-radius: 6px; }
+.kpi-label { font-size: 0.75rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+.kpi-value { font-size: 1.25rem; font-weight: 600; margin-top: 0.25rem; }
+.pos { color: #059669; } .neg { color: #dc2626; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+th, td { text-align: right; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e5e7eb; }
+th:first-child, td:first-child { text-align: left; }
+th { background: #f3f4f6; font-weight: 600; }
+.caveat { background: #fef3c7; padding: 0.75rem 1rem; border-left: 3px solid #f59e0b; border-radius: 4px; margin: 1rem 0; font-size: 0.9rem; }
+</style></head>
+<body>
+<h1>TERMINATOR ($1k) — Year-1 Bootstrap Simulation</h1>
+<div class="subtitle">5,000 Monte Carlo trials · HFT decay factor: 20% · Source: 80 kept entries from 2026-05-11 walk-forward</div>
+
+<div class="kpi-strip">
+  <div class="kpi"><div class="kpi-label">Median Year-End</div><div class="kpi-value">$1,199</div></div>
+  <div class="kpi"><div class="kpi-label">Median Take</div><div class="kpi-value pos">$+199</div></div>
+  <div class="kpi"><div class="kpi-label">P10 — P90 Range</div><div class="kpi-value">$1,103 – $1,329</div></div>
+  <div class="kpi"><div class="kpi-label">% Profitable Years</div><div class="kpi-value">100%</div></div>
+  <div class="kpi"><div class="kpi-label">Survival Rate</div><div class="kpi-value">100.0%</div></div>
+</div>
+
+<h2>Outcome Percentiles</h2>
+<table>
+<tr><th>Percentile</th><th>Year-End Equity</th><th>Yearly Take</th><th>% Return</th></tr>
+<tr><td>P05</td><td>$1,081</td><td class="pos">$+81</td><td class="pos">+8.1%</td></tr>
+<tr><td>P10</td><td>$1,103</td><td class="pos">$+103</td><td class="pos">+10.3%</td></tr>
+<tr><td>P25</td><td>$1,144</td><td class="pos">$+144</td><td class="pos">+14.4%</td></tr>
+<tr><td>P50</td><td>$1,199</td><td class="pos">$+199</td><td class="pos">+19.9%</td></tr>
+<tr><td>P75</td><td>$1,264</td><td class="pos">$+264</td><td class="pos">+26.4%</td></tr>
+<tr><td>P90</td><td>$1,329</td><td class="pos">$+329</td><td class="pos">+32.9%</td></tr>
+<tr><td>P95</td><td>$1,376</td><td class="pos">$+376</td><td class="pos">+37.6%</td></tr>
+
+<tr><th>Mean</th><th>$1,210</th><th class="pos">$+210</th><th>+21.0%</th></tr>
+</table>
+
+<div class="caveat">
+<strong>What this simulation is NOT:</strong> a deterministic year-long backtest.
+It bootstraps from a single day (2026-05-11) of validated entries, assumes
+each future trading day samples from that empirical distribution, applies a
+20% edge-decay haircut, and runs 5,000 trials.
+<br><br>
+<strong>Why the decay haircut matters:</strong> yesterday's tape was unusually
+mean-reverting — perfect conditions for the strategy. Without a decay factor,
+the simulator would project 5,000 years averaging multi-thousand-percent
+returns (fantasy). The 20% default acknowledges that ~80% of yesterday's edge
+is regime-specific and won't persist.
+</div>
+
+<h2>Component Breakdown</h2>
+<table>
+<tr><th></th><th>Median Year-End</th><th>Median Take</th></tr>
+<tr><td>SVXY rotation (30%)</td><td>$343</td><td class="pos">$+43</td></tr>
+<tr><td>ATHENA HFT (70%)</td><td>$856</td><td class="pos">$+156</td></tr>
+</table>
+
+<div class="caveat" style="background: #dbeafe; border-color: #3b82f6;">
+<strong>SVXY portion is the validated anchor.</strong> +17.1% annualized over
+7 years of walk-forward (2019-2026), Sharpe 0.66, max DD 32.8%. On $300 base,
+expect ~$51 yearly take with rare $100+ drawdown.
+<br><br>
+<strong>ATHENA HFT portion is the wide-uncertainty bet.</strong> 1 day of
+validation means real outcomes could be 2-4× wider than P10-P90 shown above.
+</div>
+</body></html>

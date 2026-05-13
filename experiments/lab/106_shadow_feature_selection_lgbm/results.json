@@ -1,7 +1,7 @@
 {
   "experiment": "106_shadow_feature_selection_lgbm",
   "description": "Shadow feature stability selection + LightGBM; selects features by comparing original vs shuffled importance",
-  "timestamp_utc": "2026-05-12T02:01:55.942858+00:00",
+  "timestamp_utc": "2026-05-12T07:01:49.951906+00:00",
   "train_auc": 0.9466200378895637,
   "test_auc": 0.8680126481262846,
   "train_test_gap": 0.07860738976327908,

@@ -1,0 +1,76 @@
+{
+  "strategies": [
+    {
+      "name": "aggressive_daily_nogate_d20_30d_w10",
+      "entry_mode": "daily_ladder",
+      "gate": "none",
+      "target_delta": 0.2,
+      "target_dte": 30,
+      "wing_width": 10.0,
+      "profit_take": 0.5,
+      "stop_loss_credit_mult": 2.0,
+      "close_dte": 21,
+      "min_credit": 0.1
+    },
+    {
+      "name": "aggressive_daily_nogate_d16_30d_w10",
+      "entry_mode": "daily_ladder",
+      "gate": "none",
+      "target_delta": 0.16,
+      "target_dte": 30,
+      "wing_width": 10.0,
+      "profit_take": 0.5,
+      "stop_loss_credit_mult": 2.0,
+      "close_dte": 21,
+      "min_credit": 0.1
+    },
+    {
+      "name": "daily_ladder_vrp_positive_d16_45d_w5",
+      "entry_mode": "daily_ladder",
+      "gate": "vrp_positive",
+      "target_delta": 0.16,
+      "target_dte": 45,
+      "wing_width": 5.0,
+      "profit_take": 0.5,
+      "stop_loss_credit_mult": 2.0,
+      "close_dte": 21,
+      "min_credit": 0.2
+    },
+    {
+      "name": "daily_ladder_vrp_positive_d16_30d_w5",
+      "entry_mode": "daily_ladder",
+      "gate": "vrp_positive",
+      "target_delta": 0.16,
+      "target_dte": 30,
+      "wing_width": 5.0,
+      "profit_take": 0.5,
+      "stop_loss_credit_mult": 2.0,
+      "close_dte": 21,
+      "min_credit": 0.2
+    },
+    {
+      "name": "risk_qwen_risk_designer_risktest_d12_30d_lowdelta_pt30_sl20_c10",
+      "entry_mode": "daily_ladder",
+      "gate": "vrp_positive",
+      "target_delta": 0.12,
+      "target_dte": 30,
+      "wing_width": 5.0,
+      "profit_take": 0.3,
+      "stop_loss_credit_mult": 2.0,
+      "close_dte": 10,
+      "min_credit": 0.2
+    },
+    {
+      "name": "execution_llama_allocator_designer_daily_ladder_vrp_positive_d12_30d_w5_stop_loss_1_5",
+      "entry_mode": "daily_ladder",
+      "gate": "vrp_positive",
+      "target_delta": 0.12,
+      "target_dte": 30,
+      "wing_width": 5.0,
+      "profit_take": 0.3,
+      "stop_loss_credit_mult": 1.5,
+      "close_dte": 10,
+      "min_credit": 0.2
+    }
+  ]
+}

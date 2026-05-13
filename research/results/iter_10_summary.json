@@ -1,0 +1,39 @@
+{
+  "generated_at": "2026-05-12T17:56:44.085511Z",
+  "spec": "iter_10_gold_silver_ratio_reversion",
+  "params": {
+    "tickers": [
+      "GLD",
+      "SLV"
+    ],
+    "start": "2006-01-01",
+    "rolling_window_days": 252,
+    "entry_z": 2.0,
+    "exit_z": 0.5,
+    "stop_z": 3.0,
+    "hold_max_days": 90,
+    "cost_bps_per_leg_per_side": 2.0,
+    "notional_per_leg_usd": 50000.0,
+    "gross_notional_usd": 100000.0,
+    "oos_start": "2016-01-01"
+  },
+  "total_trades_is": 55,
+  "total_trades_oos": 62,
+  "win_rate": 35.48,
+  "mean_bps_per_trade": 4.0,
+  "median_holding_days": 2.0,
+  "max_drawdown_pct": 21.26,
+  "verdict": "FAIL",
+  "verdict_reason": "mean_bps=4.0 (req>=200), win_rate=35.5% (req>=50)",
+  "median_bps_per_trade": -46.67,
+  "mean_holding_days": 21.23,
+  "exit_reason_counts_oos": {
+    "stop_out": 46,
+    "convergence": 10,
+    "time_stop": 6
+  },
+  "direction_counts_oos": {
+    "short_ratio": 35,
+    "long_ratio": 27
+  }
+}

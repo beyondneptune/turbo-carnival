@@ -1,12 +1,12 @@
 # ML Lab Leaderboard
 
-Generated 2026-05-12T06:13:50.073575+00:00. Each experiment lives in `experiments/lab/<NNN_name>/run.py` and writes its own `results.json`. Same train/test split for all classifier/anomaly experiments (70/30 day-aware). Strategy experiments report net P&L at 8 bps slippage.
+Generated 2026-05-12T07:03:40.180440+00:00. Each experiment lives in `experiments/lab/<NNN_name>/run.py` and writes its own `results.json`. Same train/test split for all classifier/anomaly experiments (70/30 day-aware). Strategy experiments report net P&L at 8 bps slippage.
 
 ## Eval gate (anti-overfit)
 Classifier passes if `test_auc > 0.55` AND `|train_test_gap| < 0.05`.
 Strategy passes if `net_pnl_8bps > 0` AND `n_trades >= 5`.
 
-## Classifier / Anomaly leaderboard (138 models)
+## Classifier / Anomaly leaderboard (143 models)
 
 | Rank | Experiment | Architecture | Test AUC | Train-test gap | Pass? |
 |---:|---|---|---:|---:|:---:|
@@ -58,96 +58,101 @@ Strategy passes if `net_pnl_8bps > 0` AND `n_trades >= 5`.
 | 46 | `126_two_stage_signed_bucket` | Stage 1: 4-class signed bucket (large-down/-30|small-down|sm | 0.855 | +0.134 | **fail** |
 | 47 | `112_adasyn_lgbm` | ADASYN adaptive oversampling + LightGBM; generates more samp | 0.855 | +0.068 | **fail** |
 | 48 | `002_random_forest` | 300 bagged trees, depth-8, sqrt(n_features) per split | 0.855 | +0.058 | **fail** |
-| 49 | `070_nn_tanh` | MLP with tanh activation — different non-linearity family | 0.852 | +0.014 | **PASS** |
-| 50 | `004_adaboost` | 200 boosted stumps (depth-1), AdaBoost.R2 | 0.852 | +0.017 | **PASS** |
-| 51 | `026_nn_scaling_curve` | Single hidden layer MLP swept across sizes 2-1024 | 0.850 | +0.012 | **PASS** |
-| 52 | `069_nn_pyramid` | MLP inverse pyramid 16→32→64→128 | 0.850 | +0.034 | **PASS** |
-| 53 | `113_rfecv_lgbm` | RFECV (LogReg base, roc_auc scoring) finds optimal feature s | 0.849 | +0.121 | **fail** |
-| 54 | `044_lgbm_rf` | LightGBM in random-forest mode (no boosting) | 0.849 | +0.027 | **PASS** |
-| 55 | `134_lgbm_leaf_encoding_to_logreg` | LightGBM leaf-index embeddings (80 trees, max_depth=4, num_l | 0.848 | +0.086 | **fail** |
-| 56 | `119_mutual_info_select_lgbm` | Mutual information feature selection (k=7) → LightGBM; non-l | 0.847 | +0.117 | **fail** |
-| 57 | `141_hard_negative_mining_mlp` | Two-stage MLP: initial training + hard-negative mining + ret | 0.846 | +0.020 | **PASS** |
-| 58 | `124_quantile_bin_onehot_lgbm` | Quantile-binning (10 deciles) + one-hot + LightGBM. Treats c | 0.844 | +0.078 | **fail** |
-| 59 | `045_xgb_dart` | XGBoost DART — dropout regularization on boosting | 0.841 | +0.153 | **fail** |
-| 60 | `136_hellinger_feat_rank_lgbm` | Hellinger-distance feature ranking (top-6) + LightGBM. Symme | 0.840 | +0.092 | **fail** |
-| 61 | `068_nn_bottleneck` | MLP bottleneck 64→8→64 (autoencoder-like inside classifier) | 0.838 | +0.010 | **PASS** |
-| 62 | `103_nystroem_logreg` | Nystroem method kernel approximation + LogReg | 0.837 | +0.010 | **PASS** |
-| 63 | `013_qda` | QDA — per-class covariance with 0.1 shrinkage regularization | 0.836 | +0.004 | **PASS** |
-| 64 | `027_athena_stack` | Custom: 3 bases on disjoint features (price/volume/time), ge | 0.835 | +0.018 | **PASS** |
-| 65 | `010_knn` | KNN k=50, Euclidean distance, scaled features | 0.834 | +0.053 | **fail** |
-| 66 | `105_tree_embedding_logreg` | RandomForest leaf-index embeddings (50 trees, depth=4) -> on | 0.834 | +0.071 | **fail** |
-| 67 | `081_custom_time_of_day_specialist` | 4 time-of-day specialists (open/morning/midday/close) | 0.834 | +0.164 | **fail** |
-| 68 | `028_cascade_reject` | Custom: 3-stage cascade (NB→LR→LGBM), each trained on prior- | 0.833 | +0.056 | **fail** |
-| 69 | `115_isotonic_calibrated_chain` | per-feature isotonic regression (non-parametric monotonic fe | 0.830 | +0.017 | **PASS** |
-| 70 | `125_mlp_strong_l2_regularization` | 5-seed ensemble of MLPs (64-32) with alpha=1.0 (very strong  | 0.829 | +0.009 | **PASS** |
-| 71 | `003_extra_trees` | 300 extra-random trees, random split selection per node | 0.829 | +0.032 | **PASS** |
-| 72 | `011_gaussian_nb` | Gaussian NB — independent Gaussian likelihoods per feature | 0.828 | -0.000 | **PASS** |
-| 73 | `130_mahalanobis_knn` | KNN with Mahalanobis distance metric (accounts for covarianc | 0.827 | +0.072 | **fail** |
-| 74 | `009_decision_tree` | single decision tree depth-7, balanced class weight | 0.824 | +0.053 | **fail** |
-| 75 | `018_elliptic_envelope` | robust Gaussian envelope, contamination=0.1 | 0.821 | -0.005 | **PASS** |
-| 76 | `138_kmeans_codes_logreg` | KMeans (k=20) cluster-distance codes as feature basis + LogR | 0.821 | +0.006 | **PASS** |
-| 77 | `090_random_projection_lgbm` | Gaussian random projection (5 dims) → LightGBM | 0.819 | +0.101 | **fail** |
-| 78 | `087_ica_then_lgbm` | ICA-5 → LightGBM (independent components → tree) | 0.818 | +0.106 | **fail** |
-| 79 | `086_pca_then_lgbm` | PCA-5 → LightGBM (linear features → tree) | 0.818 | +0.103 | **fail** |
-| 80 | `074_nn_lbfgs_solver` | MLP trained with L-BFGS solver — batch optimization | 0.817 | +0.127 | **fail** |
-| 81 | `116_multitask_regime_plus_direction` | Multi-task neural network with shared-weight hidden layers;  | 0.814 | +0.009 | **PASS** |
-| 82 | `089_kernel_pca_then_logreg` | Kernel PCA with RBF (8 components) → LogReg | 0.813 | +0.001 | **PASS** |
-| 83 | `121_poly_kernel_ridge` | kernel ridge regression with degree-3 polynomial kernel + si | 0.812 | +0.016 | **PASS** |
-| 84 | `101_interaction_poly_logreg` | Pairwise polynomial interactions + LogReg | 0.808 | +0.014 | **PASS** |
-| 85 | `108_cotraining_disjoint_views` | Co-training with disjoint feature views (price vs volume+tim | 0.807 | +0.101 | **fail** |
-| 86 | `030_feature_count_scaling` | LogReg with feature subset size 1→10 added in importance-ran | 0.804 | -0.006 | **PASS** |
-| 87 | `012_lda` | LDA — Bayes-optimal linear under Gaussian-with-shared-cov as | 0.802 | +0.004 | **PASS** |
-| 88 | `120_bayesian_ridge_sigmoid` | Bayesian linear regression (conjugate Gaussian-Gaussian prio | 0.802 | +0.004 | **PASS** |
-| 89 | `054_lda_shrinkage` | LDA with Ledoit-Wolf shrinkage estimator | 0.802 | +0.004 | **PASS** |
-| 90 | `132_gradient_boosted_logreg_stack` | Linear gradient boosting: Ridge regressors on log-loss gradi | 0.802 | +0.004 | **PASS** |
-| 91 | `031_logreg_l1` | L1-penalized logistic regression — sparse linear | 0.799 | +0.007 | **PASS** |
-| 92 | `046_xgb_gblinear` | XGBoost with linear base learner — boosted linear model | 0.799 | +0.007 | **PASS** |
-| 93 | `001_logreg` | linear decision boundary, scaled features, balanced class we | 0.799 | +0.007 | **PASS** |
-| 94 | `114_elastic_net_classifier` | elastic-net logistic regression: l1_ratio=0.5 combines featu | 0.799 | +0.007 | **PASS** |
-| 95 | `041_linear_svc` | LinearSVC — efficient linear SVM (separate from sgd_hinge) | 0.796 | +0.007 | **PASS** |
-| 96 | `015_isolation_forest` | 300 isolation trees, contamination=auto | 0.793 | -0.006 | **PASS** |
-| 97 | `072_nn_identity` | MLP with identity activation — equivalent to linear stacking | 0.788 | +0.007 | **PASS** |
-| 98 | `071_nn_logistic` | MLP with logistic activation — classic NN approach | 0.785 | +0.006 | **PASS** |
-| 99 | `088_truncated_svd_logreg` | Truncated SVD-5 → Logistic Regression | 0.782 | -0.002 | **PASS** |
-| 100 | `032_ridge_clf` | Ridge classifier — squared loss, not log loss | 0.782 | +0.005 | **PASS** |
-| 101 | `019_autoencoder` | MLP-AE 180->90->45->90->180, trained on normal windows only | 0.776 | -0.001 | **PASS** |
-| 102 | `051_nb_bernoulli` | Bernoulli NB on binarized features | 0.765 | +0.011 | **PASS** |
-| 103 | `048_extra_tree_single` | Single ExtraTree — single tree with random splits | 0.765 | +0.059 | **fail** |
-| 104 | `033_sgd_hinge` | SGD with hinge loss — linear SVM via SGD | 0.764 | +0.004 | **PASS** |
-| 105 | `052_nb_complement` | Complement NB — Multinomial variant for imbalanced data | 0.755 | -0.015 | **PASS** |
-| 106 | `053_nb_multinomial` | Multinomial NB on min-max scaled features | 0.755 | -0.015 | **PASS** |
-| 107 | `075_voting_hard` | Hard-vote ensemble: LogReg + LGBM + XGB — majority class | 0.754 | +0.135 | **fail** |
-| 108 | `073_nn_sgd_solver` | MLP trained with SGD solver instead of Adam | 0.752 | +0.001 | **PASS** |
-| 109 | `123_kmeans_cluster_then_logreg` | local-expert mixture: KMeans (k=5) routing + per-cluster Log | 0.750 | +0.013 | **PASS** |
-| 110 | `131_prototype_knn` | KMeans-derived class prototypes (K_pos=50, K_neg=50); distan | 0.742 | +0.049 | **PASS** |
-| 111 | `102_rbf_sampler_logreg` | RBF kernel approximation (64 features) + LogReg | 0.739 | +0.025 | **PASS** |
-| 112 | `021_arima` | ARIMA(2,0,2) per-symbol; |forecast residual| as anomaly scor | 0.733 | -0.202 | **fail** |
-| 113 | `055_calibrated_isotonic` | Calibrated linear SVM with isotonic calibration | 0.721 | +0.009 | **PASS** |
-| 114 | `050_bagging_logreg` | Bagging with logistic regression base — pasted linear ensemb | 0.713 | -0.001 | **PASS** |
-| 115 | `056_calibrated_sigmoid` | Calibrated SGD with Platt-sigmoid calibration | 0.706 | -0.006 | **PASS** |
-| 116 | `016_local_outlier_factor` | LOF k=30 novelty mode, scaled features | 0.703 | -0.011 | **PASS** |
-| 117 | `034_sgd_modified_huber` | SGD with modified Huber — robust to outliers | 0.692 | -0.004 | **PASS** |
-| 118 | `017_one_class_svm` | OCSVM RBF kernel, trained on 5k subsample, nu=0.1 | 0.689 | -0.033 | **PASS** |
-| 119 | `039_svm_sigmoid` | SVM with sigmoid kernel on 5k subsample | 0.679 | +0.020 | **PASS** |
-| 120 | `036_passive_aggressive` | Passive-Aggressive online learner | 0.657 | -0.009 | **PASS** |
-| 121 | `110_quantile_regression_meta` | LightGBM quantile regressors (Q25/Q50/Q75) on binary targets | 0.641 | -0.003 | **PASS** |
-| 122 | `038_svm_poly` | SVM with polynomial kernel (degree 3) on 5k subsample | 0.630 | -0.019 | **PASS** |
-| 123 | `035_perceptron` | Perceptron — classic linear, no probability calibration | 0.624 | -0.006 | **PASS** |
-| 124 | `037_svm_rbf` | SVM with RBF kernel on 5k subsample | 0.605 | +0.039 | **PASS** |
-| 125 | `040_nu_svc` | Nu-SVC — alternative SVM parameterization with bound on erro | 0.500 | +0.000 | **fail** |
-| 126 | `057_anomaly_kmeans_dist` | K-means: distance to nearest of 5 centroids as anomaly score | 0.500 | +0.000 | **fail** |
-| 127 | `058_anomaly_gmm_loglik` | GMM 3-component: negative log-likelihood as anomaly score | 0.500 | +0.000 | **fail** |
-| 128 | `059_anomaly_pca_recon` | PCA reconstruction error from 5 components | 0.500 | +0.000 | **fail** |
-| 129 | `060_anomaly_ica_recon` | Independent Component Analysis reconstruction error | 0.500 | +0.000 | **fail** |
-| 130 | `061_anomaly_mahalanobis` | Empirical-covariance Mahalanobis distance | 0.500 | +0.000 | **fail** |
-| 131 | `062_anomaly_mcd_robust` | Robust Mahalanobis via Minimum Covariance Determinant | 0.500 | +0.000 | **fail** |
-| 132 | `063_hmm_2state_full` | 2-state HMM with full covariance — regime switching | 0.500 | +0.000 | **fail** |
-| 133 | `064_hmm_4state_diag` | 4-state HMM with diagonal covariance | 0.500 | +0.000 | **fail** |
-| 134 | `065_hmm_5state_spherical` | 5-state HMM with spherical covariance | 0.500 | +0.000 | **fail** |
-| 135 | `066_ewma_deviation` | EWMA span-30 deviation as anomaly score | 0.500 | +0.000 | **fail** |
-| 136 | `083_custom_self_distillation` | Self-distillation: teacher LGBM → soft labels → GB regressor | 0.500 | +0.000 | **fail** |
-| 137 | `020_hmm_regime` | 3-state Gaussian HMM with diagonal covariance | 0.408 | -0.008 | **fail** |
-| 138 | `095_meta_hard_case_boost` | Second model specialized on uncertain (0.3<p<0.7) cases | 0.182 | +0.109 | **fail** |
+| 49 | `142_focal_loss_weights_lgbm` | Focal-loss-style per-example sample weights: two-stage basel | 0.853 | +0.140 | **fail** |
+| 50 | `070_nn_tanh` | MLP with tanh activation — different non-linearity family | 0.852 | +0.014 | **PASS** |
+| 51 | `004_adaboost` | 200 boosted stumps (depth-1), AdaBoost.R2 | 0.852 | +0.017 | **PASS** |
+| 52 | `026_nn_scaling_curve` | Single hidden layer MLP swept across sizes 2-1024 | 0.850 | +0.012 | **PASS** |
+| 53 | `069_nn_pyramid` | MLP inverse pyramid 16→32→64→128 | 0.850 | +0.034 | **PASS** |
+| 54 | `113_rfecv_lgbm` | RFECV (LogReg base, roc_auc scoring) finds optimal feature s | 0.849 | +0.121 | **fail** |
+| 55 | `044_lgbm_rf` | LightGBM in random-forest mode (no boosting) | 0.849 | +0.027 | **PASS** |
+| 56 | `134_lgbm_leaf_encoding_to_logreg` | LightGBM leaf-index embeddings (80 trees, max_depth=4, num_l | 0.848 | +0.086 | **fail** |
+| 57 | `119_mutual_info_select_lgbm` | Mutual information feature selection (k=7) → LightGBM; non-l | 0.847 | +0.117 | **fail** |
+| 58 | `141_hard_negative_mining_mlp` | Two-stage MLP: initial training + hard-negative mining + ret | 0.846 | +0.020 | **PASS** |
+| 59 | `124_quantile_bin_onehot_lgbm` | Quantile-binning (10 deciles) + one-hot + LightGBM. Treats c | 0.844 | +0.078 | **fail** |
+| 60 | `045_xgb_dart` | XGBoost DART — dropout regularization on boosting | 0.841 | +0.153 | **fail** |
+| 61 | `136_hellinger_feat_rank_lgbm` | Hellinger-distance feature ranking (top-6) + LightGBM. Symme | 0.840 | +0.092 | **fail** |
+| 62 | `068_nn_bottleneck` | MLP bottleneck 64→8→64 (autoencoder-like inside classifier) | 0.838 | +0.010 | **PASS** |
+| 63 | `103_nystroem_logreg` | Nystroem method kernel approximation + LogReg | 0.837 | +0.010 | **PASS** |
+| 64 | `013_qda` | QDA — per-class covariance with 0.1 shrinkage regularization | 0.836 | +0.004 | **PASS** |
+| 65 | `027_athena_stack` | Custom: 3 bases on disjoint features (price/volume/time), ge | 0.835 | +0.018 | **PASS** |
+| 66 | `010_knn` | KNN k=50, Euclidean distance, scaled features | 0.834 | +0.053 | **fail** |
+| 67 | `105_tree_embedding_logreg` | RandomForest leaf-index embeddings (50 trees, depth=4) -> on | 0.834 | +0.071 | **fail** |
+| 68 | `081_custom_time_of_day_specialist` | 4 time-of-day specialists (open/morning/midday/close) | 0.834 | +0.164 | **fail** |
+| 69 | `028_cascade_reject` | Custom: 3-stage cascade (NB→LR→LGBM), each trained on prior- | 0.833 | +0.056 | **fail** |
+| 70 | `143_power_transform_nb` | Yeo-Johnson power transform + Gaussian Naive Bayes; Gaussian | 0.831 | -0.001 | **PASS** |
+| 71 | `115_isotonic_calibrated_chain` | per-feature isotonic regression (non-parametric monotonic fe | 0.830 | +0.017 | **PASS** |
+| 72 | `125_mlp_strong_l2_regularization` | 5-seed ensemble of MLPs (64-32) with alpha=1.0 (very strong  | 0.829 | +0.009 | **PASS** |
+| 73 | `003_extra_trees` | 300 extra-random trees, random split selection per node | 0.829 | +0.032 | **PASS** |
+| 74 | `144_nb_lr_geometric_blend` | geometric mean blend of GaussianNB and LogisticRegression; b | 0.828 | +0.001 | **PASS** |
+| 75 | `011_gaussian_nb` | Gaussian NB — independent Gaussian likelihoods per feature | 0.828 | -0.000 | **PASS** |
+| 76 | `130_mahalanobis_knn` | KNN with Mahalanobis distance metric (accounts for covarianc | 0.827 | +0.072 | **fail** |
+| 77 | `009_decision_tree` | single decision tree depth-7, balanced class weight | 0.824 | +0.053 | **fail** |
+| 78 | `018_elliptic_envelope` | robust Gaussian envelope, contamination=0.1 | 0.821 | -0.005 | **PASS** |
+| 79 | `138_kmeans_codes_logreg` | KMeans (k=20) cluster-distance codes as feature basis + LogR | 0.821 | +0.006 | **PASS** |
+| 80 | `090_random_projection_lgbm` | Gaussian random projection (5 dims) → LightGBM | 0.819 | +0.101 | **fail** |
+| 81 | `087_ica_then_lgbm` | ICA-5 → LightGBM (independent components → tree) | 0.818 | +0.106 | **fail** |
+| 82 | `086_pca_then_lgbm` | PCA-5 → LightGBM (linear features → tree) | 0.818 | +0.103 | **fail** |
+| 83 | `074_nn_lbfgs_solver` | MLP trained with L-BFGS solver — batch optimization | 0.817 | +0.127 | **fail** |
+| 84 | `116_multitask_regime_plus_direction` | Multi-task neural network with shared-weight hidden layers;  | 0.814 | +0.009 | **PASS** |
+| 85 | `089_kernel_pca_then_logreg` | Kernel PCA with RBF (8 components) → LogReg | 0.813 | +0.001 | **PASS** |
+| 86 | `121_poly_kernel_ridge` | kernel ridge regression with degree-3 polynomial kernel + si | 0.812 | +0.016 | **PASS** |
+| 87 | `101_interaction_poly_logreg` | Pairwise polynomial interactions + LogReg | 0.808 | +0.014 | **PASS** |
+| 88 | `108_cotraining_disjoint_views` | Co-training with disjoint feature views (price vs volume+tim | 0.807 | +0.101 | **fail** |
+| 89 | `030_feature_count_scaling` | LogReg with feature subset size 1→10 added in importance-ran | 0.804 | -0.006 | **PASS** |
+| 90 | `012_lda` | LDA — Bayes-optimal linear under Gaussian-with-shared-cov as | 0.802 | +0.004 | **PASS** |
+| 91 | `120_bayesian_ridge_sigmoid` | Bayesian linear regression (conjugate Gaussian-Gaussian prio | 0.802 | +0.004 | **PASS** |
+| 92 | `054_lda_shrinkage` | LDA with Ledoit-Wolf shrinkage estimator | 0.802 | +0.004 | **PASS** |
+| 93 | `132_gradient_boosted_logreg_stack` | Linear gradient boosting: Ridge regressors on log-loss gradi | 0.802 | +0.004 | **PASS** |
+| 94 | `145_sparse_lr_saga_screening` | Safe feature screening: aggressive L1 (C=0.005) identifies n | 0.799 | +0.006 | **PASS** |
+| 95 | `031_logreg_l1` | L1-penalized logistic regression — sparse linear | 0.799 | +0.007 | **PASS** |
+| 96 | `046_xgb_gblinear` | XGBoost with linear base learner — boosted linear model | 0.799 | +0.007 | **PASS** |
+| 97 | `001_logreg` | linear decision boundary, scaled features, balanced class we | 0.799 | +0.007 | **PASS** |
+| 98 | `114_elastic_net_classifier` | elastic-net logistic regression: l1_ratio=0.5 combines featu | 0.799 | +0.007 | **PASS** |
+| 99 | `041_linear_svc` | LinearSVC — efficient linear SVM (separate from sgd_hinge) | 0.796 | +0.007 | **PASS** |
+| 100 | `015_isolation_forest` | 300 isolation trees, contamination=auto | 0.793 | -0.006 | **PASS** |
+| 101 | `146_uncertainty_cascade_lgbm` | Cascade classifier: Stage 1 (small LGBM) routes uncertain sa | 0.788 | +0.172 | **fail** |
+| 102 | `072_nn_identity` | MLP with identity activation — equivalent to linear stacking | 0.788 | +0.007 | **PASS** |
+| 103 | `071_nn_logistic` | MLP with logistic activation — classic NN approach | 0.785 | +0.006 | **PASS** |
+| 104 | `088_truncated_svd_logreg` | Truncated SVD-5 → Logistic Regression | 0.782 | -0.002 | **PASS** |
+| 105 | `032_ridge_clf` | Ridge classifier — squared loss, not log loss | 0.782 | +0.005 | **PASS** |
+| 106 | `019_autoencoder` | MLP-AE 180->90->45->90->180, trained on normal windows only | 0.776 | -0.001 | **PASS** |
+| 107 | `051_nb_bernoulli` | Bernoulli NB on binarized features | 0.765 | +0.011 | **PASS** |
+| 108 | `048_extra_tree_single` | Single ExtraTree — single tree with random splits | 0.765 | +0.059 | **fail** |
+| 109 | `033_sgd_hinge` | SGD with hinge loss — linear SVM via SGD | 0.764 | +0.004 | **PASS** |
+| 110 | `052_nb_complement` | Complement NB — Multinomial variant for imbalanced data | 0.755 | -0.015 | **PASS** |
+| 111 | `053_nb_multinomial` | Multinomial NB on min-max scaled features | 0.755 | -0.015 | **PASS** |
+| 112 | `075_voting_hard` | Hard-vote ensemble: LogReg + LGBM + XGB — majority class | 0.754 | +0.135 | **fail** |
+| 113 | `073_nn_sgd_solver` | MLP trained with SGD solver instead of Adam | 0.752 | +0.001 | **PASS** |
+| 114 | `123_kmeans_cluster_then_logreg` | local-expert mixture: KMeans (k=5) routing + per-cluster Log | 0.750 | +0.013 | **PASS** |
+| 115 | `131_prototype_knn` | KMeans-derived class prototypes (K_pos=50, K_neg=50); distan | 0.742 | +0.049 | **PASS** |
+| 116 | `102_rbf_sampler_logreg` | RBF kernel approximation (64 features) + LogReg | 0.739 | +0.025 | **PASS** |
+| 117 | `021_arima` | ARIMA(2,0,2) per-symbol; |forecast residual| as anomaly scor | 0.733 | -0.202 | **fail** |
+| 118 | `055_calibrated_isotonic` | Calibrated linear SVM with isotonic calibration | 0.721 | +0.009 | **PASS** |
+| 119 | `050_bagging_logreg` | Bagging with logistic regression base — pasted linear ensemb | 0.713 | -0.001 | **PASS** |
+| 120 | `056_calibrated_sigmoid` | Calibrated SGD with Platt-sigmoid calibration | 0.706 | -0.006 | **PASS** |
+| 121 | `016_local_outlier_factor` | LOF k=30 novelty mode, scaled features | 0.703 | -0.011 | **PASS** |
+| 122 | `034_sgd_modified_huber` | SGD with modified Huber — robust to outliers | 0.692 | -0.004 | **PASS** |
+| 123 | `017_one_class_svm` | OCSVM RBF kernel, trained on 5k subsample, nu=0.1 | 0.689 | -0.033 | **PASS** |
+| 124 | `039_svm_sigmoid` | SVM with sigmoid kernel on 5k subsample | 0.679 | +0.020 | **PASS** |
+| 125 | `036_passive_aggressive` | Passive-Aggressive online learner | 0.657 | -0.009 | **PASS** |
+| 126 | `110_quantile_regression_meta` | LightGBM quantile regressors (Q25/Q50/Q75) on binary targets | 0.641 | -0.003 | **PASS** |
+| 127 | `038_svm_poly` | SVM with polynomial kernel (degree 3) on 5k subsample | 0.630 | -0.019 | **PASS** |
+| 128 | `035_perceptron` | Perceptron — classic linear, no probability calibration | 0.624 | -0.006 | **PASS** |
+| 129 | `037_svm_rbf` | SVM with RBF kernel on 5k subsample | 0.605 | +0.039 | **PASS** |
+| 130 | `040_nu_svc` | Nu-SVC — alternative SVM parameterization with bound on erro | 0.500 | +0.000 | **fail** |
+| 131 | `057_anomaly_kmeans_dist` | K-means: distance to nearest of 5 centroids as anomaly score | 0.500 | +0.000 | **fail** |
+| 132 | `058_anomaly_gmm_loglik` | GMM 3-component: negative log-likelihood as anomaly score | 0.500 | +0.000 | **fail** |
+| 133 | `059_anomaly_pca_recon` | PCA reconstruction error from 5 components | 0.500 | +0.000 | **fail** |
+| 134 | `060_anomaly_ica_recon` | Independent Component Analysis reconstruction error | 0.500 | +0.000 | **fail** |
+| 135 | `061_anomaly_mahalanobis` | Empirical-covariance Mahalanobis distance | 0.500 | +0.000 | **fail** |
+| 136 | `062_anomaly_mcd_robust` | Robust Mahalanobis via Minimum Covariance Determinant | 0.500 | +0.000 | **fail** |
+| 137 | `063_hmm_2state_full` | 2-state HMM with full covariance — regime switching | 0.500 | +0.000 | **fail** |
+| 138 | `064_hmm_4state_diag` | 4-state HMM with diagonal covariance | 0.500 | +0.000 | **fail** |
+| 139 | `065_hmm_5state_spherical` | 5-state HMM with spherical covariance | 0.500 | +0.000 | **fail** |
+| 140 | `066_ewma_deviation` | EWMA span-30 deviation as anomaly score | 0.500 | +0.000 | **fail** |
+| 141 | `083_custom_self_distillation` | Self-distillation: teacher LGBM → soft labels → GB regressor | 0.500 | +0.000 | **fail** |
+| 142 | `020_hmm_regime` | 3-state Gaussian HMM with diagonal covariance | 0.408 | -0.008 | **fail** |
+| 143 | `095_meta_hard_case_boost` | Second model specialized on uncertain (0.3<p<0.7) cases | 0.182 | +0.109 | **fail** |
 
 ## Strategy leaderboard (3 variants)
 

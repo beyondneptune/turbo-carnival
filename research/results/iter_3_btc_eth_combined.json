@@ -1,0 +1,49 @@
+{
+  "config": {
+    "symbols": [
+      "BTC/USDT:USDT",
+      "ETH/USDT:USDT"
+    ],
+    "start_date": "2021-01-01T00:00:00Z",
+    "entry_apr_pct": 10.0,
+    "exit_apr_pct": 4.0,
+    "roll_window_cycles": 30,
+    "round_trip_cost_bps": 30.0
+  },
+  "btc_only": {
+    "ann_return_pct": 7.954143018994104,
+    "sharpe": 10.64122657559572,
+    "max_dd_pct": -0.5143060000000199,
+    "positions": 11,
+    "total_carry_pct": 42.66181,
+    "mean_annualized_funding_pct": 11.150344361593461,
+    "span_days": 1957.6666666435185
+  },
+  "eth_only": {
+    "ann_return_pct": 9.070412457113893,
+    "sharpe": 10.796694373001765,
+    "max_dd_pct": -0.4245040000000255,
+    "positions": 8,
+    "total_carry_pct": 48.648888,
+    "mean_annualized_funding_pct": 12.00568196884576,
+    "span_days": 1957.6666666435185
+  },
+  "combined": {
+    "ann_return_pct": 8.573729369248323,
+    "sharpe": 10.659516425408944,
+    "max_dd_pct": -0.6467484999999884,
+    "positions": 10,
+    "total_carry_pct": 45.984943,
+    "correlation_btc_eth_active": 0.5990285214195731,
+    "correlation_btc_eth_full": 0.6419675164325538,
+    "frac_both_active": 0.38764044943820225,
+    "frac_only_btc": 0.06996935648621042,
+    "frac_only_eth": 0.0372829417773238,
+    "frac_flat": 0.5051072522982636,
+    "span_days": 1957.6666666435185,
+    "cycles": 5874
+  },
+  "verdict_return": "SAME",
+  "verdict_sharpe": "SAME",
+  "verdict": "SAME"
+}

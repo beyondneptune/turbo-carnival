@@ -1,7 +1,7 @@
 {
   "experiment": "139_isotonic_on_lgbm_rank",
   "description": "LGBM classifier \u2192 probabilistic rank \u2192 isotonic calibration on ranks. Novel: calibrates rank ordering (monotone) rather than raw probability.",
-  "timestamp_utc": "2026-05-12T06:04:06.624260+00:00",
+  "timestamp_utc": "2026-05-12T07:03:28.598822+00:00",
   "train_auc": 0.9459013412377162,
   "test_auc": 0.8594047892343346,
   "train_test_gap": 0.08649655200338158,

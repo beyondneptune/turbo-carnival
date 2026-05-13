@@ -1,0 +1,80 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>No-lookahead yesterday test</title>
+<style>
+body { background:#0b1120; color:#e2e8f0; font-family:-apple-system,sans-serif;
+       margin:0; padding:24px 32px; line-height:1.55; }
+h1 { color:#f8fafc; margin:0 0 8px 0; }
+h2 { color:#f1f5f9; font-size:18px; margin:24px 0 10px 0; }
+.sub { color:#94a3b8; font-size:14px; margin-bottom:18px; }
+.card { background:#0f172a; border:1px solid #1e293b; padding:18px 22px;
+         border-radius:12px; margin:14px 0; }
+.win { border-left: 4px solid #4ade80; }
+.alert { border-left: 4px solid #facc15; }
+.kpis { display:flex; gap:12px; flex-wrap:wrap; margin:10px 0; }
+.kpi { background:#1e293b; padding:10px 14px; border-radius:8px; min-width:140px; }
+.kpi .l { color:#94a3b8; font-size:11px; text-transform:uppercase; }
+.kpi .v { color:#f1f5f9; font-size:20px; font-weight:700; margin-top:2px;
+          font-variant-numeric:tabular-nums; }
+.pos { color:#4ade80; } .neg { color:#f87171; }
+table { border-collapse:collapse; width:100%; font-size:13px;
+         font-variant-numeric:tabular-nums; }
+th { background:#1e293b; color:#cbd5e1; padding:8px 12px; text-align:left; }
+td { padding:6px 12px; border-bottom:1px solid #1e293b; }
+tr.lookahead { background:rgba(250,204,21,0.08); }
+tr.honest { background:rgba(34,197,94,0.08); }
+code { background:#1e293b; padding:2px 6px; border-radius:4px; font-size:12px; }
+.note { background:#0f172a; border-left:3px solid #60a5fa; padding:10px 14px;
+         margin:12px 0; font-size:13px; color:#cbd5e1; border-radius:0 8px 8px 0; }
+</style></head><body>
+<h1>No-lookahead test — yesterday only, on previous training</h1>
+<div class="sub">Two questions answered: (1) what did the proper walk-forward
+SVXY strategy decide for yesterday? (2) how much of the composite C3 +$2,030
+"win" was lookahead bias?</div>
+
+<h2>1. SVXY rotation — yesterday's decision (walk-forward, no lookahead)</h2>
+<div class="card win">
+Date: 2026-05-08<br>VIX: 17.19  VIX3M: 20.50  ratio: 0.839<br>Signal (decided at prior close, NO lookahead): LONG SVXY<br>SVXY return that day: -0.29%<br>Strategy return for the day: -0.29%
+</div>
+
+<h2>2. Composite C3 — retrained without yesterday's data</h2>
+<div class="card alert">
+Composite C3 (retrained without yesterday): blocked 106, Δ $+1,287.70<br>Composite C3 (original, with lookahead): blocked 82, Δ $+2,029.53<br>Lookahead premium: $+741.84 (how much the original number was inflated)
+</div>
+
+<h2>Side-by-side</h2>
+<table>
+<thead><tr>
+  <th>Approach</th><th>Training data</th>
+  <th>Blocked</th><th>Counterfactual P&L</th><th>Δ vs actual ($+496)</th>
+</tr></thead>
+<tbody>
+<tr><td>No gate (baseline)</td><td>—</td>
+  <td>0</td><td>$+496.01</td><td>—</td></tr>
+<tr class="lookahead"><td>Composite C3 (ORIGINAL)</td><td>All 21 days (includes yesterday)</td>
+  <td>82</td><td>$+2,525.54</td><td>$+2,029.53</td></tr>
+<tr class="honest"><td><strong>Composite C3 (HONEST — retrained)</strong></td><td>Days 1-20 only (no yesterday)</td>
+  <td>106</td><td>$+1,783.71</td><td><strong>$+1,287.70</strong></td></tr>
+</tbody></table>
+
+<h2>Per-sub-model blocking (retrained on prior 20 days)</h2>
+<table>
+<thead><tr><th>Sub-model</th><th>Blocked entries</th><th>% of 162</th></tr></thead>
+<tbody>
+<tr><td>016 LOF (local outlier factor)</td><td>24</td><td>14.8%</td></tr>
+<tr><td>017 OneClassSVM</td><td>32</td><td>19.8%</td></tr>
+<tr><td>018 Elliptic Envelope</td><td>28</td><td>17.3%</td></tr>
+<tr><td>102 RBF-sampler + LogReg</td><td>91</td><td>56.2%</td></tr>
+</tbody></table>
+
+<div class="note">
+<strong>What this means:</strong>
+<br>• If the lookahead premium is small (&lt; $200), the original +$2,030 number was mostly real signal.
+<br>• If it's large (&gt; $500), much of the apparent edge came from training on yesterday's data.
+<br>• Either way, this number is the realistic deployment expectation under proper walk-forward.
+<br>• Today's lookahead premium: <strong>$+741.84</strong> — this is the bias we measured.
+</div>
+
+<div class="sub" style="margin-top:24px;">
+Generated 2026-05-12 12:56:01 ·
+<code>experiments/ml_lab/21_no_lookahead_yesterday.py</code></div>
+</body></html>

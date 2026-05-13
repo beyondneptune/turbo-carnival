@@ -1,7 +1,7 @@
 {
   "experiment": "129_asymmetric_fp_penalty_lgbm",
   "description": "LGBM with asymmetric sample weights (3x for negatives) targeting false-positive cost in regime gates",
-  "timestamp_utc": "2026-05-12T04:23:56.826968+00:00",
+  "timestamp_utc": "2026-05-12T07:02:44.269511+00:00",
   "train_auc": 0.9298929420111665,
   "test_auc": 0.8660862548646638,
   "train_test_gap": 0.06380668714650262,

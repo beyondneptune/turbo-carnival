@@ -154,6 +154,33 @@ def test_parse_args_custom_date_and_dry_run():
     assert ns.run_id == "paper_v1_x"
 
 
+def test_now_utc_iso_uses_new_york_market_open_with_dst():
+    mod = _import_module()
+
+    assert mod._now_utc_iso(date(2026, 5, 11)) == "2026-05-11T13:30:00+00:00"
+    assert mod._now_utc_iso(date(2026, 1, 5)) == "2026-01-05T14:30:00+00:00"
+    assert (
+        mod._now_utc_iso(date(2026, 5, 11), hour=mod.EXIT_LOCAL_HOUR, minute=mod.EXIT_LOCAL_MINUTE)
+        == "2026-05-11T20:00:00+00:00"
+    )
+
+
+def test_load_cycle_state_bootstraps_nav_history(fresh_db):
+    db_path, mod = fresh_db
+    _seed_run(db_path, initial_nav=12345.0)
+    conn = mod.open_connection(db_path)
+    try:
+        cycle = mod.load_cycle_state(conn, "paper_v1")
+        rows = conn.execute(
+            "SELECT date, nav, intraday_low FROM nav_history WHERE run_id = 'paper_v1'"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert cycle.current_nav_usd == 12345.0
+    assert rows == [("2026-05-06", 12345.0, 12345.0)]
+
+
 # ---------------------------------------------------------------------------
 # kill switch
 # ---------------------------------------------------------------------------
@@ -200,6 +227,15 @@ def test_kill_switch_trips_main_exits_early(fresh_db, capsys, monkeypatch):
     finally:
         conn.close()
     assert n_trades == 0
+
+
+def test_main_skips_weekends_before_touching_db(fresh_db, capsys):
+    _db_path, mod = fresh_db
+
+    rc = mod.main(["--run-id", "missing", "--date", "2026-05-10"])
+
+    assert rc == 0
+    assert "daily run skipped" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------

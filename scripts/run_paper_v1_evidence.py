@@ -458,17 +458,17 @@ def _resolve_synthetic_spy_chains(
 ) -> bool:
     """Compute the runtime value of `synthetic_spy_chains`.
 
-    Rule (per paper-v1-evidence rules):
-      - If priced SPY chains exist for the year (chains_priced/SPY/ has any
-        parquet) AND --allow-synthetic was NOT passed, return False (use real
-        prices).
-      - Otherwise return True (synthetic). Note that "synthetic == True with no
-        priced SPY" only produces real trades when --allow-synthetic is on; the
-        replay code skips SPY when synthetic_spy_chains is True but the
-        allow_synthetic flag is off, preserving fail-closed semantics.
+    Rule: prefer real priced SPY chains whenever they exist on disk. The
+    ``--allow-synthetic`` flag only enables a synthetic fallback when no priced
+    files are present; it must NOT override real data when both are available.
+    Otherwise the verdict silently substitutes synthetic SPY for real priced
+    data, and Codex's SPY-condor validator never runs.
+
+    Returns:
+      * False -- priced SPY files exist; replay should load them.
+      * True  -- no priced files; replay falls back to synthetic if
+        allow_synthetic is also True, else skips SPY core entirely.
     """
-    if allow_synthetic:
-        return True
     spy_dir = cache_year_dir(Path(base_dir), year) / "chains_priced" / "SPY"
     if not spy_dir.exists():
         return True

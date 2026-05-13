@@ -1,7 +1,7 @@
 {
   "experiment": "120_bayesian_ridge_sigmoid",
   "description": "Bayesian linear regression (conjugate Gaussian-Gaussian prior) on y\u2208{0,1}, sigmoid-mapped predictions",
-  "timestamp_utc": "2026-05-12T02:52:21.108173+00:00",
+  "timestamp_utc": "2026-05-12T07:02:24.884122+00:00",
   "train_auc": 0.8061379751623317,
   "test_auc": 0.8018406638079933,
   "train_test_gap": 0.004297311354338307,

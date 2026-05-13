@@ -1,7 +1,7 @@
 {
   "experiment": "110_quantile_regression_meta",
   "description": "LightGBM quantile regressors (Q25/Q50/Q75) on binary targets, median prediction calibrated via sigmoid(5*(q50-0.5))",
-  "timestamp_utc": "2026-05-12T02:02:09.895616+00:00",
+  "timestamp_utc": "2026-05-12T07:02:03.872144+00:00",
   "train_auc": 0.6378645761769902,
   "test_auc": 0.6412370457825003,
   "train_test_gap": -0.0033724696055100756,

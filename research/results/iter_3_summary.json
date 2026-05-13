@@ -1,0 +1,19 @@
+{
+  "symbol": "BTC/USDT:USDT",
+  "data_start": "2021-01-01 00:00:00.002000+00:00",
+  "data_end": "2026-05-12 16:00:00+00:00",
+  "span_days": 1957.6666666435185,
+  "total_funding_cycles": 5874,
+  "mean_annualized_funding_pct": 11.150344361593461,
+  "periods_above_10pct": 2768,
+  "n_positions": 11,
+  "total_carry_harvested_pct": 42.66181000000001,
+  "annualized_carry_net_pct": 7.954143018994106,
+  "in_position_annualized_pct": 17.450385487485995,
+  "sharpe_proxy": 0.6219815286704176,
+  "entry_threshold_apr_pct": 10.0,
+  "exit_threshold_apr_pct": 4.0,
+  "round_trip_cost_bps": 30.0,
+  "rolling_window_cycles": 30,
+  "verdict": "PASS"
+}

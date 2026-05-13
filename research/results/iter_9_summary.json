@@ -1,0 +1,67 @@
+{
+  "run_at_utc": "2026-05-12T21:08:11.227566+00:00",
+  "spec": "iter_9_nifty_cross_section_momentum (accessibility fallback: INDA single-asset momentum)",
+  "in_sample_window": [
+    "2014-01-01",
+    "2019-12-31"
+  ],
+  "out_of_sample_window": [
+    "2020-01-01",
+    "2025-12-31"
+  ],
+  "months_is": 71.9047619047619,
+  "months_oos": 71.80952380952381,
+  "ann_return_pct": 2.409199798899447,
+  "ann_vol_pct": 11.188831564185845,
+  "sharpe_oos": 0.21532183991499318,
+  "max_dd_pct": -27.705933464404776,
+  "total_return_pct_oos": 11.204939810674809,
+  "days_in_market_pct": 64.58885941644562,
+  "days_in_market_pct_full": 57.057654075546715,
+  "num_rebalances": 251,
+  "num_rebalances_is": 210,
+  "num_rebalances_total": 461,
+  "first_tradeable_date": "2015-01-02",
+  "is_perf": {
+    "label": "IS_2014_2019",
+    "days": 1510,
+    "sharpe": 0.17264055939776435,
+    "ann_return_pct": 1.3733433291962727,
+    "ann_vol_pct": 7.954928633149789,
+    "max_dd_pct": -19.660965488403647,
+    "total_return_pct": 6.535460982238472
+  },
+  "oos_perf": {
+    "label": "OOS_2020_2025",
+    "days": 1508,
+    "sharpe": 0.21532183991499318,
+    "ann_return_pct": 2.409199798899447,
+    "ann_vol_pct": 11.188831564185845,
+    "max_dd_pct": -27.705933464404776,
+    "total_return_pct": 11.204939810674809
+  },
+  "full_perf": {
+    "label": "FULL",
+    "days": 3018,
+    "sharpe": 0.19484300563765203,
+    "ann_return_pct": 1.8909283379147566,
+    "ann_vol_pct": 9.704881793043683,
+    "max_dd_pct": -39.14379537842553,
+    "total_return_pct": 18.472695262323356
+  },
+  "verdict": "FAIL",
+  "target_vol_ann": 0.12,
+  "vol_lookback_days": 60,
+  "cost_bp_per_rebal_onesided": 10.0,
+  "lookbacks_days": {
+    "long_12_1": 252,
+    "mid_6m": 126,
+    "short_3m": 63,
+    "skip": 21
+  },
+  "leverage_band": [
+    0.3,
+    2.0
+  ],
+  "cash_apr_assumed": 0.04
+}

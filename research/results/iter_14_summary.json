@@ -1,0 +1,20 @@
+{
+  "iter": "iter_14",
+  "scope_note": "Simplified: S&P 500 proxy (not Russell 1000), price-only features (10 vs spec's 70), no fundamentals/alt-data",
+  "months_oos": 71,
+  "mean_rank_ic": 0.00932011793466655,
+  "ic_t_stat_simple": 0.6279165457283575,
+  "ic_t_stat_newey_west_3lag": 0.8256487183618602,
+  "ic_t_stat": 0.8256487183618602,
+  "ann_return_long_short_pct": 7.345002390615826,
+  "ann_vol_pct": 16.26941942800385,
+  "sharpe_oos": 0.451460632822164,
+  "max_dd_pct": -13.712377535799735,
+  "mean_monthly_turnover_long": 0.7050891621257432,
+  "mean_monthly_turnover_short": 0.7781431853532546,
+  "mean_monthly_cost_bps": 7.416161737394988,
+  "pass_ic_threshold": false,
+  "pass_sharpe_threshold": false,
+  "verdict": "FAIL",
+  "criteria": "PASS iff mean_rank_ic>=0.025 AND ic_t_newey_west>2.0 AND sharpe_oos>=0.8"
+}

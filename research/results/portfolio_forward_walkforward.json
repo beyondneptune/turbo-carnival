@@ -1,0 +1,304 @@
+{
+  "generated_at": "2026-05-12T21:25:47.508222Z",
+  "method": {
+    "vol_normalize_target": 0.1,
+    "equal_weight_per_leg": 0.25,
+    "trading_days_per_year": 252,
+    "n_strategies": 4,
+    "verdict_thresholds": {
+      "HOLDS_UP_max_decay_pct": 30.0,
+      "MILD_DECAY_max_decay_pct": 50.0
+    }
+  },
+  "data_sources": {
+    "svxy_sweet_spot": "research/data/cache/vix_svxy_daily.parquet (threshold=1.00, size=25%, no CB, 1bp cost, SGOV cash leg)",
+    "btc_funding": "research/results/iter_3_positions.csv (on/off mask) + iter_3_funding_history.csv (daily sum of 3x8h funding ticks, 30bps round-trip amortized over holding business days)",
+    "adr_cleanup": "research/results/iter_18_cleanup_trades.csv (all 5 dual-listing pairs from the CLEANUP run with corrected NTES 1:5 ratio and ex-div skip, net_bps realized on exit_date, 20% per pair within sleeve)",
+    "nikkei_gap": "research/data/cache/nikkei_daily.parquet (threshold=1.0% gap signal, sign(gap)*intraday_ret minus 5bp round-trip cost, daily proxy for spec's 5-min OR breakout)"
+  },
+  "2021_2025": {
+    "label": "2021_2025",
+    "window": {
+      "start": "2021-01-01",
+      "end": "2025-12-31"
+    },
+    "per_strategy_raw": {
+      "svxy_sweet_spot": {
+        "sharpe": 1.1359417777332748,
+        "ann_ret": 0.08930757643949061,
+        "max_dd": -0.08361455783148031,
+        "n_days": 1304,
+        "ann_vol": 0.07800437493780552
+      },
+      "btc_funding": {
+        "sharpe": 6.8911232821012325,
+        "ann_ret": 0.06045630911048705,
+        "max_dd": -0.0025694583896884726,
+        "n_days": 1304,
+        "ann_vol": 0.00852435437549288
+      },
+      "adr_cleanup": {
+        "sharpe": 4.843324874381073,
+        "ann_ret": 0.40182162195069293,
+        "max_dd": -0.04609317821283987,
+        "n_days": 1304,
+        "ann_vol": 0.07029316964799333
+      },
+      "nikkei_gap": {
+        "sharpe": 2.476406131772499,
+        "ann_ret": 0.2671651535784696,
+        "max_dd": -0.04178136392778142,
+        "n_days": 1304,
+        "ann_vol": 0.09751539071847712
+      }
+    },
+    "per_strategy_normalized": {
+      "svxy_sweet_spot": {
+        "sharpe": 1.1359417777332745,
+        "ann_ret": 0.11466052198123955,
+        "max_dd": -0.10703569160517212,
+        "n_days": 1304,
+        "ann_vol": 0.10000000000000002
+      },
+      "btc_funding": {
+        "sharpe": 6.891123282101233,
+        "ann_ret": 0.9803708009736707,
+        "max_dd": -0.02979113388098409,
+        "n_days": 1304,
+        "ann_vol": 0.1
+      },
+      "adr_cleanup": {
+        "sharpe": 4.843324874381072,
+        "ann_ret": 0.6143360099562576,
+        "max_dd": -0.06525555533092553,
+        "n_days": 1304,
+        "ann_vol": 0.10000000000000003
+      },
+      "nikkei_gap": {
+        "sharpe": 2.476406131772499,
+        "ann_ret": 0.2746815324731662,
+        "max_dd": -0.042834764772942124,
+        "n_days": 1304,
+        "ann_vol": 0.1
+      }
+    },
+    "vol_normalization_scales": {
+      "svxy_sweet_spot": 1.2819793771789345,
+      "btc_funding": 11.731093710451002,
+      "adr_cleanup": 1.42261332787765,
+      "nikkei_gap": 1.0254791501445741
+    },
+    "correlation_matrix": {
+      "svxy_sweet_spot": {
+        "svxy_sweet_spot": 1.0,
+        "btc_funding": 0.016872,
+        "adr_cleanup": 0.043298,
+        "nikkei_gap": -0.0134
+      },
+      "btc_funding": {
+        "svxy_sweet_spot": 0.016872,
+        "btc_funding": 1.0,
+        "adr_cleanup": 0.012518,
+        "nikkei_gap": -0.041176
+      },
+      "adr_cleanup": {
+        "svxy_sweet_spot": 0.043298,
+        "btc_funding": 0.012518,
+        "adr_cleanup": 1.0,
+        "nikkei_gap": 0.043769
+      },
+      "nikkei_gap": {
+        "svxy_sweet_spot": -0.0134,
+        "btc_funding": -0.041176,
+        "adr_cleanup": 0.043769,
+        "nikkei_gap": 1.0
+      }
+    },
+    "combined_portfolio": {
+      "sharpe": 7.557376086878859,
+      "ann_ret": 0.4653562903875985,
+      "max_dd": -0.025870780896327217,
+      "ann_vol": 0.05076760733342765,
+      "n_days": 1304,
+      "monthly_return_distribution_summary": {
+        "best_month_pct": 19.00599767759592,
+        "worst_month_pct": -0.6147026510989195,
+        "mean_month_pct": 3.397248253132796,
+        "median_month_pct": 2.6589115108635153,
+        "std_month_pct": 3.2199238651812108,
+        "pct_positive_months": 95.0,
+        "n_months": 60
+      }
+    }
+  },
+  "2025_only": {
+    "label": "2025_only",
+    "window": {
+      "start": "2025-01-01",
+      "end": "2026-05-12"
+    },
+    "per_strategy_raw": {
+      "svxy_sweet_spot": {
+        "sharpe": 0.7509627083679831,
+        "ann_ret": 0.04781475036573424,
+        "max_dd": -0.058593662769269916,
+        "n_days": 355,
+        "ann_vol": 0.06501052272231492
+      },
+      "btc_funding": {
+        "sharpe": 7.860246535479921,
+        "ann_ret": 0.008961111939689959,
+        "max_dd": -5.680440990230018e-05,
+        "n_days": 355,
+        "ann_vol": 0.001135078858112061
+      },
+      "adr_cleanup": {
+        "sharpe": 5.918597244599769,
+        "ann_ret": 0.33121973050838194,
+        "max_dd": -0.009597799999999879,
+        "n_days": 355,
+        "ann_vol": 0.04856366713263489
+      },
+      "nikkei_gap": {
+        "sharpe": 3.989023458160087,
+        "ann_ret": 0.6491295307968641,
+        "max_dd": -0.017806724771799676,
+        "n_days": 355,
+        "ann_vol": 0.12751123509013257
+      }
+    },
+    "per_strategy_normalized": {
+      "svxy_sweet_spot": {
+        "sharpe": 0.7509627083679831,
+        "ann_ret": 0.07260763608739618,
+        "max_dd": -0.08935823895224393,
+        "n_days": 355,
+        "ann_vol": 0.1
+      },
+      "btc_funding": {
+        "sharpe": 7.86024653547992,
+        "ann_ret": 1.1812188039976408,
+        "max_dd": -0.005000810302864034,
+        "n_days": 355,
+        "ann_vol": 0.1
+      },
+      "adr_cleanup": {
+        "sharpe": 5.918597244599771,
+        "ann_ret": 0.7972112504069986,
+        "max_dd": -0.019763334539352084,
+        "n_days": 355,
+        "ann_vol": 0.1
+      },
+      "nikkei_gap": {
+        "sharpe": 3.9890234581600854,
+        "ann_ret": 0.48246877915850206,
+        "max_dd": -0.013964828086884151,
+        "n_days": 355,
+        "ann_vol": 0.10000000000000003
+      }
+    },
+    "vol_normalization_scales": {
+      "svxy_sweet_spot": 1.5382125202582768,
+      "btc_funding": 88.09960584265193,
+      "adr_cleanup": 2.0591525703132043,
+      "nikkei_gap": 0.7842446191452387
+    },
+    "correlation_matrix": {
+      "svxy_sweet_spot": {
+        "svxy_sweet_spot": 1.0,
+        "btc_funding": 0.08142,
+        "adr_cleanup": 0.035756,
+        "nikkei_gap": 0.01107
+      },
+      "btc_funding": {
+        "svxy_sweet_spot": 0.08142,
+        "btc_funding": 1.0,
+        "adr_cleanup": -0.055272,
+        "nikkei_gap": -0.072595
+      },
+      "adr_cleanup": {
+        "svxy_sweet_spot": 0.035756,
+        "btc_funding": -0.055272,
+        "adr_cleanup": 1.0,
+        "nikkei_gap": 0.003002
+      },
+      "nikkei_gap": {
+        "svxy_sweet_spot": 0.01107,
+        "btc_funding": -0.072595,
+        "adr_cleanup": 0.003002,
+        "nikkei_gap": 1.0
+      }
+    },
+    "combined_portfolio": {
+      "sharpe": 9.251595320137348,
+      "ann_ret": 0.5861396968838659,
+      "max_dd": -0.012501960859401473,
+      "ann_vol": 0.05004226110684669,
+      "n_days": 355,
+      "monthly_return_distribution_summary": {
+        "best_month_pct": 10.341035236799812,
+        "worst_month_pct": 0.9818154074193508,
+        "mean_month_pct": 3.93558899228028,
+        "median_month_pct": 2.120389410579504,
+        "std_month_pct": 2.9522223101073553,
+        "pct_positive_months": 100.0,
+        "n_months": 17
+      }
+    }
+  },
+  "sharpe_decay_pct": {
+    "combined": -22.41808815363837,
+    "per_leg": {
+      "svxy_sweet_spot": 33.89073955299905,
+      "btc_funding": -14.06335678097436,
+      "adr_cleanup": -22.201120059205344,
+      "nikkei_gap": -61.08114929052141
+    }
+  },
+  "decay_detail": {
+    "svxy_sweet_spot": {
+      "baseline_sharpe": 1.1359417777332745,
+      "forward_sharpe": 0.7509627083679831,
+      "decay_pct": 33.89073955299905,
+      "baseline_ann_ret": 0.11466052198123955,
+      "forward_ann_ret": 0.07260763608739618,
+      "baseline_max_dd": -0.10703569160517212,
+      "forward_max_dd": -0.08935823895224393
+    },
+    "btc_funding": {
+      "baseline_sharpe": 6.891123282101233,
+      "forward_sharpe": 7.86024653547992,
+      "decay_pct": -14.06335678097436,
+      "baseline_ann_ret": 0.9803708009736707,
+      "forward_ann_ret": 1.1812188039976408,
+      "baseline_max_dd": -0.02979113388098409,
+      "forward_max_dd": -0.005000810302864034
+    },
+    "adr_cleanup": {
+      "baseline_sharpe": 4.843324874381072,
+      "forward_sharpe": 5.918597244599771,
+      "decay_pct": -22.201120059205344,
+      "baseline_ann_ret": 0.6143360099562576,
+      "forward_ann_ret": 0.7972112504069986,
+      "baseline_max_dd": -0.06525555533092553,
+      "forward_max_dd": -0.019763334539352084
+    },
+    "nikkei_gap": {
+      "baseline_sharpe": 2.476406131772499,
+      "forward_sharpe": 3.9890234581600854,
+      "decay_pct": -61.08114929052141,
+      "baseline_ann_ret": 0.2746815324731662,
+      "forward_ann_ret": 0.48246877915850206,
+      "baseline_max_dd": -0.042834764772942124,
+      "forward_max_dd": -0.013964828086884151
+    }
+  },
+  "verdict": "HOLDS UP",
+  "verdict_combined_decay_pct": -22.41808815363837,
+  "prior_3_strategy_combo_2021_2025": {
+    "combined_sharpe": 5.989092484594918,
+    "combined_ann_ret": 0.4188047609808647,
+    "combined_max_dd": -0.03190145006161538,
+    "note": "Prior file is 3-leg (no Nikkei) and used iter_18_trades.csv 2-pair subset."
+  }
+}

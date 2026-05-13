@@ -1,7 +1,7 @@
 {
   "experiment": "142_focal_loss_weights_lgbm",
   "description": "Focal-loss-style per-example sample weights: two-stage baseline\u2192focal reweighting. Stage 1: LGBM with class_weight='balanced'. Stage 2: Compute focal weights w_i=0.25*(1-p_t_i)^2+0.05 on baseline predictions. Stage 3: Retrain LGBM with focal weights.",
-  "timestamp_utc": "2026-05-12T06:53:52.893387+00:00",
+  "timestamp_utc": "2026-05-12T07:03:35.225201+00:00",
   "train_auc": 0.9930461827852044,
   "test_auc": 0.8526936710175348,
   "train_test_gap": 0.1403525117676696,

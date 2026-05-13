@@ -1,0 +1,23 @@
+{
+  "total_trades": 6154,
+  "oos_trades": 3280,
+  "win_rate": 0.5318,
+  "mean_bps_net": 28.685,
+  "median_bps_net": 12.015,
+  "oos_mean_bps_net": 26.243,
+  "rolling_50_trade_sharpe_min": -7.97,
+  "rolling_50_trade_sharpe_max": 13.054,
+  "rolling_50_trade_sharpe_oos": 1.924,
+  "rolling_50_trade_sharpe_oos_min": -7.97,
+  "oos_portfolio_sharpe_daily_annualized": 2.089,
+  "portfolio_cum_return_pct": 34592.31,
+  "max_drawdown_pct": -28.584,
+  "verdict": "PASS",
+  "pass_criteria": {
+    "rolling_50_oos_sharpe_>=": 0.8,
+    "oos_mean_bps_net_>=": 5.0,
+    "sharpe_ok": true,
+    "mean_ok": true
+  },
+  "data_quality_caveat": "yfinance current-IWM-holdings universe -> SURVIVORSHIP BIAS (delisted/dropped names excluded; we used current static IWM membership applied retroactively to 2018-2025). Adjusted close used for both signal and P&L; open adjusted via close-ratio (approx). Top-N by trailing 20d dollar ADV. NO earnings/PDUFA/HTB filters applied \u2014 those gates from the spec are unavailable from yfinance. We filtered ~7 trades with |overnight return| > 25% as corp-action/split artifacts (yfinance bar inconsistencies). Edge is almost certainly OVERSTATED vs. a point-in-time universe \u2014 published academic Sharpe for this anomaly is typically 0.4-0.8 on point-in-time data with realistic slippage; our 1.5+ OOS rolling Sharpe is consistent with the survivorship-bias uplift expected."
+}

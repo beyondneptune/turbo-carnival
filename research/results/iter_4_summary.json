@@ -1,0 +1,32 @@
+{
+  "strategy": "iter_4_g10_fx_carry",
+  "is_period": "2010-01..2018-12",
+  "oos_period": "2019-01..present",
+  "months_oos": 89,
+  "mean_monthly_return_pct": 0.027012340233117747,
+  "ann_return_pct": -0.036953094694180955,
+  "ann_vol_pct": 8.508356120354696,
+  "sharpe_oos": 0.038097615827568335,
+  "max_drawdown_pct": -17.507249093358634,
+  "worst_month_pct": -9.302679682695313,
+  "best_month_pct": 7.158182172079597,
+  "pass_threshold_sharpe": 0.55,
+  "verdict": "FAIL",
+  "is_sharpe": -0.10349873497693146,
+  "is_ann_ret_pct": -1.4826119681580763,
+  "is_max_dd_pct": -27.312108823527147,
+  "is_n_months": 108,
+  "full_sharpe": -0.044445366131269294,
+  "full_n_months": 197,
+  "n_rebalances": 191,
+  "cost_bps_per_leg_roundtrip": 1.5,
+  "target_vol_per_leg_monthly_pct": 3.3300000000000005,
+  "vol_filter_half_ann_pct": 15.0,
+  "vol_filter_zero_ann_pct": 25.0,
+  "data_sources": {
+    "fx": "yfinance daily Close",
+    "rates": "FRED IR3TIB01 (3m interbank) monthly",
+    "rates_shift_days": "~1 month forward shift to avoid lookahead"
+  },
+  "note": "Carry signal = i_c - i_USD using 3m interbank rates (proxy for policy rate). Rates lagged 1 month to avoid lookahead. FX inverted where needed so every leg expressed CCY/USD (long pair = long that ccy). IS 2010-2018 not used for parameter tuning; rules pre-registered from MSSS (2012)."
+}

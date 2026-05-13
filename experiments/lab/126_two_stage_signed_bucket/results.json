@@ -1,7 +1,7 @@
 {
   "experiment": "126_two_stage_signed_bucket",
   "description": "Stage 1: 4-class signed bucket (large-down/-30|small-down|small-up/30|large-up). Stage 2: P(regime) = P(large-down) + P(large-up)",
-  "timestamp_utc": "2026-05-12T03:34:27.156142+00:00",
+  "timestamp_utc": "2026-05-12T07:02:39.761496+00:00",
   "train_auc": 0.9888370820199027,
   "test_auc": 0.8547168389850475,
   "train_test_gap": 0.13412024303485526,

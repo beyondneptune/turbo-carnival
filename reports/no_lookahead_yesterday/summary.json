@@ -1,0 +1,29 @@
+{
+  "yesterday_date": "2026-05-11",
+  "svxy_decision": {
+    "vix": 17.190000534057617,
+    "vix3m": 20.5,
+    "ratio": 0.8385366114174447,
+    "signal": "long",
+    "svxy_ret_pct": -0.2920590422436087,
+    "strategy_ret_pct": -0.2920590422436087
+  },
+  "composite_c3_with_lookahead": {
+    "n_blocked": 82,
+    "counterfactual_pnl": 2525.5444000000307,
+    "delta_vs_actual": 2029.5336999999681
+  },
+  "composite_c3_no_lookahead": {
+    "n_blocked": 106,
+    "counterfactual_pnl": 1783.7068000000218,
+    "delta_vs_actual": 1287.6960999999592,
+    "per_blocker_votes": {
+      "016": 24,
+      "017": 32,
+      "018": 28,
+      "102": 91
+    }
+  },
+  "lookahead_premium_usd": 741.8376000000089,
+  "actual_bar_close_pnl": 496.0107000000627
+}

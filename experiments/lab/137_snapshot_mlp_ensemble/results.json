@@ -1,7 +1,7 @@
 {
   "experiment": "137_snapshot_mlp_ensemble",
   "description": "single MLP trained for 150 epochs; snapshots at epochs 50/100/150; averaged predictions",
-  "timestamp_utc": "2026-05-12T06:03:56.081323+00:00",
+  "timestamp_utc": "2026-05-12T07:03:25.256917+00:00",
   "train_auc": 0.9115252117911147,
   "test_auc": 0.8564118252328481,
   "train_test_gap": 0.055113386558266586,

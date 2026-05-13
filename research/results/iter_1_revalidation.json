@@ -1,0 +1,94 @@
+{
+  "run_timestamp_utc": "2026-05-12T21:03:39.363283Z",
+  "agent": "A12",
+  "prior_summary_path": "/Users/weeoto/turbo-carnival/research/results/iter_1_summary.json",
+  "prior_oos_mean_bps": 26.243,
+  "prior_oos_rolling50_sharpe": 1.924,
+  "prior_verdict": "PASS",
+  "pass_thresholds_used": {
+    "rolling_50_oos_sharpe_>=": 0.5,
+    "oos_mean_bps_net_>=": 5.0
+  },
+  "mitigation_1": {
+    "label": "sp600_universe",
+    "trades": 5089,
+    "oos_trades": 2636,
+    "win_rate": 0.5192,
+    "mean_bps_net_all": 9.452,
+    "mean_bps": 5.954,
+    "sharpe": 0.417,
+    "oos_mean_bps_net": 5.954,
+    "rolling_50_oos_sharpe_median": 0.417,
+    "oos_portfolio_sharpe_daily_annualized": 0.563,
+    "max_drawdown_pct": -40.154,
+    "sharpe_ok": false,
+    "mean_ok": true,
+    "verdict": "FAIL",
+    "trades_csv": "/Users/weeoto/turbo-carnival/research/results/iter_1_revalidation_sp600_trades.csv",
+    "comparison_to_prior": {
+      "prior_oos_mean_bps": 26.243,
+      "sp600_oos_mean_bps": 5.954,
+      "delta_mean_bps": -20.289,
+      "prior_oos_rolling50_sharpe": 1.924,
+      "sp600_oos_rolling50_sharpe": 0.417,
+      "delta_sharpe": -1.507
+    }
+  },
+  "mitigation_2": {
+    "method": "one_shot_haircut_seed_42",
+    "oos_trades": 3280,
+    "p_delist": 0.1,
+    "loss_on_delist_pct": -0.5,
+    "loss_on_delist_bps": -5000.0,
+    "seed": 42,
+    "n_flagged_delisted": 327,
+    "baseline_oos_mean_bps": 26.243,
+    "mean_bps": -475.99,
+    "closed_form_mean_bps": -476.382,
+    "sharpe": -4.822,
+    "rolling_50_oos_sharpe_median": -4.822,
+    "per_trade_annualized_sharpe": -4.945,
+    "sharpe_ok": false,
+    "mean_ok": false,
+    "verdict": "FAIL"
+  },
+  "mitigation_3": {
+    "by_cost_level": [
+      {
+        "cost_bps_per_side": 5.0,
+        "oos_trades": 3280,
+        "mean_bps": 18.243,
+        "oos_mean_bps_net": 18.243,
+        "win_rate": 0.5192,
+        "sharpe": 1.343,
+        "rolling_50_oos_sharpe_median": 1.343,
+        "oos_portfolio_sharpe_daily_annualized": 1.436,
+        "sharpe_ok": true,
+        "mean_ok": true,
+        "verdict": "PASS"
+      },
+      {
+        "cost_bps_per_side": 10.0,
+        "oos_trades": 3280,
+        "mean_bps": 8.243,
+        "oos_mean_bps_net": 8.243,
+        "win_rate": 0.4881,
+        "sharpe": 0.669,
+        "rolling_50_oos_sharpe_median": 0.669,
+        "oos_portfolio_sharpe_daily_annualized": 0.621,
+        "sharpe_ok": true,
+        "mean_ok": true,
+        "verdict": "PASS"
+      }
+    ],
+    "mean_bps": 8.243,
+    "sharpe": 0.669,
+    "mean_bps_at_5bps_per_side": 18.243,
+    "sharpe_at_5bps_per_side": 1.343,
+    "mean_bps_at_10bps_per_side": 8.243,
+    "sharpe_at_10bps_per_side": 0.669,
+    "verdict": "PASS"
+  },
+  "final_verdict": "BORDERLINE",
+  "interpretation": "PASS = all 3 mitigations show OOS mean >= +5 bps AND OOS rolling-50 Sharpe >= 0.5. BORDERLINE = some pass, some fail. FAIL = none pass under their adjustments. Note: 'PASS' here is the RE-VALIDATION gate (Sharpe>=0.5, mean>=+5 bps), intentionally weaker than the original spec gate (Sharpe>=0.8, mean>=+10 bps) \u2014 asks 'is the edge still positive under realistic adjustments?', not 'is it still as strong as the survivorship-biased reading suggested?'"
+}

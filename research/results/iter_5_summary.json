@@ -1,0 +1,23 @@
+{
+  "start_date": "2018-01-02",
+  "end_date": "2026-05-11",
+  "years": 8.333,
+  "trading_days": 2100,
+  "total_return_pct": 3.2454,
+  "ann_return_pct": 0.384,
+  "ann_vol_pct": 5.8662,
+  "sharpe": 0.0948,
+  "max_drawdown_pct": -11.311,
+  "num_rotations": 225,
+  "num_rotations_per_year": 27.0,
+  "num_circuit_breaker_events": 156,
+  "ratio_threshold": 0.92,
+  "svxy_weight_on": 0.25,
+  "rotation_cost_bps": 1.0,
+  "circuit_vix_level": 30.0,
+  "circuit_vix_1d_chg": 0.5,
+  "verdict": "FAIL",
+  "prior_user_ann_return_pct": 17.1,
+  "prior_user_sharpe": 0.66,
+  "vix3m_source": "VIX3M"
+}

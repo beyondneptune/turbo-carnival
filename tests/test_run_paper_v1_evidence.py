@@ -873,10 +873,12 @@ def test_synthetic_spy_chains_auto_disables_when_priced_exists(mod, tmp_path):
         mod._resolve_synthetic_spy_chains(tmp_path, "year2", allow_synthetic=False)
         is False
     )
-    # --allow-synthetic forces synthetic regardless.
+    # --allow-synthetic must NOT override real priced files. Real data wins.
+    # Otherwise the verdict silently substitutes synthetic SPY for real prices,
+    # bypassing the SPY-condor validator and producing zero priced core trades.
     assert (
         mod._resolve_synthetic_spy_chains(tmp_path, "year2", allow_synthetic=True)
-        is True
+        is False
     )
 
 

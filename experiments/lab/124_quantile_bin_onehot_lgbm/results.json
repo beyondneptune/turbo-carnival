@@ -1,7 +1,7 @@
 {
   "experiment": "124_quantile_bin_onehot_lgbm",
   "description": "Quantile-binning (10 deciles) + one-hot + LightGBM. Treats continuous features as categorical.",
-  "timestamp_utc": "2026-05-12T03:34:02.222955+00:00",
+  "timestamp_utc": "2026-05-12T07:02:31.342495+00:00",
   "train_auc": 0.9223770572872383,
   "test_auc": 0.8439573631334996,
   "train_test_gap": 0.07841969415373873,

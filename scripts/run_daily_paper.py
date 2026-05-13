@@ -31,6 +31,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -69,6 +70,11 @@ CORE_DTE_MAX = 45
 CORE_QUANTITY = 1
 CORE_MULTIPLIER = 100
 SATELLITE_HOLD_TRADING_DAYS = 5
+MARKET_TZ = ZoneInfo("America/New_York")
+ENTRY_LOCAL_HOUR = 9
+ENTRY_LOCAL_MINUTE = 30
+EXIT_LOCAL_HOUR = 16
+EXIT_LOCAL_MINUTE = 0
 
 logger = logging.getLogger("run_daily_paper")
 
@@ -159,15 +165,11 @@ def _load_nav_history(
 ) -> pd.DataFrame:
     """Return a NAV history frame (columns date/nav/intraday_low).
 
-    If a `nav_history` table is present (created by a future cycle-tracking
-    migration), read from it. Otherwise return an empty frame — kill switch
-    treats fewer than 2 rows as "not enough data, no trigger".
+    The live paper run needs a NAV anchor even before the first closed trade.
+    Older DBs may not have this table, so create it lazily and seed one row
+    from the run metadata when empty.
     """
-    has_table = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='nav_history'"
-    ).fetchone()
-    if has_table is None:
-        return pd.DataFrame(columns=["date", "nav", "intraday_low"])
+    _ensure_nav_history_table(conn)
 
     df = pd.read_sql_query(
         "SELECT date, nav, intraday_low FROM nav_history WHERE run_id = ? "
@@ -176,9 +178,47 @@ def _load_nav_history(
         params=(run_id,),
     )
     if df.empty:
-        return pd.DataFrame(columns=["date", "nav", "intraday_low"])
+        seed_date = _iso_to_date(started_at)
+        conn.execute(
+            """
+            INSERT INTO nav_history (run_id, date, nav, intraday_low)
+            VALUES (?, ?, ?, ?)
+            """,
+            (run_id, seed_date.isoformat(), initial_nav, initial_nav),
+        )
+        return pd.DataFrame(
+            [{"date": seed_date, "nav": float(initial_nav), "intraday_low": float(initial_nav)}]
+        )
     df["date"] = pd.to_datetime(df["date"]).dt.date
     return df
+
+
+def _ensure_nav_history_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS nav_history (
+            run_id TEXT NOT NULL REFERENCES runs(run_id),
+            date TEXT NOT NULL,
+            nav REAL NOT NULL,
+            intraday_low REAL NOT NULL,
+            created_at_utc TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (run_id, date)
+        )
+        """
+    )
+
+
+def _iso_to_date(value: str) -> date:
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return date.today()
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).date()
 
 
 def _estimate_cash(conn: sqlite3.Connection, run_id: str, nav: float) -> float:
@@ -361,10 +401,18 @@ def fetch_todays_earnings(today: date) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _now_utc_iso(today: date, hour: int = 14, minute: int = 30) -> str:
-    return datetime(
-        today.year, today.month, today.day, hour, minute, tzinfo=timezone.utc
-    ).isoformat()
+def _now_utc_iso(
+    today: date,
+    hour: int = ENTRY_LOCAL_HOUR,
+    minute: int = ENTRY_LOCAL_MINUTE,
+) -> str:
+    """Return a New-York-market timestamp converted to UTC.
+
+    `hour` and `minute` are interpreted in America/New_York, so market-open
+    and market-close timestamps survive US daylight-saving shifts.
+    """
+    local = datetime(today.year, today.month, today.day, hour, minute, tzinfo=MARKET_TZ)
+    return local.astimezone(timezone.utc).isoformat()
 
 
 def _insert_gate_decision(
@@ -746,7 +794,7 @@ def manage_core_exits(
         _close_trade(
             conn,
             trade_id=trade_id,
-            exit_at_utc=_now_utc_iso(today, hour=20, minute=0),
+            exit_at_utc=_now_utc_iso(today, hour=EXIT_LOCAL_HOUR, minute=EXIT_LOCAL_MINUTE),
             realized_pnl_usd=realized,
             exit_commission_usd=0.65 * len(exit_legs),
             exit_spread_cost_usd=0.0,
@@ -1000,7 +1048,7 @@ def manage_satellite_exits(
         _close_trade(
             conn,
             trade_id=trade_id,
-            exit_at_utc=_now_utc_iso(today, hour=20, minute=0),
+            exit_at_utc=_now_utc_iso(today, hour=EXIT_LOCAL_HOUR, minute=EXIT_LOCAL_MINUTE),
             realized_pnl_usd=realized,
             exit_commission_usd=0.65 * len(exit_legs),
             exit_spread_cost_usd=0.0,
@@ -1054,6 +1102,9 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     args = parse_args(argv)
     today = _resolve_today(args.date)
+    if today.weekday() >= 5:
+        print(f"daily run skipped: {today.isoformat()} is not a weekday")
+        return 0
 
     db_path = get_db_path()
     if not db_path.exists():

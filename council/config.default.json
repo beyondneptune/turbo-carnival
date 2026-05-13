@@ -1,0 +1,150 @@
+{
+  "base_url": "https://integrate.api.nvidia.com/v1",
+  "env_api_key": "NVIDIA_API_KEY",
+  "temperature": 0.2,
+  "max_tokens": 1800,
+  "request_timeout_seconds": 120,
+  "chair_response_char_limit": 3000,
+  "parallel_workers": 4,
+  "lab_swarm": [
+    {
+      "role": "qwen_strategy_designer",
+      "model": "qwen/qwen3-coder-480b-a35b-instruct",
+      "mission": "Generate executable strategy variants and spot code-level backtest errors."
+    },
+    {
+      "role": "qwen_risk_designer",
+      "model": "qwen/qwen3-coder-480b-a35b-instruct",
+      "mission": "Generate risk-reduced strategy variants and stress-test ideas."
+    },
+    {
+      "role": "llama_allocator_designer",
+      "model": "meta/llama-4-maverick-17b-128e-instruct",
+      "mission": "Generate portfolio allocation and benchmark-aware strategy variants."
+    },
+    {
+      "role": "step_fast_designer",
+      "model": "stepfun-ai/step-3.5-flash",
+      "mission": "Generate fast independent experiment ideas and edge-case checks."
+    },
+    {
+      "role": "phi_execution_designer",
+      "model": "microsoft/phi-4-multimodal-instruct",
+      "mission": "Generate execution realism tests and slippage-aware variants."
+    },
+    {
+      "role": "gemma_sanity_designer",
+      "model": "google/gemma-3n-e4b-it",
+      "mission": "Generate simple sanity-check experiments and conservative variants."
+    },
+    {
+      "role": "kimi_agentic_designer",
+      "model": "moonshotai/kimi-k2-instruct",
+      "mission": "Generate aggressive but testable strategy and data-quality experiments."
+    },
+    {
+      "role": "kimi_reasoning_designer",
+      "model": "moonshotai/kimi-k2-thinking",
+      "mission": "Generate reasoning-heavy robustness and regime-split experiments."
+    },
+    {
+      "role": "nemotron_execution_designer",
+      "model": "mistralai/mistral-nemotron",
+      "mission": "Generate option execution and agentic workflow experiments."
+    }
+  ],
+  "core_council": [
+    {
+      "role": "chair_synthesizer",
+      "model": "mistralai/mistral-large-3-675b-instruct-2512",
+      "mission": "Synthesize all council answers into one practical decision, with investor-safe wording and clear next actions."
+    },
+    {
+      "role": "quant_research_judge",
+      "model": "qwen/qwen3-coder-480b-a35b-instruct",
+      "mission": "Audit the experiment design, strategy-grid math, data assumptions, overfitting risk, and code-level failure modes."
+    },
+    {
+      "role": "risk_manager",
+      "model": "minimaxai/minimax-m2.7",
+      "mission": "Attack drawdown, tail risk, sizing, open-position stacking, stop-loss behavior, and survivability."
+    },
+    {
+      "role": "execution_options_specialist",
+      "model": "mistralai/mistral-nemotron",
+      "mission": "Judge whether the option execution assumptions are realistic: IV proxy, fills, slippage, bid/ask, marks, exits."
+    },
+    {
+      "role": "portfolio_allocator",
+      "model": "meta/llama-4-maverick-17b-128e-instruct",
+      "mission": "Compare the strategy against SPY benchmark and recommend allocation among SPY core, satellite, cash, and no-trade."
+    },
+    {
+      "role": "devils_advocate",
+      "model": "bytedance/seed-oss-36b-instruct",
+      "mission": "Find the strongest reasons not to trust the result and specify the minimum proof needed before scaling."
+    }
+  ],
+  "expanded_pool": [
+    {
+      "role": "mistral_medium_reviewer",
+      "model": "mistralai/mistral-medium-3-instruct",
+      "mission": "General reasoning reviewer."
+    },
+    {
+      "role": "magistral_reasoner",
+      "model": "mistralai/magistral-small-2506",
+      "mission": "Reasoning-focused reviewer."
+    },
+    {
+      "role": "kimi_agentic_reviewer",
+      "model": "moonshotai/kimi-k2-instruct",
+      "mission": "Agentic reasoning reviewer; optional if endpoint is still available."
+    },
+    {
+      "role": "kimi_thinking_reviewer",
+      "model": "moonshotai/kimi-k2-thinking",
+      "mission": "Deep reasoning reviewer; optional if endpoint is still available."
+    },
+    {
+      "role": "glm_agentic_reviewer",
+      "model": "z-ai/glm-4.7",
+      "mission": "Agentic coding and reasoning reviewer; optional if endpoint is still available."
+    },
+    {
+      "role": "gemma_reviewer",
+      "model": "google/gemma-3n-e4b-it",
+      "mission": "Independent small-model sanity check."
+    },
+    {
+      "role": "phi_multimodal_reviewer",
+      "model": "microsoft/phi-4-multimodal-instruct",
+      "mission": "Independent Microsoft-family reviewer."
+    },
+    {
+      "role": "step_flash_reviewer",
+      "model": "stepfun-ai/step-3.5-flash",
+      "mission": "Fast broad reviewer."
+    },
+    {
+      "role": "upstage_solar_reviewer",
+      "model": "upstage/solar-10.7b-instruct",
+      "mission": "Independent smaller-model sanity check."
+    },
+    {
+      "role": "nemotron_mini_reviewer",
+      "model": "nvidia/nemotron-mini-4b-instruct",
+      "mission": "NVIDIA small-model sanity check."
+    },
+    {
+      "role": "seed_reviewer_2",
+      "model": "bytedance/seed-oss-36b-instruct",
+      "mission": "Second adversarial prompt using same model family, focused on hidden assumptions."
+    },
+    {
+      "role": "qwen_code_reviewer_2",
+      "model": "qwen/qwen3-coder-480b-a35b-instruct",
+      "mission": "Second code/math prompt using same model family, focused on implementation errors."
+    }
+  ]
+}

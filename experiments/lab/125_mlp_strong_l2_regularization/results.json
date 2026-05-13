@@ -1,7 +1,7 @@
 {
   "experiment": "125_mlp_strong_l2_regularization",
   "description": "5-seed ensemble of MLPs (64-32) with alpha=1.0 (very strong L2 as dropout-proxy)",
-  "timestamp_utc": "2026-05-12T03:34:22.554546+00:00",
+  "timestamp_utc": "2026-05-12T07:02:34.842210+00:00",
   "train_auc": 0.8386641380722274,
   "test_auc": 0.8294773014233242,
   "train_test_gap": 0.009186836648903185,

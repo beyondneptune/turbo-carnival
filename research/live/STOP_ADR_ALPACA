@@ -1,0 +1,5 @@
+{
+  "ts_utc": "2026-05-13T14:27:40.117588+00:00",
+  "reason": "hard_kill",
+  "detail": "Gross exposure $108,109.64 > 100% of NAV $98,550.35"
+}

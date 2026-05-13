@@ -1,0 +1,142 @@
+{
+  "generated_at": "2026-05-12T21:02:05.954105Z",
+  "spec": "iter_18_us_hk_dual_listing_arbitrage",
+  "params": {
+    "pairs": [
+      {
+        "us": "BABA",
+        "hk": "9988.HK",
+        "ratio": 8
+      },
+      {
+        "us": "JD",
+        "hk": "9618.HK",
+        "ratio": 2
+      },
+      {
+        "us": "BIDU",
+        "hk": "9888.HK",
+        "ratio": 8
+      },
+      {
+        "us": "NTES",
+        "hk": "9999.HK",
+        "ratio": 25
+      },
+      {
+        "us": "TCOM",
+        "hk": "9961.HK",
+        "ratio": 1
+      }
+    ],
+    "start": "2020-01-01",
+    "usd_hkd_peg": 7.8,
+    "entry_bps": 80.0,
+    "exit_bps": 20.0,
+    "stop_bps": 250.0,
+    "max_hold_days": 5,
+    "cost_bps_per_leg_per_side": 5.0,
+    "round_trip_cost_bps": 30.0,
+    "round_trip_cost_bps_light": 20.0
+  },
+  "data_meta": {
+    "rows": 1641,
+    "first_date": "2020-01-02",
+    "last_date": "2026-05-12",
+    "columns": [
+      "BABA",
+      "JD",
+      "BIDU",
+      "NTES",
+      "TCOM",
+      "9988.HK",
+      "9618.HK",
+      "9888.HK",
+      "9999.HK",
+      "9961.HK"
+    ],
+    "first_valid_per_ticker": {
+      "BABA": "2020-01-02",
+      "JD": "2020-01-02",
+      "BIDU": "2020-01-02",
+      "NTES": "2020-01-02",
+      "TCOM": "2020-01-02",
+      "9988.HK": "2020-01-02",
+      "9618.HK": "2020-06-18",
+      "9888.HK": "2021-03-23",
+      "9999.HK": "2020-06-11",
+      "9961.HK": "2021-04-19"
+    }
+  },
+  "total_trades": 2553,
+  "win_rate": 45.16,
+  "mean_bps_gross": 22.8,
+  "mean_bps_net": -7.2,
+  "mean_bps_net20": 2.8,
+  "total_pnl_bps": -18386.15,
+  "median_holding_bars": 1.0,
+  "ann_return_pct": -28.92,
+  "sharpe_proxy": -0.872,
+  "max_consecutive_losses": 12,
+  "exit_reason_counts": {
+    "stop_out": 2278,
+    "converged": 160,
+    "time_stop": 111,
+    "end_of_data": 4
+  },
+  "per_pair": {
+    "BABA/9988.HK": {
+      "n": 588,
+      "win_rate": 38.61,
+      "mean_bps_net": -24.12,
+      "mean_bps_gross": 5.88,
+      "median_hold_bars": 1.0,
+      "stop_outs": 541,
+      "time_stops": 21,
+      "converged": 25
+    },
+    "BIDU/9888.HK": {
+      "n": 303,
+      "win_rate": 64.03,
+      "mean_bps_net": 68.32,
+      "mean_bps_gross": 98.32,
+      "median_hold_bars": 2.0,
+      "stop_outs": 187,
+      "time_stops": 47,
+      "converged": 68
+    },
+    "JD/9618.HK": {
+      "n": 664,
+      "win_rate": 38.1,
+      "mean_bps_net": -37.12,
+      "mean_bps_gross": -7.12,
+      "median_hold_bars": 1.0,
+      "stop_outs": 655,
+      "time_stops": 2,
+      "converged": 7
+    },
+    "NTES/9999.HK": {
+      "n": 707,
+      "win_rate": 43.0,
+      "mean_bps_net": -20.31,
+      "mean_bps_gross": 9.69,
+      "median_hold_bars": 1.0,
+      "stop_outs": 706,
+      "time_stops": 0,
+      "converged": 0
+    },
+    "TCOM/9961.HK": {
+      "n": 291,
+      "win_rate": 60.14,
+      "mean_bps_net": 48.46,
+      "mean_bps_gross": 78.46,
+      "median_hold_bars": 2.0,
+      "stop_outs": 189,
+      "time_stops": 41,
+      "converged": 60
+    }
+  },
+  "verdict": "FAIL",
+  "verdict_reason": "mean_bps_net=-7.20 (req>=25) AND total_trades=2553 (req>=100)",
+  "elapsed_years": 6.36
+}

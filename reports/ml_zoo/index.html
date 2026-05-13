@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>ML Zoo — all models</title>
+<style>
+  body { background: #0b1120; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+         margin: 0; padding: 20px 28px; }
+  h1 { color: #f8fafc; margin-bottom: 4px; }
+  .sub { color: #94a3b8; margin-bottom: 18px; font-size: 14px; }
+  .kpis { display: flex; gap: 12px; margin: 12px 0 22px 0; flex-wrap: wrap; }
+  .kpi { background: #0f172a; border: 1px solid #1e293b; padding: 10px 16px;
+         border-radius: 10px; min-width: 150px; }
+  .kpi .l { color: #94a3b8; font-size: 11px; text-transform: uppercase;
+            letter-spacing: 0.04em; }
+  .kpi .v { color: #f1f5f9; font-size: 22px; font-weight: 700;
+            font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .pos { color: #4ade80; } .neg { color: #f87171; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px;
+          font-variant-numeric: tabular-nums; }
+  th { background: #1e293b; color: #cbd5e1; padding: 8px 10px; text-align: left;
+       position: sticky; top: 0; }
+  td { padding: 6px 10px; border-bottom: 1px solid #1e293b; }
+  tr.blocked-loser   { background: #14532d40; }      /* blocked a loser — good */
+  tr.blocked-winner  { background: #7f1d1d40; }      /* blocked a winner — bad */
+  tr.kept-winner     { background: #052e16; }
+  tr.kept-loser      { background: #1f2937; }
+  .legend { color: #cbd5e1; font-size: 12px; margin: 14px 0; }
+  .legend span { display: inline-block; padding: 2px 8px; border-radius: 4px;
+                 margin-right: 8px; }
+  .legend .lw { background: #14532d40; } .legend .lb { background: #7f1d1d40; }
+  .legend .kw { background: #052e16; }   .legend .kl { background: #1f2937; }
+  a { color: #60a5fa; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .topbar { display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 12px; }
+  .pill { background: #1e293b; color: #cbd5e1; padding: 3px 10px;
+          border-radius: 999px; font-size: 12px; }
+</style>
+
+<script>
+function openAll() {
+  const pages = ["LogisticRegression.html","SGDClassifier.html","HistGradientBoosting.html","DecisionTree.html","LocalOutlierFactor.html","PassiveAggressive.html","KNN.html","GradientBoosting.html","Bagging.html","RandomForest.html","AdaBoost.html","RidgeClassifier.html","LDA.html","GaussianNB.html","IsolationForest.html","MLP.html","ExtraTrees.html","QDA.html"];
+  pages.forEach(p => window.open(p, "_blank"));
+}
+</script>
+</head><body>
+<div class="topbar">
+  <h1>ML Zoo — all 18 models on today's 162 entries</h1>
+  <button onclick="openAll()" style="background:#2563eb;color:white;border:0;
+    padding:8px 14px;border-radius:6px;cursor:pointer">Open all 18 in new tabs</button>
+</div>
+<div class="sub">Click a model name to open just that one. Sorted by P&L delta (best first).</div>
+<table>
+<thead><tr>
+  <th>Model</th><th>Blocked</th><th>Block rate</th>
+  <th>Blocked winners / losers</th>
+  <th>Counterfactual P&L</th><th>Δ vs actual</th>
+</tr></thead>
+<tbody>
+<tr><td><a href="LogisticRegression.html">LogisticRegression</a></td><td>111</td><td>68.5%</td><td>23 / 28</td><td><span class="pos">$+1,566.79</span></td><td><span class="pos">$+1,070.78</span></td></tr><tr><td><a href="SGDClassifier.html">SGDClassifier</a></td><td>113</td><td>69.8%</td><td>24 / 29</td><td><span class="pos">$+1,555.59</span></td><td><span class="pos">$+1,059.58</span></td></tr><tr><td><a href="HistGradientBoosting.html">HistGradientBoosting</a></td><td>105</td><td>64.8%</td><td>20 / 31</td><td><span class="pos">$+1,204.12</span></td><td><span class="pos">$+708.11</span></td></tr><tr><td><a href="DecisionTree.html">DecisionTree</a></td><td>124</td><td>76.5%</td><td>26 / 32</td><td><span class="pos">$+1,131.43</span></td><td><span class="pos">$+635.42</span></td></tr><tr><td><a href="LocalOutlierFactor.html">LocalOutlierFactor</a></td><td>16</td><td>9.9%</td><td>2 / 5</td><td><span class="pos">$+1,054.65</span></td><td><span class="pos">$+558.64</span></td></tr><tr><td><a href="PassiveAggressive.html">PassiveAggressive</a></td><td>71</td><td>43.8%</td><td>13 / 16</td><td><span class="pos">$+718.81</span></td><td><span class="pos">$+222.80</span></td></tr><tr><td><a href="KNN.html">KNN</a></td><td>5</td><td>3.1%</td><td>1 / 1</td><td><span class="pos">$+670.84</span></td><td><span class="pos">$+174.83</span></td></tr><tr><td><a href="GradientBoosting.html">GradientBoosting</a></td><td>6</td><td>3.7%</td><td>1 / 3</td><td><span class="pos">$+534.46</span></td><td><span class="pos">$+38.45</span></td></tr><tr><td><a href="Bagging.html">Bagging</a></td><td>7</td><td>4.3%</td><td>2 / 1</td><td><span class="pos">$+518.24</span></td><td><span class="pos">$+22.23</span></td></tr><tr><td><a href="RandomForest.html">RandomForest</a></td><td>110</td><td>67.9%</td><td>20 / 24</td><td><span class="pos">$+509.80</span></td><td><span class="pos">$+13.79</span></td></tr><tr><td><a href="AdaBoost.html">AdaBoost</a></td><td>9</td><td>5.6%</td><td>4 / 4</td><td><span class="pos">$+505.22</span></td><td><span class="pos">$+9.20</span></td></tr><tr><td><a href="RidgeClassifier.html">RidgeClassifier</a></td><td>76</td><td>46.9%</td><td>20 / 20</td><td><span class="pos">$+298.03</span></td><td><span class="neg">$-197.98</span></td></tr><tr><td><a href="LDA.html">LDA</a></td><td>27</td><td>16.7%</td><td>7 / 9</td><td><span class="pos">$+243.89</span></td><td><span class="neg">$-252.12</span></td></tr><tr><td><a href="GaussianNB.html">GaussianNB</a></td><td>33</td><td>20.4%</td><td>8 / 8</td><td><span class="pos">$+67.18</span></td><td><span class="neg">$-428.83</span></td></tr><tr><td><a href="IsolationForest.html">IsolationForest</a></td><td>29</td><td>17.9%</td><td>9 / 7</td><td><span class="neg">$-117.58</span></td><td><span class="neg">$-613.59</span></td></tr><tr><td><a href="MLP.html">MLP</a></td><td>12</td><td>7.4%</td><td>6 / 4</td><td><span class="neg">$-137.83</span></td><td><span class="neg">$-633.84</span></td></tr><tr><td><a href="ExtraTrees.html">ExtraTrees</a></td><td>69</td><td>42.6%</td><td>16 / 12</td><td><span class="neg">$-516.20</span></td><td><span class="neg">$-1,012.21</span></td></tr><tr><td><a href="QDA.html">QDA</a></td><td>31</td><td>19.1%</td><td>10 / 8</td><td><span class="neg">$-536.47</span></td><td><span class="neg">$-1,032.48</span></td></tr>
+</tbody></table>
+<div class="sub" style="margin-top:24px;">Generated 2026-05-11 22:59:27
+· Source: <code>experiments/ml_lab/runs/ml_zoo_*_latest.parquet</code></div>
+</body></html>

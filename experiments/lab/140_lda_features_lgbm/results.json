@@ -1,7 +1,7 @@
 {
   "experiment": "140_lda_features_lgbm",
   "description": "LDA (supervised 1-dim projection) concatenated with original features; LGBM on 11-dim augmented set",
-  "timestamp_utc": "2026-05-12T06:04:11.855246+00:00",
+  "timestamp_utc": "2026-05-12T07:03:30.140825+00:00",
   "train_auc": 0.9554255796927256,
   "test_auc": 0.8612391843215708,
   "train_test_gap": 0.09418639537115481,

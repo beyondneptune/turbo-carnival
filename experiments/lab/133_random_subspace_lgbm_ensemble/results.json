@@ -1,7 +1,7 @@
 {
   "experiment": "133_random_subspace_lgbm_ensemble",
   "description": "10 LightGBM models on random 5-feature subsets; ensemble average. Implements Ho 1998 random subspace method.",
-  "timestamp_utc": "2026-05-12T05:13:56.630060+00:00",
+  "timestamp_utc": "2026-05-12T07:03:11.507191+00:00",
   "train_auc": 0.9355673039793571,
   "test_auc": 0.8633127814945998,
   "train_test_gap": 0.07225452248475728,

@@ -1,0 +1,120 @@
+{
+  "generated_at": "2026-05-12T21:09:59.016701Z",
+  "window": {
+    "start": "2021-01-01",
+    "end": "2025-12-31"
+  },
+  "method": {
+    "vol_normalize_target": 0.1,
+    "equal_weight": 0.3333333333333333,
+    "notional_usd": 1000000.0,
+    "trading_days_per_year": 252
+  },
+  "data_sources": {
+    "svxy_aggressive": "experiments/svxy_lab/runs/walk_forward_results.parquet (strategy_ret column)",
+    "btc_funding": "research/results/iter_3_positions.csv (on/off mask) + iter_3_funding_history.csv (daily sum of 3x8h funding ticks during open positions, 30bps round-trip cost amortized over holding days)",
+    "adr_clean": "research/results/iter_18_trades.csv (filtered to TCOM/9961.HK + BIDU/9888.HK, net_bps realized on exit date, 50% per pair within sleeve)"
+  },
+  "caveats": {
+    "btc_funding_sharpe_high": "Raw daily P&L for BTC cash-and-carry has very low variance (funding ticks are small + deterministic in sign when active), producing a high daily Sharpe. The iter_3 summary's sharpe_proxy of 0.62 was computed on per-position carry returns (n=11) \u2014 a coarser metric. Real-world execution would add basis-risk variance not present here.",
+    "vol_normalization_amplifies_btc": "Vol-normalizing the low-noise BTC series to 10% ann vol requires ~12x scale; this is a model artifact of the smooth-carry assumption, not a realistic deployable leverage level.",
+    "adr_realization": "ADR P&L is realized lump-sum on the trade exit day. Most trades hold 1-2 bars so this is close to truth."
+  },
+  "per_strategy_raw": {
+    "svxy_aggressive": {
+      "sharpe": 0.8384054099533437,
+      "ann_ret": 0.2362633992912273,
+      "max_dd": -0.32839920300298386,
+      "n_days": 1304,
+      "ann_vol": 0.31210577126887895
+    },
+    "btc_funding": {
+      "sharpe": 6.8911232821012325,
+      "ann_ret": 0.06045630911048705,
+      "max_dd": -0.0025694583896884726,
+      "n_days": 1304,
+      "ann_vol": 0.00852435437549288
+    },
+    "adr_clean": {
+      "sharpe": 2.8237696499553855,
+      "ann_ret": 0.3505566042316657,
+      "max_dd": -0.0896419279431907,
+      "n_days": 1304,
+      "ann_vol": 0.1085581867091315
+    }
+  },
+  "per_strategy_normalized": {
+    "svxy_aggressive": {
+      "sharpe": 0.8384054099533437,
+      "ann_ret": 0.08199531956743544,
+      "max_dd": -0.10714813835776515,
+      "n_days": 1304,
+      "ann_vol": 0.10000000000000002
+    },
+    "btc_funding": {
+      "sharpe": 6.891123282101233,
+      "ann_ret": 0.9803708009736707,
+      "max_dd": -0.02979113388098409,
+      "n_days": 1304,
+      "ann_vol": 0.1
+    },
+    "adr_clean": {
+      "sharpe": 2.823769649955385,
+      "ann_ret": 0.3195096298766651,
+      "max_dd": -0.08271045239646135,
+      "n_days": 1304,
+      "ann_vol": 0.10000000000000002
+    }
+  },
+  "vol_normalization_scales": {
+    "svxy_aggressive": 0.3204042001320445,
+    "btc_funding": 11.731093710451002,
+    "adr_clean": 0.9211649810247649
+  },
+  "correlation_matrix": {
+    "svxy_aggressive": {
+      "svxy_aggressive": 1.0,
+      "btc_funding": 0.020176,
+      "adr_clean": 0.056867
+    },
+    "btc_funding": {
+      "svxy_aggressive": 0.020176,
+      "btc_funding": 1.0,
+      "adr_clean": -0.024569
+    },
+    "adr_clean": {
+      "svxy_aggressive": 0.056867,
+      "btc_funding": -0.024569,
+      "adr_clean": 1.0
+    }
+  },
+  "combined_portfolio": {
+    "sharpe": 5.989092484594918,
+    "ann_ret": 0.4188047609808647,
+    "max_dd": -0.03190145006161538,
+    "ann_vol": 0.05873621292460723,
+    "n_days": 1304,
+    "monthly_return_distribution_summary": {
+      "best_month_pct": 23.249352657140278,
+      "worst_month_pct": -1.1147079440129715,
+      "mean_month_pct": 3.1342912656596713,
+      "median_month_pct": 2.0636944937459156,
+      "std_month_pct": 3.9955352934610917,
+      "pct_positive_months": 88.33333333333333,
+      "n_months": 60
+    },
+    "dollar_pnl_on_notional": {
+      "notional": 1000000.0,
+      "final_equity": 6111381.010522024,
+      "total_pnl": 5111381.010522024,
+      "total_return_pct": 511.1381010522024
+    }
+  },
+  "diversification_uplift": {
+    "combined_sharpe": 5.989092484594918,
+    "max_individual_sharpe": 6.891123282101233,
+    "uplift_vs_max": -0.9020307975063151,
+    "weighted_avg_individual_sharpe": 3.517766114003321,
+    "uplift_vs_avg": 2.4713263705915973
+  }
+}

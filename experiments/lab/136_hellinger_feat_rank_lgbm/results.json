@@ -1,7 +1,7 @@
 {
   "experiment": "136_hellinger_feat_rank_lgbm",
   "description": "Hellinger-distance feature ranking (top-6) + LightGBM. Symmetric, bounded [0,1] feature selection.",
-  "timestamp_utc": "2026-05-12T05:14:22.158616+00:00",
+  "timestamp_utc": "2026-05-12T07:03:19.128503+00:00",
   "train_auc": 0.932419364907388,
   "test_auc": 0.8400456130569767,
   "train_test_gap": 0.0923737518504113,

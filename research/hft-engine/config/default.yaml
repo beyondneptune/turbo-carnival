@@ -1,0 +1,48 @@
+# Predictive Selective Trading engine — default tunables.
+# Read at startup. Env vars override where indicated.
+
+# Selective gate thresholds (the "spaceship gravity assist" alignment).
+gate:
+  # Predicted return must exceed this multiple of the current bid/ask spread (bps).
+  predicted_spread_multiplier: 3.0
+  # Rolling 50-trade hit-rate floor. Below this, do not fire.
+  confidence_floor: 0.55
+  # Round-trip 99th percentile latency cap (ms). Above this, do not fire.
+  latency_p99_cap_ms: 250.0
+  # Minimum |predicted_bps| in absolute terms (kills pure noise even on tight spreads).
+  min_predicted_bps_abs: 1.5
+
+# Trade sizing.
+sizing:
+  notional_usd: 5000.0       # per-trade notional target
+  hold_seconds: 60           # exit after this hold
+  max_open_positions: 1      # single-position discipline for v0.1
+
+# Risk / kill conditions.
+risk:
+  initial_nav_usd: 100000.0  # cap (FALCON paper has ~97k)
+  max_drawdown_pct: 0.08     # halt at -8% drawdown from peak NAV
+  max_consecutive_losses: 5
+  latency_breach_ms: 500.0   # if p99 > this for `latency_breach_minutes`, halt
+  latency_breach_minutes: 5
+
+# Loops.
+intervals:
+  latency_seconds: 5
+  data_feed_seconds: 30
+  decision_seconds: 30
+
+# Predictor (online RLS).
+predictor:
+  rls_forgetting_factor: 0.99
+  warmup_samples: 10        # below this, confidence forced to 0 (no trading)
+
+# Endpoints.
+endpoints:
+  alpaca_paper_base: "https://paper-api.alpaca.markets"
+  alpaca_data_base: "https://data.alpaca.markets"
+  yahoo_es_chart: "https://query1.finance.yahoo.com/v8/finance/chart/ES%3DF?interval=1m&range=1d"
+
+# Safety.
+safety:
+  confirm_first_n_trades: 5  # only enforced when HFT_REQUIRE_CONFIRM=1

@@ -1,0 +1,87 @@
+{
+  "ticker": "EWU",
+  "start_date": "2010-01-04",
+  "end_date": "2026-05-12",
+  "trading_days": 4114,
+  "parameters": {
+    "lookback_days": 5,
+    "entry_long_threshold": -0.03,
+    "entry_short_threshold": 0.03,
+    "hold_days": 5,
+    "tp_long": 0.03,
+    "tp_short": -0.03,
+    "sl_long": -0.025,
+    "sl_short": 0.025,
+    "size_nav_pct": 0.2,
+    "cost_bps_round_trip": 5.0
+  },
+  "is_window": {
+    "label": "IS_2010_2022",
+    "trade_count": 282,
+    "win_rate": 0.5071,
+    "mean_net_return": 0.000313,
+    "median_net_return": 0.000677,
+    "total_net_return": -0.067062,
+    "sharpe_annualized": 0.0439,
+    "max_drawdown_pct": -0.383111,
+    "trades_long": 150,
+    "trades_short": 132,
+    "exit_reasons": {
+      "time": 141,
+      "sl": 71,
+      "tp": 70
+    },
+    "first_entry": "2010-01-21",
+    "last_exit": "2022-12-01"
+  },
+  "oos_window": {
+    "label": "OOS_2023_2026",
+    "trade_count": 44,
+    "win_rate": 0.4773,
+    "mean_net_return": 0.000692,
+    "median_net_return": -0.000883,
+    "total_net_return": 0.021168,
+    "sharpe_annualized": 0.1207,
+    "max_drawdown_pct": -0.056749,
+    "trades_long": 18,
+    "trades_short": 26,
+    "exit_reasons": {
+      "time": 32,
+      "sl": 6,
+      "tp": 5,
+      "eod_truncate": 1
+    },
+    "first_entry": "2023-01-09",
+    "last_exit": "2026-05-12"
+  },
+  "full_window": {
+    "label": "FULL_2010_2026",
+    "trade_count": 326,
+    "win_rate": 0.5031,
+    "mean_net_return": 0.000364,
+    "median_net_return": 0.00017,
+    "total_net_return": -0.047313,
+    "sharpe_annualized": 0.0509,
+    "max_drawdown_pct": -0.383111,
+    "trades_long": 168,
+    "trades_short": 158,
+    "exit_reasons": {
+      "time": 173,
+      "sl": 77,
+      "tp": 75,
+      "eod_truncate": 1
+    },
+    "first_entry": "2010-01-21",
+    "last_exit": "2026-05-12"
+  },
+  "verdict": "INSUFFICIENT_OOS_SAMPLE",
+  "verdict_reasons": [
+    "OOS trades 44 < 100 required"
+  ],
+  "verdict_hurdles": {
+    "min_oos_trades": 100,
+    "pass_oos_sharpe": 0.5,
+    "pass_oos_win_rate": 0.5,
+    "pass_oos_max_dd": -0.15
+  }
+}

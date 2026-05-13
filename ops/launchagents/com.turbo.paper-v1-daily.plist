@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.turbo.paper-v1-daily</string>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/weeoto/turbo-carnival</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/weeoto/turbo-carnival/.venv/bin/python</string>
+    <string>/Users/weeoto/turbo-carnival/scripts/run_daily_paper.py</string>
+    <string>--run-id</string>
+    <string>paper_v1_live_20260511T000000Z</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict>
+      <key>Hour</key>
+      <integer>14</integer>
+      <key>Minute</key>
+      <integer>35</integer>
+    </dict>
+    <dict>
+      <key>Hour</key>
+      <integer>21</integer>
+      <key>Minute</key>
+      <integer>5</integer>
+    </dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/Users/weeoto/turbo-carnival/data/logs/paper_v1_daily.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/weeoto/turbo-carnival/data/logs/paper_v1_daily.err</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

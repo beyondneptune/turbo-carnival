@@ -1,7 +1,7 @@
 {
   "experiment": "028_cascade_reject",
   "description": "Custom: 3-stage cascade (NB\u2192LR\u2192LGBM), each trained on prior-stage survivors",
-  "timestamp_utc": "2026-05-12T02:01:40.701372+00:00",
+  "timestamp_utc": "2026-05-12T07:01:34.790930+00:00",
   "train_auc": 0.8886131704008126,
   "test_auc": 0.8325465320138616,
   "train_test_gap": 0.05606663838695092,

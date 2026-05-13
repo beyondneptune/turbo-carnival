@@ -1,0 +1,57 @@
+{
+  "generated_at": "2026-05-12T21:24:19.827100Z",
+  "spec": "iter_11_llm_fomc_hawkdove_classifier",
+  "approach": "perfect_oracle_proxy + 70%_accuracy_simulation",
+  "params": {
+    "tickers": [
+      "SPY",
+      "TLT"
+    ],
+    "fomc_statement_count": 60,
+    "minutes_lag_days": 21,
+    "dovish_thresh_1d_ret": 0.005,
+    "hawkish_thresh_1d_ret": -0.005,
+    "hold_days": 3,
+    "cost_bps_roundtrip": 5.0,
+    "llm_accuracy_sim": 0.7,
+    "train_end": "2019-12-31",
+    "oos_start": "2020-01-01",
+    "oos_end": "2025-05-31"
+  },
+  "events_oos": 89,
+  "trades_taken": 59,
+  "win_rate": 47.46,
+  "mean_return_per_trade_pct": -0.4292,
+  "ann_return_pct": -4.738,
+  "sharpe_oos": -0.529,
+  "max_dd_pct": 29.447,
+  "oracle_advantage_pp": -0.491,
+  "verdict": "FAIL",
+  "verdict_reason": "oracle_sharpe=-0.529 (req>=1.0), sim70_sharpe=-0.495 (req>=0.5)",
+  "oracle_metrics": {
+    "tag": "oracle",
+    "n_events_oos": 89,
+    "n_trades_oos": 59,
+    "abstain_rate_pct": 33.71,
+    "win_rate_pct": 47.46,
+    "mean_return_per_trade_pct": -0.4292,
+    "ann_return_pct": -4.738,
+    "sharpe_oos": -0.529,
+    "max_dd_pct": 29.447,
+    "events_per_year": 11.04,
+    "oos_span_years": 5.344
+  },
+  "sim_70pct_metrics": {
+    "tag": "sim_70pct_accuracy",
+    "n_events_oos": 89,
+    "n_trades_oos": 58,
+    "abstain_rate_pct": 34.83,
+    "win_rate_pct": 44.83,
+    "mean_return_per_trade_pct": -0.3913,
+    "ann_return_pct": -4.247,
+    "sharpe_oos": -0.495,
+    "max_dd_pct": 31.162,
+    "events_per_year": 10.85,
+    "oos_span_years": 5.344
+  }
+}

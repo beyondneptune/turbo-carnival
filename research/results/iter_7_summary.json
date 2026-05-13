@@ -1,0 +1,22 @@
+{
+  "instrument": "^GDAXI (DAX index, proxy for FDAX futures returns)",
+  "period_full": "2000-01-03..2026-05-12",
+  "is_window": "2000-2014",
+  "oos_window": "2015-2025",
+  "years_oos": 11.071428571428571,
+  "ann_return_pct_oos": 1.0162372208071928,
+  "ann_vol_pct": 10.694182019547206,
+  "sharpe_oos": 0.09502711090475907,
+  "max_drawdown_pct_oos": -24.354258725851974,
+  "num_long_periods": 1849,
+  "num_short_periods": 941,
+  "num_flat_periods": 0,
+  "ann_return_pct_is": 5.262020003742636,
+  "sharpe_is": 0.5066111721097685,
+  "max_drawdown_pct_is": -23.568216283951937,
+  "cost_bp_per_rebalance": 1.0,
+  "vol_target_ann_pct": 10.0,
+  "max_leverage_cap": 3.0,
+  "verdict": "FAIL",
+  "pass_threshold_sharpe_oos": 0.5
+}

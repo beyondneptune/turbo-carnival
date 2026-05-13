@@ -1,0 +1,588 @@
+{
+  "generated_at": "2026-05-12T21:51:08.431244Z",
+  "agent": "A23_leverage_stress",
+  "window": {
+    "start": "2021-01-01",
+    "end": "2025-12-31"
+  },
+  "method": {
+    "vol_normalize_target": 0.1,
+    "equal_weight_per_leg": 0.25,
+    "n_strategies": 4,
+    "trading_days_per_year": 252,
+    "leverages_swept": [
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0,
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      6.0,
+      7.0
+    ],
+    "target_monthly_ret": 0.14,
+    "target_max_dd_bar": 0.2,
+    "monthly_friction_bps": 20.0,
+    "btc_sharpe_haircut_pct": 50.0,
+    "leverage_model": "Daily portfolio P&L scaled linearly by L (additive arithmetic leverage). 20 bps/month friction spread evenly across business days (= 0.95 bps/day). BTC haircut applied as a shift of the BTC daily mean by 50% BEFORE vol-norm.",
+    "leverage_caveat": "Linear daily scaling is a first-order approximation. Real geometric compounding under leverage suffers from volatility drag (-0.5 * L^2 * sigma^2) which is NOT captured here; the ann_ret reported is the geometric compound of leveraged daily returns so volatility drag IS reflected in ann_ret and max_dd via the compounding, but mean_monthly_ret is the arithmetic mean of monthly compound returns."
+  },
+  "unlevered_combined_raw": {
+    "sharpe": 7.557376086878859,
+    "ann_ret": 0.4653562903875985,
+    "max_dd": -0.025870780896327217,
+    "ann_vol": 0.05076760733342765,
+    "n_days": 1304
+  },
+  "unlevered_combined_realistic": {
+    "sharpe": 5.860643750045888,
+    "ann_ret": 0.34457068321412376,
+    "max_dd": -0.02792499327450737,
+    "ann_vol": 0.05076760733342765,
+    "n_days": 1304
+  },
+  "vol_normalization_scales_raw": {
+    "svxy_sweet_spot": 1.2819793771789345,
+    "btc_funding": 11.731093710451002,
+    "adr_cleanup": 1.42261332787765,
+    "nikkei_gap": 1.0254791501445741
+  },
+  "vol_normalization_scales_realistic": {
+    "svxy_sweet_spot": 1.2819793771789345,
+    "btc_funding": 11.731093710451002,
+    "adr_cleanup": 1.42261332787765,
+    "nikkei_gap": 1.0254791501445741
+  },
+  "per_leverage_level": [
+    {
+      "leverage": 1.0,
+      "variant": "raw",
+      "ann_return": 0.4306566239591778,
+      "ann_vol": 0.05076760733342765,
+      "sharpe": 7.084633697378906,
+      "max_dd": -0.02642974255651187,
+      "mean_monthly_ret": 0.031837934832127004,
+      "median_monthly_ret": 0.02449164767802592,
+      "std_monthly_ret": 0.032143972674284225,
+      "best_monthly_ret": 0.18781482374023462,
+      "worst_monthly_ret": -0.008133438016536654,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.016666666666666666,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.020009630320045324,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 1.5,
+      "variant": "raw",
+      "ann_return": 0.7298438503664373,
+      "ann_vol": 0.07615141100014149,
+      "sharpe": 7.24221449387889,
+      "max_dd": -0.03924992923876103,
+      "mean_monthly_ret": 0.04948019402678594,
+      "median_monthly_ret": 0.037976927930785,
+      "std_monthly_ret": 0.0498243121303891,
+      "best_monthly_ret": 0.29487413856794453,
+      "worst_monthly_ret": -0.011304171036735644,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.05,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.029246539650085834,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 2.0,
+      "variant": "raw",
+      "ann_return": 1.0899850261199475,
+      "ann_vol": 0.1015352146668553,
+      "sharpe": 7.321004892128883,
+      "max_dd": -0.05199648411156832,
+      "mean_monthly_ret": 0.06760828403275924,
+      "median_monthly_ret": 0.05160833610682724,
+      "std_monthly_ret": 0.06868583156103023,
+      "best_monthly_ret": 0.4109227165816299,
+      "worst_monthly_ret": -0.014542219802047396,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.11666666666666667,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.03841610883690849,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 2.5,
+      "variant": "raw",
+      "ann_return": 1.5231712932872612,
+      "ann_vol": 0.12691901833356914,
+      "sharpe": 7.368279131078878,
+      "max_dd": -0.06466871937507934,
+      "mean_monthly_ret": 0.08624322084171256,
+      "median_monthly_ret": 0.06538715571970999,
+      "std_monthly_ret": 0.08881649562432463,
+      "best_monthly_ret": 0.5366605128167861,
+      "worst_monthly_ret": -0.01784653709503159,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.16666666666666666,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.047518658369656075,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 3.0,
+      "variant": "raw",
+      "ann_return": 2.0438274683404254,
+      "ann_vol": 0.15230282200028297,
+      "sharpe": 7.399795290378875,
+      "max_dd": -0.07726596070093494,
+      "mean_monthly_ret": 0.10540716673890203,
+      "median_monthly_ret": 0.07931467888991772,
+      "std_monthly_ret": 0.11031083772600767,
+      "best_monthly_ret": 0.6728377495435174,
+      "worst_monthly_ret": -0.02121607367099454,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.2,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.05655450851939648,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 3.5,
+      "variant": "raw",
+      "ann_return": 2.669149925397336,
+      "ann_vol": 0.1776866256669968,
+      "sharpe": 7.422306832736015,
+      "max_dd": -0.08978754719658255,
+      "mean_monthly_ret": 0.12512349619354082,
+      "median_monthly_ret": 0.09339220637970902,
+      "std_monthly_ret": 0.13327039302643293,
+      "best_monthly_ret": 0.820258223231199,
+      "worst_monthly_ret": -0.024649778514003406,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.26666666666666666,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.06552397932798415,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 4.0,
+      "variant": "raw",
+      "ann_return": 3.4196242760016204,
+      "ann_vol": 0.2030704293337106,
+      "sharpe": 7.439190489503872,
+      "max_dd": -0.10223283136953154,
+      "mean_monthly_ret": 0.14541686540721288,
+      "median_monthly_ret": 0.1076210476278774,
+      "std_monthly_ret": 0.15780416132719557,
+      "best_monthly_ret": 0.9797828090879583,
+      "worst_monthly_ret": -0.02814659908970374,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.3333333333333333,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.07442739059701375,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 4.5,
+      "variant": "raw",
+      "ann_return": 4.319636950926896,
+      "ann_vol": 0.22845423300042444,
+      "sharpe": 7.452322222545537,
+      "max_dd": -0.11460117909154588,
+      "mean_monthly_ret": 0.16631328570838227,
+      "median_monthly_ret": 0.12200252078444518,
+      "std_monthly_ret": 0.1840290971603644,
+      "best_monthly_ret": 1.1523331737696654,
+      "worst_monthly_ret": -0.031705481594926366,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.4166666666666667,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.0832650618768669,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 5.0,
+      "variant": "raw",
+      "ann_return": 5.398197204535598,
+      "ann_vol": 0.2538380366671383,
+      "sharpe": 7.46282760897887,
+      "max_dd": -0.12689196956277915,
+      "mean_monthly_ret": 0.18784020098974102,
+      "median_monthly_ret": 0.13653795274528402,
+      "std_monthly_ret": 0.2120706276151212,
+      "best_monthly_ret": 1.3388957073544585,
+      "worst_monthly_ret": -0.03532537120409618,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.48333333333333334,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.09203731245585123,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 6.0,
+      "variant": "raw",
+      "ann_return": 8.235374528309512,
+      "ann_vol": 0.30460564400056594,
+      "sharpe": 7.478585688628868,
+      "max_dd": -0.1512384619798608,
+      "mean_monthly_ret": 0.23290294946435433,
+      "median_monthly_ret": 0.16607604459965797,
+      "std_monthly_ret": 0.2741508543727191,
+      "best_monthly_ret": 1.758351678845849,
+      "worst_monthly_ret": -0.04274394877590126,
+      "pct_positive_months": 0.95,
+      "prob_monthly_14pct_plus": 0.5666666666666667,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.10938682728956917,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 7.0,
+      "variant": "raw",
+      "ann_return": 12.292078882412936,
+      "ann_vol": 0.3553732513339936,
+      "sharpe": 7.489841459807437,
+      "max_dd": -0.17526760742318048,
+      "mean_monthly_ret": 0.2808565307262801,
+      "median_monthly_ret": 0.19624611458536012,
+      "std_monthly_ret": 0.34523925693239815,
+      "best_monthly_ret": 2.247500679684941,
+      "worst_monthly_ret": -0.05039388191354844,
+      "pct_positive_months": 0.95,
+      "prob_monthly_14pct_plus": 0.65,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.12647848375628878,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    }
+  ],
+  "per_leverage_level_realistic": [
+    {
+      "leverage": 1.0,
+      "variant": "realistic",
+      "ann_return": 0.31272048086385085,
+      "ann_vol": 0.05076760733342765,
+      "sharpe": 5.387901360545935,
+      "max_dd": -0.03182288886900331,
+      "mean_monthly_ret": 0.02421141186991216,
+      "median_monthly_ret": 0.016997190693653907,
+      "std_monthly_ret": 0.03194863494882889,
+      "best_monthly_ret": 0.17978977826357467,
+      "worst_monthly_ret": -0.015231826443486196,
+      "pct_positive_months": 0.85,
+      "prob_monthly_14pct_plus": 0.016666666666666666,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.024695725856607065,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 1.5,
+      "variant": "realistic",
+      "ann_return": 0.5205449877448642,
+      "ann_vol": 0.07615141100014149,
+      "sharpe": 5.545482157045918,
+      "max_dd": -0.04552414621584755,
+      "mean_monthly_ret": 0.03787525691755487,
+      "median_monthly_ret": 0.02661398751763633,
+      "std_monthly_ret": 0.04935466463437144,
+      "best_monthly_ret": 0.2818286712960272,
+      "worst_monthly_ret": -0.021901311045190774,
+      "pct_positive_months": 0.8666666666666667,
+      "prob_monthly_14pct_plus": 0.05,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.036206400633613134,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 2.0,
+      "variant": "realistic",
+      "ann_return": 0.7600109162139104,
+      "ann_vol": 0.1015352146668553,
+      "sharpe": 5.624272555295911,
+      "max_dd": -0.059113544490979275,
+      "mean_monthly_ret": 0.05190926991976565,
+      "median_monthly_ret": 0.03629470573922189,
+      "std_monthly_ret": 0.06781062151659056,
+      "best_monthly_ret": 0.3920803902399457,
+      "worst_monthly_ret": -0.028603803189127697,
+      "pct_positive_months": 0.9,
+      "prob_monthly_14pct_plus": 0.06666666666666667,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.04760428050322051,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 2.5,
+      "variant": "realistic",
+      "ann_return": 1.035741871902149,
+      "ann_vol": 0.12691901833356914,
+      "sharpe": 5.671546794245907,
+      "max_dd": -0.0725905556394677,
+      "mean_monthly_ret": 0.06633001434855933,
+      "median_monthly_ret": 0.04603959042548301,
+      "std_monthly_ret": 0.08739292174713828,
+      "best_monthly_ret": 0.5111571238676211,
+      "worst_monthly_ret": -0.035337766150447814,
+      "pct_positive_months": 0.9166666666666665,
+      "prob_monthly_14pct_plus": 0.13333333333333333,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.05889023067846577,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 3.0,
+      "variant": "realistic",
+      "ann_return": 1.3530082502801783,
+      "ann_vol": 0.15230282200028297,
+      "sharpe": 5.7030629535459045,
+      "max_dd": -0.0859546811708003,
+      "mean_monthly_ret": 0.08115495753693064,
+      "median_monthly_ret": 0.05584888637850371,
+      "std_monthly_ret": 0.10818351194868808,
+      "best_monthly_ret": 0.6397130742119179,
+      "worst_monthly_ret": -0.04210167734390769,
+      "pct_positive_months": 0.9166666666666665,
+      "prob_monthly_14pct_plus": 0.16666666666666666,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.07006511188405207,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 3.5,
+      "variant": "realistic",
+      "ann_return": 1.717813569569735,
+      "ann_vol": 0.1776866256669968,
+      "sharpe": 5.725574495903044,
+      "max_dd": -0.09920545193993635,
+      "mean_monthly_ret": 0.09640252130205645,
+      "median_monthly_ret": 0.06572283812394442,
+      "std_monthly_ret": 0.13027021452072177,
+      "best_monthly_ret": 0.7784470915487458,
+      "worst_monthly_ret": -0.04889402849526192,
+      "pct_positive_months": 0.9166666666666665,
+      "prob_monthly_14pct_plus": 0.2,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.08112978036247609,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 4.0,
+      "variant": "realistic",
+      "ann_return": 2.1369917519370962,
+      "ann_vol": 0.2030704293337106,
+      "sharpe": 5.742458152670901,
+      "max_dd": -0.11235318946442618,
+      "mean_monthly_ret": 0.11209213526909935,
+      "median_monthly_ret": 0.07566168989952615,
+      "std_monthly_ret": 0.1537470964085868,
+      "best_monthly_ret": 0.9281054589431261,
+      "worst_monthly_ret": -0.05571332580570387,
+      "pct_positive_months": 0.9166666666666665,
+      "prob_monthly_14pct_plus": 0.23333333333333334,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.09208508788029202,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 4.5,
+      "variant": "realistic",
+      "ann_return": 2.618316664363664,
+      "ann_vol": 0.22845423300042444,
+      "sharpe": 5.755589885712565,
+      "max_dd": -0.1254045992730446,
+      "mean_monthly_ret": 0.12824429302777382,
+      "median_monthly_ret": 0.08566568564342658,
+      "std_monthly_ret": 0.17871485828650818,
+      "best_monthly_ret": 1.0894848339375987,
+      "worst_monthly_ret": -0.06255809010946056,
+      "pct_positive_months": 0.9166666666666665,
+      "prob_monthly_14pct_plus": 0.2833333333333333,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.10293188173452371,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 5.0,
+      "variant": "realistic",
+      "ann_return": 3.1706253777357043,
+      "ann_vol": 0.2538380366671383,
+      "sharpe": 5.766095272145898,
+      "max_dd": -0.13833974913799196,
+      "mean_monthly_ret": 0.14488061125958102,
+      "median_monthly_ret": 0.09573506898260742,
+      "std_monthly_ret": 0.20528124429177652,
+      "best_monthly_ret": 1.263435355297446,
+      "worst_monthly_ret": -0.06942685702461404,
+      "pct_positive_months": 0.9166666666666665,
+      "prob_monthly_14pct_plus": 0.31666666666666665,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.11367100475921423,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 6.0,
+      "variant": "realistic",
+      "ann_return": 4.529707239304531,
+      "ann_vol": 0.30460564400056594,
+      "sharpe": 5.781853351795895,
+      "max_dd": -0.16386007534017877,
+      "mean_monthly_ret": 0.17969818804265375,
+      "median_monthly_ret": 0.11607097132789879,
+      "std_monthly_ret": 0.2636786911606946,
+      "best_monthly_ret": 1.6527376606203097,
+      "worst_monthly_ret": -0.08323061593899596,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.4,
+      "prob_monthly_dd_worse_than_neg15pct": 0.0,
+      "worst_intramonth_dd_pct": -0.13482958738149786,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    },
+    {
+      "leverage": 7.0,
+      "variant": "realistic",
+      "ann_return": 6.31190939561366,
+      "ann_vol": 0.3553732513339936,
+      "sharpe": 5.7931091229744665,
+      "max_dd": -0.18891205399055733,
+      "mean_monthly_ret": 0.21674270896493192,
+      "median_monthly_ret": 0.13667133927769937,
+      "std_monthly_ret": 0.3299592054988591,
+      "best_monthly_ret": 2.104012372910651,
+      "worst_monthly_ret": -0.09711318848411976,
+      "pct_positive_months": 0.9333333333333332,
+      "prob_monthly_14pct_plus": 0.48333333333333334,
+      "prob_monthly_dd_worse_than_neg15pct": 0.016666666666666666,
+      "worst_intramonth_dd_pct": -0.15556748941742882,
+      "frictions_applied": {
+        "monthly_friction_bps": 20.0,
+        "daily_friction_bps": 0.9523809523809524
+      }
+    }
+  ],
+  "optimal_for_14pct_monthly": {
+    "leverage": 4.0,
+    "variant": "raw",
+    "ann_return": 3.4196242760016204,
+    "ann_vol": 0.2030704293337106,
+    "sharpe": 7.439190489503872,
+    "max_dd": -0.10223283136953154,
+    "mean_monthly_ret": 0.14541686540721288,
+    "median_monthly_ret": 0.1076210476278774,
+    "std_monthly_ret": 0.15780416132719557,
+    "best_monthly_ret": 0.9797828090879583,
+    "worst_monthly_ret": -0.02814659908970374,
+    "pct_positive_months": 0.9333333333333332,
+    "prob_monthly_14pct_plus": 0.3333333333333333,
+    "prob_monthly_dd_worse_than_neg15pct": 0.0,
+    "worst_intramonth_dd_pct": -0.07442739059701375,
+    "frictions_applied": {
+      "monthly_friction_bps": 20.0,
+      "daily_friction_bps": 0.9523809523809524
+    }
+  },
+  "realistic_optimal": {
+    "leverage": 5.0,
+    "variant": "realistic",
+    "ann_return": 3.1706253777357043,
+    "ann_vol": 0.2538380366671383,
+    "sharpe": 5.766095272145898,
+    "max_dd": -0.13833974913799196,
+    "mean_monthly_ret": 0.14488061125958102,
+    "median_monthly_ret": 0.09573506898260742,
+    "std_monthly_ret": 0.20528124429177652,
+    "best_monthly_ret": 1.263435355297446,
+    "worst_monthly_ret": -0.06942685702461404,
+    "pct_positive_months": 0.9166666666666665,
+    "prob_monthly_14pct_plus": 0.31666666666666665,
+    "prob_monthly_dd_worse_than_neg15pct": 0.0,
+    "worst_intramonth_dd_pct": -0.11367100475921423,
+    "frictions_applied": {
+      "monthly_friction_bps": 20.0,
+      "daily_friction_bps": 0.9523809523809524
+    }
+  },
+  "honest_realistic_closest": {
+    "leverage": 7.0,
+    "variant": "realistic",
+    "ann_return": 6.31190939561366,
+    "ann_vol": 0.3553732513339936,
+    "sharpe": 5.7931091229744665,
+    "max_dd": -0.18891205399055733,
+    "mean_monthly_ret": 0.21674270896493192,
+    "median_monthly_ret": 0.13667133927769937,
+    "std_monthly_ret": 0.3299592054988591,
+    "best_monthly_ret": 2.104012372910651,
+    "worst_monthly_ret": -0.09711318848411976,
+    "pct_positive_months": 0.9333333333333332,
+    "prob_monthly_14pct_plus": 0.48333333333333334,
+    "prob_monthly_dd_worse_than_neg15pct": 0.016666666666666666,
+    "worst_intramonth_dd_pct": -0.15556748941742882,
+    "frictions_applied": {
+      "monthly_friction_bps": 20.0,
+      "daily_friction_bps": 0.9523809523809524
+    }
+  }
+}

@@ -1,0 +1,211 @@
+{
+  "generated_at": "2026-05-12T21:08:13.698131Z",
+  "spec": "iter_18_us_hk_dual_listing_arbitrage (CLEANUP)",
+  "fixes_applied": [
+    "NTES/9999.HK ratio corrected from 1:25 to 1:5 (post-2020 ADS-ratio change)",
+    "yfinance auto_adjust=False to use UNADJUSTED prices (parity stable across dividend events)",
+    "Ex-div skip window: +/- 3 sessions blocked for new entries and converged exits",
+    "Stop-out / time-stop still fire on ex-div blocked days (risk control unchanged)"
+  ],
+  "params": {
+    "pairs": [
+      {
+        "us": "BABA",
+        "hk": "9988.HK",
+        "ratio": 8
+      },
+      {
+        "us": "JD",
+        "hk": "9618.HK",
+        "ratio": 2
+      },
+      {
+        "us": "BIDU",
+        "hk": "9888.HK",
+        "ratio": 8
+      },
+      {
+        "us": "NTES",
+        "hk": "9999.HK",
+        "ratio": 5
+      },
+      {
+        "us": "TCOM",
+        "hk": "9961.HK",
+        "ratio": 1
+      }
+    ],
+    "start": "2020-01-01",
+    "usd_hkd_peg": 7.8,
+    "entry_bps": 80.0,
+    "exit_bps": 20.0,
+    "stop_bps": 250.0,
+    "max_hold_days": 5,
+    "round_trip_cost_bps": 30.0,
+    "ex_div_skip_window_bars": 3
+  },
+  "data_meta": {
+    "rows": 1641,
+    "first_date": "2020-01-02",
+    "last_date": "2026-05-12",
+    "columns": [
+      "BABA",
+      "JD",
+      "BIDU",
+      "NTES",
+      "TCOM",
+      "9988.HK",
+      "9618.HK",
+      "9888.HK",
+      "9999.HK",
+      "9961.HK"
+    ],
+    "first_valid_per_ticker": {
+      "BABA": "2020-01-02",
+      "JD": "2020-01-02",
+      "BIDU": "2020-01-02",
+      "NTES": "2020-01-02",
+      "TCOM": "2020-01-02",
+      "9988.HK": "2020-01-02",
+      "9618.HK": "2020-06-18",
+      "9888.HK": "2021-03-23",
+      "9999.HK": "2020-06-11",
+      "9961.HK": "2021-04-19"
+    },
+    "auto_adjust": false
+  },
+  "dividend_meta": {
+    "BABA": {
+      "n_events": 3,
+      "first_ex_date": "2023-12-20",
+      "last_ex_date": "2025-06-12",
+      "max_amount": 2.0
+    },
+    "JD": {
+      "n_events": 5,
+      "first_ex_date": "2022-05-19",
+      "last_ex_date": "2026-04-09",
+      "max_amount": 1.26
+    },
+    "NTES": {
+      "n_events": 25,
+      "first_ex_date": "2020-03-12",
+      "last_ex_date": "2026-03-16",
+      "max_amount": 1.22
+    },
+    "TCOM": {
+      "n_events": 1,
+      "first_ex_date": "2025-03-17",
+      "last_ex_date": "2025-03-17",
+      "max_amount": 0.3
+    },
+    "9988.HK": {
+      "n_events": 3,
+      "first_ex_date": "2023-12-20",
+      "last_ex_date": "2025-06-11",
+      "max_amount": 1.957
+    },
+    "9618.HK": {
+      "n_events": 5,
+      "first_ex_date": "2022-05-19",
+      "last_ex_date": "2026-04-08",
+      "max_amount": 4.9318
+    },
+    "9999.HK": {
+      "n_events": 24,
+      "first_ex_date": "2020-06-11",
+      "last_ex_date": "2026-03-13",
+      "max_amount": 1.9105
+    },
+    "9961.HK": {
+      "n_events": 1,
+      "first_ex_date": "2025-03-14",
+      "last_ex_date": "2025-03-14",
+      "max_amount": 2.3485
+    }
+  },
+  "aggregate": {
+    "total_trades": 1543,
+    "win_rate": 65.98,
+    "mean_bps_gross": 95.79,
+    "mean_bps_net": 65.79,
+    "total_pnl_bps": 101507.84,
+    "median_holding_bars": 2.0,
+    "ann_return_pct": 159.67,
+    "sharpe_proxy": 5.562,
+    "max_consecutive_losses": 9,
+    "exit_reason_counts": {
+      "stop_out": 875,
+      "converged": 380,
+      "time_stop": 284,
+      "end_of_data": 4
+    },
+    "elapsed_years": 6.36
+  },
+  "per_pair": {
+    "BABA/9988.HK": {
+      "n": 351,
+      "win_rate": 62.11,
+      "mean_bps_net": 55.51,
+      "mean_bps_gross": 85.51,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 2.24,
+      "stop_outs": 194,
+      "time_stops": 69,
+      "converged": 87,
+      "end_of_data": 1
+    },
+    "BIDU/9888.HK": {
+      "n": 303,
+      "win_rate": 64.03,
+      "mean_bps_net": 68.32,
+      "mean_bps_gross": 98.32,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 2.776,
+      "stop_outs": 187,
+      "time_stops": 47,
+      "converged": 68,
+      "end_of_data": 1
+    },
+    "JD/9618.HK": {
+      "n": 330,
+      "win_rate": 68.48,
+      "mean_bps_net": 76.14,
+      "mean_bps_gross": 106.14,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 3.091,
+      "stop_outs": 193,
+      "time_stops": 56,
+      "converged": 81,
+      "end_of_data": 0
+    },
+    "NTES/9999.HK": {
+      "n": 277,
+      "win_rate": 69.31,
+      "mean_bps_net": 62.6,
+      "mean_bps_gross": 92.6,
+      "median_hold_bars": 3.0,
+      "sharpe_proxy": 2.61,
+      "stop_outs": 130,
+      "time_stops": 66,
+      "converged": 80,
+      "end_of_data": 1
+    },
+    "TCOM/9961.HK": {
+      "n": 282,
+      "win_rate": 66.67,
+      "mean_bps_net": 66.87,
+      "mean_bps_gross": 96.87,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 2.524,
+      "stop_outs": 171,
+      "time_stops": 46,
+      "converged": 64,
+      "end_of_data": 1
+    }
+  },
+  "verdict": "PASS",
+  "verdict_reason": "aggregate mean_bps_net=65.79 (req>=25) AND total_trades=1543 (req>=100)",
+  "per_pair_pass_count": 5,
+  "per_pair_pass_threshold": "mean_bps_net >= 25 AND n >= 20"
+}

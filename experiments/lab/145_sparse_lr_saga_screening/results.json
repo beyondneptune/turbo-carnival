@@ -1,7 +1,7 @@
 {
   "experiment": "145_sparse_lr_saga_screening",
   "description": "Safe feature screening: aggressive L1 (C=0.005) identifies nonzero features, then refit L2 (C=1.0) on screened set only",
-  "timestamp_utc": "2026-05-12T06:54:06.544413+00:00",
+  "timestamp_utc": "2026-05-12T07:03:37.844235+00:00",
   "train_auc": 0.8051777966407834,
   "test_auc": 0.7988675649897241,
   "train_test_gap": 0.0063102316510592615,

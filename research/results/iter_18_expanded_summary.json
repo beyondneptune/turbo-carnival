@@ -1,0 +1,711 @@
+{
+  "generated_at": "2026-05-12T21:51:59.815585Z",
+  "spec": "iter_18_us_hk_dual_listing_arbitrage (EXPANDED 13 pairs)",
+  "extension_notes": [
+    "Built on iter_18_cleanup (5-pair PASS at agg mean_bps_net=65.79).",
+    "Added 8 new pairs: LI, NIO, XPEV, BILI, TME, MNSO, YMM, ZTO.",
+    "Removed PDD (no HK listing) and HTHT (H World has no HK listing).",
+    "Same params, costs, ex-div skip as cleanup version.",
+    "Per-pair PASS: mean_bps_net >= 25 AND n >= 20.",
+    "Aggregate PASS: agg mean_bps_net >= 25 AND >= 8 pairs PASS."
+  ],
+  "params": {
+    "pairs": [
+      {
+        "us": "BABA",
+        "hk": "9988.HK",
+        "ratio": 8
+      },
+      {
+        "us": "JD",
+        "hk": "9618.HK",
+        "ratio": 2
+      },
+      {
+        "us": "BIDU",
+        "hk": "9888.HK",
+        "ratio": 8
+      },
+      {
+        "us": "NTES",
+        "hk": "9999.HK",
+        "ratio": 5
+      },
+      {
+        "us": "TCOM",
+        "hk": "9961.HK",
+        "ratio": 1
+      },
+      {
+        "us": "LI",
+        "hk": "2015.HK",
+        "ratio": 2
+      },
+      {
+        "us": "NIO",
+        "hk": "9866.HK",
+        "ratio": 1
+      },
+      {
+        "us": "XPEV",
+        "hk": "9868.HK",
+        "ratio": 2
+      },
+      {
+        "us": "BILI",
+        "hk": "9626.HK",
+        "ratio": 1
+      },
+      {
+        "us": "TME",
+        "hk": "1698.HK",
+        "ratio": 2
+      },
+      {
+        "us": "MNSO",
+        "hk": "9896.HK",
+        "ratio": 4
+      },
+      {
+        "us": "YMM",
+        "hk": "2643.HK",
+        "ratio": 20
+      },
+      {
+        "us": "ZTO",
+        "hk": "2057.HK",
+        "ratio": 1
+      }
+    ],
+    "start": "2020-01-01",
+    "usd_hkd_peg": 7.8,
+    "entry_bps": 80.0,
+    "exit_bps": 20.0,
+    "stop_bps": 250.0,
+    "max_hold_days": 5,
+    "round_trip_cost_bps": 30.0,
+    "ex_div_skip_window_bars": 3,
+    "adv_lookback_days": 60,
+    "adv_capacity_fraction": 0.05,
+    "per_pair_deployment_ratio": 0.3
+  },
+  "data_meta": {
+    "rows": 1641,
+    "first_date": "2020-01-02",
+    "last_date": "2026-05-12",
+    "columns": [
+      "BABA",
+      "JD",
+      "BIDU",
+      "NTES",
+      "TCOM",
+      "LI",
+      "NIO",
+      "XPEV",
+      "BILI",
+      "TME",
+      "MNSO",
+      "YMM",
+      "ZTO",
+      "9988.HK",
+      "9618.HK",
+      "9888.HK",
+      "9999.HK",
+      "9961.HK",
+      "2015.HK",
+      "9866.HK",
+      "9868.HK",
+      "9626.HK",
+      "1698.HK",
+      "9896.HK",
+      "2643.HK",
+      "2057.HK"
+    ],
+    "first_valid_per_ticker": {
+      "BABA": "2020-01-02",
+      "JD": "2020-01-02",
+      "BIDU": "2020-01-02",
+      "NTES": "2020-01-02",
+      "TCOM": "2020-01-02",
+      "LI": "2020-07-30",
+      "NIO": "2020-01-02",
+      "XPEV": "2020-08-27",
+      "BILI": "2020-01-02",
+      "TME": "2020-01-02",
+      "MNSO": "2020-10-15",
+      "YMM": "2021-06-23",
+      "ZTO": "2020-01-02",
+      "9988.HK": "2020-01-02",
+      "9618.HK": "2020-06-18",
+      "9888.HK": "2021-03-23",
+      "9999.HK": "2020-06-11",
+      "9961.HK": "2021-04-19",
+      "2015.HK": "2021-08-12",
+      "9866.HK": "2022-03-10",
+      "9868.HK": "2021-07-07",
+      "9626.HK": "2021-03-29",
+      "1698.HK": "2022-09-21",
+      "9896.HK": "2022-07-13",
+      "2643.HK": "2025-06-25",
+      "2057.HK": "2020-09-29"
+    },
+    "auto_adjust": false
+  },
+  "dividend_meta": {
+    "BABA": {
+      "n_events": 3,
+      "first_ex_date": "2023-12-20",
+      "last_ex_date": "2025-06-12",
+      "max_amount": 2.0
+    },
+    "JD": {
+      "n_events": 5,
+      "first_ex_date": "2022-05-19",
+      "last_ex_date": "2026-04-09",
+      "max_amount": 1.26
+    },
+    "NTES": {
+      "n_events": 25,
+      "first_ex_date": "2020-03-12",
+      "last_ex_date": "2026-03-16",
+      "max_amount": 1.22
+    },
+    "TCOM": {
+      "n_events": 1,
+      "first_ex_date": "2025-03-17",
+      "last_ex_date": "2025-03-17",
+      "max_amount": 0.3
+    },
+    "TME": {
+      "n_events": 3,
+      "first_ex_date": "2024-05-31",
+      "last_ex_date": "2026-04-02",
+      "max_amount": 0.24
+    },
+    "MNSO": {
+      "n_events": 7,
+      "first_ex_date": "2021-08-30",
+      "last_ex_date": "2026-04-20",
+      "max_amount": 0.412
+    },
+    "YMM": {
+      "n_events": 3,
+      "first_ex_date": "2024-04-04",
+      "last_ex_date": "2026-04-08",
+      "max_amount": 0.144
+    },
+    "ZTO": {
+      "n_events": 8,
+      "first_ex_date": "2020-04-07",
+      "last_ex_date": "2026-04-08",
+      "max_amount": 0.62
+    },
+    "9988.HK": {
+      "n_events": 3,
+      "first_ex_date": "2023-12-20",
+      "last_ex_date": "2025-06-11",
+      "max_amount": 1.957
+    },
+    "9618.HK": {
+      "n_events": 5,
+      "first_ex_date": "2022-05-19",
+      "last_ex_date": "2026-04-08",
+      "max_amount": 4.9316
+    },
+    "9999.HK": {
+      "n_events": 24,
+      "first_ex_date": "2020-06-11",
+      "last_ex_date": "2026-03-13",
+      "max_amount": 1.9104
+    },
+    "9961.HK": {
+      "n_events": 1,
+      "first_ex_date": "2025-03-14",
+      "last_ex_date": "2025-03-14",
+      "max_amount": 2.3484
+    },
+    "1698.HK": {
+      "n_events": 3,
+      "first_ex_date": "2024-05-30",
+      "last_ex_date": "2026-04-01",
+      "max_amount": 0.9393
+    },
+    "9896.HK": {
+      "n_events": 7,
+      "first_ex_date": "2022-08-30",
+      "last_ex_date": "2026-04-17",
+      "max_amount": 0.8063
+    },
+    "2057.HK": {
+      "n_events": 8,
+      "first_ex_date": "2021-04-01",
+      "last_ex_date": "2026-04-02",
+      "max_amount": 4.8533
+    }
+  },
+  "pair_data_summaries": [
+    {
+      "pair": "BABA/9988.HK",
+      "tradeable": true,
+      "rows": 1519,
+      "ratio": 8,
+      "first_date": "2020-01-02",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 23,
+      "dev_bps_mean": -16.39,
+      "dev_bps_std": 224.92
+    },
+    {
+      "pair": "JD/9618.HK",
+      "tradeable": true,
+      "rows": 1408,
+      "ratio": 2,
+      "first_date": "2020-06-18",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 39,
+      "dev_bps_mean": -7.95,
+      "dev_bps_std": 237.24
+    },
+    {
+      "pair": "BIDU/9888.HK",
+      "tradeable": true,
+      "rows": 1224,
+      "ratio": 8,
+      "first_date": "2021-03-23",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 0,
+      "dev_bps_mean": -34.24,
+      "dev_bps_std": 249.14
+    },
+    {
+      "pair": "NTES/9999.HK",
+      "tradeable": true,
+      "rows": 1413,
+      "ratio": 5,
+      "first_date": "2020-06-11",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 172,
+      "dev_bps_mean": -10.31,
+      "dev_bps_std": 204.6
+    },
+    {
+      "pair": "TCOM/9961.HK",
+      "tradeable": true,
+      "rows": 1208,
+      "ratio": 1,
+      "first_date": "2021-04-19",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 8,
+      "dev_bps_mean": -46.22,
+      "dev_bps_std": 243.07
+    },
+    {
+      "pair": "LI/2015.HK",
+      "tradeable": true,
+      "rows": 1130,
+      "ratio": 2,
+      "first_date": "2021-08-12",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 0,
+      "dev_bps_mean": -48.07,
+      "dev_bps_std": 299.08
+    },
+    {
+      "pair": "NIO/9866.HK",
+      "tradeable": true,
+      "rows": 993,
+      "ratio": 1,
+      "first_date": "2022-03-10",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 0,
+      "dev_bps_mean": -72.02,
+      "dev_bps_std": 386.64
+    },
+    {
+      "pair": "XPEV/9868.HK",
+      "tradeable": true,
+      "rows": 1156,
+      "ratio": 2,
+      "first_date": "2021-07-07",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 0,
+      "dev_bps_mean": -42.79,
+      "dev_bps_std": 365.66
+    },
+    {
+      "pair": "BILI/9626.HK",
+      "tradeable": true,
+      "rows": 1220,
+      "ratio": 1,
+      "first_date": "2021-03-29",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 0,
+      "dev_bps_mean": -43.42,
+      "dev_bps_std": 360.89
+    },
+    {
+      "pair": "TME/1698.HK",
+      "tradeable": true,
+      "rows": 866,
+      "ratio": 2,
+      "first_date": "2022-09-21",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 24,
+      "dev_bps_mean": -10.6,
+      "dev_bps_std": 338.65
+    },
+    {
+      "pair": "MNSO/9896.HK",
+      "tradeable": true,
+      "rows": 914,
+      "ratio": 4,
+      "first_date": "2022-07-13",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 56,
+      "dev_bps_mean": -28.88,
+      "dev_bps_std": 338.49
+    },
+    {
+      "pair": "YMM/2643.HK",
+      "tradeable": true,
+      "rows": 211,
+      "ratio": 20,
+      "first_date": "2025-06-25",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 11,
+      "dev_bps_mean": -8913.13,
+      "dev_bps_std": 223.08
+    },
+    {
+      "pair": "ZTO/2057.HK",
+      "tradeable": true,
+      "rows": 1339,
+      "ratio": 1,
+      "first_date": "2020-09-29",
+      "last_date": "2026-05-12",
+      "ex_div_blocked_rows": 65,
+      "dev_bps_mean": -19.3,
+      "dev_bps_std": 206.9
+    }
+  ],
+  "aggregate": {
+    "total_trades": 3730,
+    "win_rate": 63.3,
+    "mean_bps_gross": 107.27,
+    "mean_bps_net": 77.27,
+    "total_pnl_bps": 288230.45,
+    "median_holding_bars": 2.0,
+    "ann_return_pct": 453.39,
+    "sharpe_proxy": 7.974,
+    "max_consecutive_losses": 13,
+    "exit_reason_counts": {
+      "stop_out": 2542,
+      "converged": 695,
+      "time_stop": 484,
+      "end_of_data": 9
+    },
+    "elapsed_years": 6.36
+  },
+  "per_pair_results": [
+    {
+      "pair": "BABA/9988.HK",
+      "n": 351,
+      "win_rate": 62.11,
+      "mean_bps_net": 55.51,
+      "mean_bps_gross": 85.51,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 2.24,
+      "stop_outs": 194,
+      "time_stops": 69,
+      "converged": 87,
+      "end_of_data": 1
+    },
+    {
+      "pair": "BIDU/9888.HK",
+      "n": 303,
+      "win_rate": 64.03,
+      "mean_bps_net": 68.32,
+      "mean_bps_gross": 98.32,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 2.776,
+      "stop_outs": 187,
+      "time_stops": 47,
+      "converged": 68,
+      "end_of_data": 1
+    },
+    {
+      "pair": "BILI/9626.HK",
+      "n": 351,
+      "win_rate": 60.97,
+      "mean_bps_net": 115.68,
+      "mean_bps_gross": 145.68,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 3.337,
+      "stop_outs": 282,
+      "time_stops": 29,
+      "converged": 39,
+      "end_of_data": 1
+    },
+    {
+      "pair": "JD/9618.HK",
+      "n": 330,
+      "win_rate": 68.48,
+      "mean_bps_net": 76.14,
+      "mean_bps_gross": 106.14,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 3.091,
+      "stop_outs": 193,
+      "time_stops": 56,
+      "converged": 81,
+      "end_of_data": 0
+    },
+    {
+      "pair": "LI/2015.HK",
+      "n": 299,
+      "win_rate": 64.55,
+      "mean_bps_net": 77.94,
+      "mean_bps_gross": 107.94,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 2.403,
+      "stop_outs": 203,
+      "time_stops": 38,
+      "converged": 58,
+      "end_of_data": 0
+    },
+    {
+      "pair": "MNSO/9896.HK",
+      "n": 230,
+      "win_rate": 60.87,
+      "mean_bps_net": 76.41,
+      "mean_bps_gross": 106.41,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 2.096,
+      "stop_outs": 165,
+      "time_stops": 31,
+      "converged": 33,
+      "end_of_data": 1
+    },
+    {
+      "pair": "NIO/9866.HK",
+      "n": 319,
+      "win_rate": 58.62,
+      "mean_bps_net": 108.9,
+      "mean_bps_gross": 138.9,
+      "median_hold_bars": 1.0,
+      "sharpe_proxy": 3.383,
+      "stop_outs": 291,
+      "time_stops": 11,
+      "converged": 17,
+      "end_of_data": 0
+    },
+    {
+      "pair": "NTES/9999.HK",
+      "n": 277,
+      "win_rate": 69.31,
+      "mean_bps_net": 62.6,
+      "mean_bps_gross": 92.6,
+      "median_hold_bars": 3.0,
+      "sharpe_proxy": 2.61,
+      "stop_outs": 130,
+      "time_stops": 66,
+      "converged": 80,
+      "end_of_data": 1
+    },
+    {
+      "pair": "TCOM/9961.HK",
+      "n": 282,
+      "win_rate": 66.67,
+      "mean_bps_net": 66.87,
+      "mean_bps_gross": 96.87,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 2.524,
+      "stop_outs": 171,
+      "time_stops": 46,
+      "converged": 64,
+      "end_of_data": 1
+    },
+    {
+      "pair": "TME/1698.HK",
+      "n": 245,
+      "win_rate": 62.86,
+      "mean_bps_net": 80.51,
+      "mean_bps_gross": 110.51,
+      "median_hold_bars": 2.0,
+      "sharpe_proxy": 2.666,
+      "stop_outs": 182,
+      "time_stops": 17,
+      "converged": 45,
+      "end_of_data": 1
+    },
+    {
+      "pair": "XPEV/9868.HK",
+      "n": 360,
+      "win_rate": 62.78,
+      "mean_bps_net": 105.71,
+      "mean_bps_gross": 135.71,
+      "median_hold_bars": 1.0,
+      "sharpe_proxy": 3.248,
+      "stop_outs": 297,
+      "time_stops": 13,
+      "converged": 49,
+      "end_of_data": 1
+    },
+    {
+      "pair": "YMM/2643.HK",
+      "n": 100,
+      "win_rate": 45.0,
+      "mean_bps_net": -12.95,
+      "mean_bps_gross": 17.05,
+      "median_hold_bars": 1.0,
+      "sharpe_proxy": -0.486,
+      "stop_outs": 100,
+      "time_stops": 0,
+      "converged": 0,
+      "end_of_data": 0,
+      "ratio_suspect": true,
+      "ratio_suspect_note": "Mean |dev_bps| > 1000; ratio likely wrong or HK listing too new for a clean parity series. Excluded from PASS-pair tally and capacity sum even if mean_bps_net >= 25 (which it isn't)."
+    },
+    {
+      "pair": "ZTO/2057.HK",
+      "n": 283,
+      "win_rate": 65.02,
+      "mean_bps_net": 49.53,
+      "mean_bps_gross": 79.53,
+      "median_hold_bars": 3.0,
+      "sharpe_proxy": 2.212,
+      "stop_outs": 147,
+      "time_stops": 61,
+      "converged": 74,
+      "end_of_data": 1
+    }
+  ],
+  "capacity_estimate": {
+    "method": "Per pair: 5% of trailing-60-session min($ADV_us, $ADV_hk) is the max per-trade notional before market impact starts eating the edge. Divide by 30% average deployment ratio to translate to sleeve-level AUM. Sum across PASS pairs for portfolio capacity.",
+    "adv_lookback_days": 60,
+    "adv_capacity_fraction": 0.05,
+    "per_pair_deployment_ratio": 0.3,
+    "per_pair_capacity_usd_m": {
+      "BABA/9988.HK": {
+        "us_adv_usd_m": 1485.53,
+        "hk_adv_usd_m": 1437.57,
+        "thinner_leg": "HK",
+        "per_trade_cap_usd_m": 71.88,
+        "per_pair_aum_capacity_usd_m": 239.59
+      },
+      "JD/9618.HK": {
+        "us_adv_usd_m": 298.6,
+        "hk_adv_usd_m": 167.14,
+        "thinner_leg": "HK",
+        "per_trade_cap_usd_m": 8.36,
+        "per_pair_aum_capacity_usd_m": 27.86
+      },
+      "BIDU/9888.HK": {
+        "us_adv_usd_m": 291.84,
+        "hk_adv_usd_m": 185.93,
+        "thinner_leg": "HK",
+        "per_trade_cap_usd_m": 9.3,
+        "per_pair_aum_capacity_usd_m": 30.99
+      },
+      "NTES/9999.HK": {
+        "us_adv_usd_m": 96.75,
+        "hk_adv_usd_m": 153.81,
+        "thinner_leg": "US",
+        "per_trade_cap_usd_m": 4.84,
+        "per_pair_aum_capacity_usd_m": 16.12
+      },
+      "TCOM/9961.HK": {
+        "us_adv_usd_m": 165.52,
+        "hk_adv_usd_m": 158.12,
+        "thinner_leg": "HK",
+        "per_trade_cap_usd_m": 7.91,
+        "per_pair_aum_capacity_usd_m": 26.35
+      },
+      "LI/2015.HK": {
+        "us_adv_usd_m": 58.24,
+        "hk_adv_usd_m": 102.18,
+        "thinner_leg": "US",
+        "per_trade_cap_usd_m": 2.91,
+        "per_pair_aum_capacity_usd_m": 9.71
+      },
+      "NIO/9866.HK": {
+        "us_adv_usd_m": 232.52,
+        "hk_adv_usd_m": 37.07,
+        "thinner_leg": "HK",
+        "per_trade_cap_usd_m": 1.85,
+        "per_pair_aum_capacity_usd_m": 6.18
+      },
+      "XPEV/9868.HK": {
+        "us_adv_usd_m": 114.43,
+        "hk_adv_usd_m": 136.85,
+        "thinner_leg": "US",
+        "per_trade_cap_usd_m": 5.72,
+        "per_pair_aum_capacity_usd_m": 19.07
+      },
+      "BILI/9626.HK": {
+        "us_adv_usd_m": 58.85,
+        "hk_adv_usd_m": 97.55,
+        "thinner_leg": "US",
+        "per_trade_cap_usd_m": 2.94,
+        "per_pair_aum_capacity_usd_m": 9.81
+      },
+      "TME/1698.HK": {
+        "us_adv_usd_m": 114.33,
+        "hk_adv_usd_m": 10.91,
+        "thinner_leg": "HK",
+        "per_trade_cap_usd_m": 0.55,
+        "per_pair_aum_capacity_usd_m": 1.82
+      },
+      "MNSO/9896.HK": {
+        "us_adv_usd_m": 8.76,
+        "hk_adv_usd_m": 12.21,
+        "thinner_leg": "US",
+        "per_trade_cap_usd_m": 0.44,
+        "per_pair_aum_capacity_usd_m": 1.46
+      },
+      "YMM/2643.HK": {
+        "us_adv_usd_m": 58.71,
+        "hk_adv_usd_m": 7.09,
+        "thinner_leg": "HK",
+        "per_trade_cap_usd_m": 0.35,
+        "per_pair_aum_capacity_usd_m": 1.18
+      },
+      "ZTO/2057.HK": {
+        "us_adv_usd_m": 45.66,
+        "hk_adv_usd_m": 52.89,
+        "thinner_leg": "US",
+        "per_trade_cap_usd_m": 2.28,
+        "per_pair_aum_capacity_usd_m": 7.61
+      }
+    },
+    "total_capacity_pass_pairs_usd_m": 396.57,
+    "total_capacity_all_pairs_usd_m": 397.75
+  },
+  "verdict": "PASS",
+  "verdict_reason": "aggregate mean_bps_net=77.27 (req>=25) AND pair_pass_count=12 of 13 (req>=8)",
+  "pairs_tradeable": 13,
+  "pairs_tested": 13,
+  "pairs_skipped": [],
+  "pairs_excluded_pre_run": [
+    "PDD (no HK listing exists)",
+    "HTHT (H World Group: no HK listing)"
+  ],
+  "ratio_suspect_pairs": [
+    "YMM/2643.HK"
+  ],
+  "per_pair_pass_count": 12,
+  "per_pair_pass_pairs": [
+    "BABA/9988.HK",
+    "BIDU/9888.HK",
+    "BILI/9626.HK",
+    "JD/9618.HK",
+    "LI/2015.HK",
+    "MNSO/9896.HK",
+    "NIO/9866.HK",
+    "NTES/9999.HK",
+    "TCOM/9961.HK",
+    "TME/1698.HK",
+    "XPEV/9868.HK",
+    "ZTO/2057.HK"
+  ],
+  "per_pair_pass_threshold": "mean_bps_net >= 25 AND n >= 20 AND not ratio_suspect"
+}

@@ -95,3 +95,31 @@ data/alpaca_three_lane_host.sqlite3
 
 # Reports (regenerable)
 reports/*.pdf
+
+# Rust build artifacts
+research/hft-engine/target/
+target/
+
+# Runtime artifacts (paper_v1 cache, lab runs, experiment outputs)
+research/data/cache/
+research/live/logs/
+research/live/*.sqlite3*
+data/cache/
+data/logs/
+experiments/runs/
+experiments/ml_lab/
+reports/pass_gate*/
+
+# Council historical run outputs (kept in archive/ instead)
+council/code_review_runs/
+council/expectations_runs/
+council/feature_runs/
+council/lab_runs/
+council/postmortem_runs/
+council/predeploy_runs/
+council/redteam_runs/
+council/reviews/
+
+# tmp
+*.log
+*.tmp

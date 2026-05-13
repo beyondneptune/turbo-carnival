@@ -50,6 +50,20 @@ CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_runs_type ON runs(run_type);
 
 -- ============================================================================
+-- nav_history: one row per paper run day for kill-switch and return bootstrap
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS nav_history (
+    run_id              TEXT NOT NULL REFERENCES runs(run_id),
+    date                TEXT NOT NULL,                     -- ISO 'YYYY-MM-DD'
+    nav                 REAL NOT NULL,
+    intraday_low        REAL NOT NULL,
+    created_at_utc      TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (run_id, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nav_history_run_date ON nav_history(run_id, date);
+
+-- ============================================================================
 -- gate_decisions: the deterministic gate audit log
 -- One row per evaluation of a candidate trade. Records WHY each candidate was
 -- approved or blocked. Critical for audit, prereg compliance, and postmortem.

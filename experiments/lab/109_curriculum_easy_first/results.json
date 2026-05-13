@@ -1,7 +1,7 @@
 {
   "experiment": "109_curriculum_easy_first",
   "description": "Curriculum learning: 3-stage easy-first training on LightGBM (100+150+200 estimators)",
-  "timestamp_utc": "2026-05-12T02:02:06.279080+00:00",
+  "timestamp_utc": "2026-05-12T07:02:00.254979+00:00",
   "train_auc": 0.9703696176574704,
   "test_auc": 0.8597161755542437,
   "train_test_gap": 0.1106534421032267,

@@ -1,7 +1,7 @@
 {
   "experiment": "134_lgbm_leaf_encoding_to_logreg",
   "description": "LightGBM leaf-index embeddings (80 trees, max_depth=4, num_leaves=15) -> one-hot -> LogReg; feature treatment: raw -> sequential GBM leaves -> sparse one-hot -> linear; total leaves: 1200",
-  "timestamp_utc": "2026-05-12T05:14:04.512916+00:00",
+  "timestamp_utc": "2026-05-12T07:03:13.077625+00:00",
   "train_auc": 0.9338642138900232,
   "test_auc": 0.8477617250699637,
   "train_test_gap": 0.08610248882005944,

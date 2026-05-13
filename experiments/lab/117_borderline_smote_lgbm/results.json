@@ -1,7 +1,7 @@
 {
   "experiment": "117_borderline_smote_lgbm",
   "description": "BorderlineSMOTE (boundary-aware oversampling) + LightGBM (gradient boosting); selectively oversamples minority points near decision boundary, then trains GBDT",
-  "timestamp_utc": "2026-05-12T02:52:15.374266+00:00",
+  "timestamp_utc": "2026-05-12T07:02:19.169668+00:00",
   "train_auc": 0.9182749025258737,
   "test_auc": 0.8572709474342997,
   "train_test_gap": 0.06100395509157408,

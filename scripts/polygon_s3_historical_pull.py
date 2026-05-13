@@ -40,35 +40,58 @@ OUT = REPO / "data" / "cache" / "minute_bars"
 OUT.mkdir(parents=True, exist_ok=True)
 
 UNIVERSE = ("SPY", "QQQ", "NVDA", "TSLA", "AMD", "AAPL", "META")
-S3_BUCKET = "flatfiles"
 S3_PREFIX = "us_stocks_sip/minute_aggs_v1/"
-S3_ENDPOINT = "https://files.polygon.io"
+# These can be overridden via env (account-specific endpoint/bucket)
+S3_ENDPOINT_DEFAULT = "https://files.polygon.io"
+S3_BUCKET_DEFAULT = "flatfiles"
+
+
+def _load_env_if_present():
+    """Read council/.env.local into os.environ if not already set."""
+    env_path = REPO / "council" / ".env.local"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
 def _get_s3_client():
     try:
         import boto3
+        from botocore.config import Config
     except ImportError as e:
         raise RuntimeError("boto3 not installed. pip install boto3") from e
+    _load_env_if_present()
     key = os.environ.get("POLYGON_S3_ACCESS_KEY")
     sec = os.environ.get("POLYGON_S3_SECRET")
+    endpoint = os.environ.get("POLYGON_S3_ENDPOINT", S3_ENDPOINT_DEFAULT)
     if not key or not sec:
         raise RuntimeError("POLYGON_S3_ACCESS_KEY/POLYGON_S3_SECRET env vars required")
     return boto3.client(
         "s3",
-        endpoint_url=S3_ENDPOINT,
+        endpoint_url=endpoint,
         aws_access_key_id=key,
         aws_secret_access_key=sec,
+        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
     )
+
+
+def _get_bucket() -> str:
+    return os.environ.get("POLYGON_S3_BUCKET", S3_BUCKET_DEFAULT)
 
 
 def _date_iter(start: str, end: str):
     s = datetime.strptime(start, "%Y-%m-%d")
     e = datetime.strptime(end, "%Y-%m-%d")
     while s <= e:
-        # Polygon flat files are weekdays only
+        # Polygon flat files are weekdays only.
+        # Key layout is: YYYY/MM/YYYY-MM-DD.csv.gz
         if s.weekday() < 5:
-            yield s.strftime("%Y/%m/%d")
+            yield s.strftime("%Y/%m/%Y-%m-%d")
         s += timedelta(days=1)
 
 
@@ -76,7 +99,7 @@ def _fetch_day(s3, date_path: str) -> bytes | None:
     """Download one day's minute_aggs CSV.gz from Polygon S3."""
     key = f"{S3_PREFIX}{date_path}.csv.gz"
     try:
-        obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
+        obj = s3.get_object(Bucket=_get_bucket(), Key=key)
         return obj["Body"].read()
     except Exception as exc:
         print(f"  fetch {date_path}: skip ({exc})")

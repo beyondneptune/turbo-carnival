@@ -1,7 +1,7 @@
 {
   "experiment": "127_beta_calibrated_lgbm",
   "description": "LGBM classifier with 3-parameter Beta calibration (sklearn-free). Beta function: 1/(1+((1-p)^a * e^c)/(p^b)). Params fit on 20% held-out calibration split via max-likelihood.",
-  "timestamp_utc": "2026-05-12T04:23:54.058572+00:00",
+  "timestamp_utc": "2026-05-12T07:02:41.282173+00:00",
   "train_auc": 0.9458200131690474,
   "test_auc": 0.8596738830403604,
   "train_test_gap": 0.08614613012868699,

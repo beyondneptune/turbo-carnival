@@ -1,11 +1,11 @@
 {
   "experiment": "138_kmeans_codes_logreg",
   "description": "KMeans (k=20) cluster-distance codes as feature basis + LogReg",
-  "timestamp_utc": "2026-05-12T06:03:55.874466+00:00",
-  "train_auc": 0.8266541300615858,
-  "test_auc": 0.8206770423389741,
-  "train_test_gap": 0.00597708772261174,
-  "test_brier": 0.18505714888999766,
+  "timestamp_utc": "2026-05-12T07:03:27.124768+00:00",
+  "train_auc": 0.8266565083504503,
+  "test_auc": 0.8207086763194718,
+  "train_test_gap": 0.005947832030978595,
+  "test_brier": 0.18500499414081018,
   "precision_at_top1pct": 0.6144578313253012,
   "flagged_count": 166,
   "passes_overfit_gate": true

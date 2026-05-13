@@ -1,0 +1,40 @@
+# Aggressive HFT variant — fires on any non-zero prediction.
+# Deployed LIVE on FALCON paper account (no --shadow-only).
+# Expectation: will fire 30-100x more often than the default. Probably bleeds
+# spread costs but produces visible execution rather than waiting forever.
+
+gate:
+  predicted_spread_multiplier: 0.5    # was 3.0 — allow tiny preds
+  confidence_floor: 0.10              # was 0.55 — minimal warmup gate
+  latency_p99_cap_ms: 400.0           # was 250.0 — more permissive
+  min_predicted_bps_abs: 0.1          # was 1.5 — fire on any non-zero pred
+
+sizing:
+  notional_usd: 1000.0                # was 5000 — smaller bets, more of them
+  hold_seconds: 5                     # was 20 — extremely fast turnaround
+  max_open_positions: 1
+
+risk:
+  initial_nav_usd: 100000.0
+  max_drawdown_pct: 0.05              # halt sooner — this is exploratory
+  max_consecutive_losses: 20          # tolerate more during exploration
+  latency_breach_ms: 600.0
+  latency_breach_minutes: 5
+
+intervals:
+  latency_seconds: 2                  # latency probe every 2s instead of 5
+  data_feed_seconds: 1                # poll SPY quotes every second
+  decision_seconds: 1                 # decide every second; react to new ES bar
+                                       # within 1s instead of 10s
+
+predictor:
+  rls_forgetting_factor: 0.99
+  warmup_samples: 3                   # was 10 — start trading fast
+
+endpoints:
+  alpaca_paper_base: "https://paper-api.alpaca.markets"
+  alpaca_data_base: "https://data.alpaca.markets"
+  yahoo_es_chart: "https://query1.finance.yahoo.com/v8/finance/chart/ES%3DF?interval=1m&range=1d"
+
+safety:
+  confirm_first_n_trades: 5

@@ -17,8 +17,10 @@ from dashboard.app import (
     count_satellite_events,
     count_priced_chain_files,
     count_spy_core_files,
+    fetch_active_live_run_id,
     fetch_latest_run_id,
     fetch_live_simulation_summary,
+    fetch_open_positions,
     fetch_prediction_actuals,
     fetch_run_daily_returns,
     fetch_run_trades,
@@ -587,6 +589,22 @@ def test_resolve_live_run_id_prefers_status_then_db(tmp_path):
     conn.close()
 
 
+def test_resolve_live_run_id_prefers_active_live_run(tmp_path):
+    db_path = tmp_path / "runs.db"
+    _make_db_with_run(db_path, run_id="completed_smoke")
+    conn = sqlite3.connect(db_path)
+    conn.execute("UPDATE runs SET status = 'completed' WHERE run_id = 'completed_smoke'")
+    conn.execute(
+        "INSERT INTO runs (run_id, run_type, status, initial_nav_usd, started_at_utc) "
+        "VALUES ('paper_v1_live_test', 'paper_frozen', 'running', 1000.0, '2026-05-07T00:00:00Z')"
+    )
+    conn.commit()
+
+    assert fetch_active_live_run_id(conn) == "paper_v1_live_test"
+    assert resolve_live_run_id(conn, {}) == "paper_v1_live_test"
+    conn.close()
+
+
 def test_fetch_live_simulation_summary_aggregates_decisions_and_trades(tmp_path):
     db_path = tmp_path / "sim.db"
     _make_db_with_run(
@@ -608,6 +626,43 @@ def test_fetch_live_simulation_summary_aggregates_decisions_and_trades(tmp_path)
     assert out["satellite_trades"] == 3
     assert out["realized_pnl_usd"] == 80.0
     assert out["win_rate"] == 0.5
+    conn.close()
+
+
+def test_fetch_open_positions_includes_leg_cash_and_dte(tmp_path):
+    db_path = tmp_path / "open.db"
+    _make_db_with_run(
+        db_path,
+        run_id="r0",
+        n_satellite=1,
+        pnl_sequence=[None],
+    )
+    conn = sqlite3.connect(db_path)
+    trade_id = conn.execute("SELECT trade_id FROM trades WHERE run_id = 'r0'").fetchone()[0]
+    conn.executemany(
+        "INSERT INTO trade_legs (trade_id, leg_number, instrument_type, direction, quantity, "
+        "multiplier, strike, expiry, entry_fill_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (trade_id, 1, "call", "long", 1, 100, 100.0, "2026-05-15", 2.0),
+            (trade_id, 2, "put", "short", 1, 100, 95.0, "2026-05-15", 1.5),
+        ],
+    )
+    conn.commit()
+
+    df = fetch_open_positions(
+        conn,
+        "r0",
+        as_of=datetime(2026, 5, 10, tzinfo=timezone.utc),
+    )
+
+    assert len(df) == 1
+    assert int(df.iloc[0]["trade_id"]) == trade_id
+    assert int(df.iloc[0]["legs"]) == 2
+    assert int(df.iloc[0]["days_open"]) == 2
+    assert int(df.iloc[0]["dte"]) == 5
+    assert df.iloc[0]["long_debit_usd"] == 200.0
+    assert df.iloc[0]["short_credit_usd"] == 150.0
+    assert df.iloc[0]["entry_net_credit_usd"] == -50.0
     conn.close()
 
 

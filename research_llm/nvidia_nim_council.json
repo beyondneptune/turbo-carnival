@@ -1,0 +1,58 @@
+{
+  "base_url": "https://integrate.api.nvidia.com/v1",
+  "env_api_key": "NVIDIA_API_KEY",
+  "notes": [
+    "Model ids are selected from the NVIDIA NIM catalog names shown on 2026-05-10.",
+    "Validate availability with /v1/models before a live council run; NVIDIA may rename or deprecate endpoints.",
+    "Do not put API keys in this file."
+  ],
+  "default_council": [
+    {
+      "role": "chair_synthesizer",
+      "model": "mistralai/mistral-large-3-675b-instruct-2512",
+      "reason": "Largest non-deprecated free endpoint in the provided list; best default for final synthesis and investor-safe wording."
+    },
+    {
+      "role": "quant_research_judge",
+      "model": "qwen/qwen3-coder-480b-a35b-instruct",
+      "reason": "Strong code/math/agentic model; best for attacking the strategy-grid implementation and spotting backtest bugs."
+    },
+    {
+      "role": "risk_manager",
+      "model": "minimaxai/minimax-m2.7",
+      "reason": "Large reasoning/coding endpoint without near-term deprecation label; useful independent risk critique."
+    },
+    {
+      "role": "execution_options_specialist",
+      "model": "mistralai/mistral-nemotron",
+      "reason": "NVIDIA/Mistral agentic model; good fit for execution realism, slippage, fill assumptions, and tool-oriented checks."
+    },
+    {
+      "role": "portfolio_allocator",
+      "model": "meta/llama-4-maverick-17b-128e-instruct",
+      "reason": "Different publisher/model family; useful diversity for allocation and benchmark comparison."
+    },
+    {
+      "role": "devils_advocate",
+      "model": "bytedance/seed-oss-36b-instruct",
+      "reason": "Fast independent skeptic; asks what would break before investor presentation or live paper deployment."
+    }
+  ],
+  "optional_use_if_available": [
+    {
+      "role": "reasoning_specialist_optional",
+      "model": "moonshotai/kimi-k2-thinking",
+      "reason": "Strong reasoning model, but the catalog screenshot shows near-term deprecation, so do not make it required."
+    },
+    {
+      "role": "agentic_coding_optional",
+      "model": "z-ai/glm-4.7",
+      "reason": "Strong agentic coding model, but near-term deprecation means optional only."
+    },
+    {
+      "role": "code_reviewer_optional",
+      "model": "mistralai/devstral-2-123b-instruct-2512",
+      "reason": "Code specialist, but near-term deprecation means optional only."
+    }
+  ]
+}
