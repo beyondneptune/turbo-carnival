@@ -1,0 +1,69 @@
+{
+  "ran_at_utc": "2026-05-14T12:28:54.323563+00:00",
+  "candidate": "v5_tsmom_hrp_regime",
+  "n_variants": 432,
+  "elapsed_sec": 70.23342990875244,
+  "best_variant": "L126_H504_R1_D0.3_V35.0_FM",
+  "best_train_sharpe": 0.6465792697839292,
+  "best_t_stat": 2.5533936924120226,
+  "white_RC_p": 0.0295,
+  "PBO": 0.48896658896658896,
+  "DSR": 0.32453672851797866,
+  "benchmarks_oos": {
+    "1N": {
+      "label": "1N_oos",
+      "n_days": 842,
+      "sharpe": 1.5364120062320066,
+      "ann_ret": 0.15007713459739264,
+      "ann_vol": 0.0976802667439779,
+      "max_dd": -0.09821373153009638,
+      "calmar": 1.5280667199922382,
+      "tot_ret": 0.6248482095363654
+    },
+    "SPY_buyhold": {
+      "label": "SPY_oos",
+      "n_days": 842,
+      "sharpe": 1.4751534822341168,
+      "ann_ret": 0.22393488574511344,
+      "ann_vol": 0.1518044653943158,
+      "max_dd": -0.18756310310012092,
+      "calmar": 1.1939175778382027,
+      "tot_ret": 1.0333360725340337
+    }
+  },
+  "best_train_metrics": {
+    "label": "train",
+    "n_days": 3930,
+    "sharpe": 0.6465792697839292,
+    "ann_ret": 0.04744516610808461,
+    "ann_vol": 0.0733787306913499,
+    "max_dd": -0.15837025627964008,
+    "calmar": 0.29958381846846904,
+    "tot_ret": 1.0091860928866123
+  },
+  "best_oos_metrics": {
+    "label": "oos",
+    "n_days": 842,
+    "sharpe": 0.878657794528678,
+    "ann_ret": 0.04594680667044034,
+    "ann_vol": 0.05229203787475274,
+    "max_dd": -0.09512540368242228,
+    "calmar": 0.48301300064738234,
+    "tot_ret": 0.16061664655111918
+  },
+  "vs_1N_sharpe_diff_oos": -0.6577542117033286,
+  "vs_SPY_sharpe_diff_oos": -0.5964956877054388,
+  "hurdles": {
+    "white_RC_p_lt_0.05": true,
+    "PBO_lt_0.50": true,
+    "DSR_gt_0.80": false,
+    "t_stat_gt_3.0": "False",
+    "OOS_sharpe_gt_1.0": false,
+    "OOS_sharpe_beats_1N_by_0.10": false,
+    "OOS_sharpe_beats_SPY_by_0.10": false,
+    "OOS_max_DD_lt_25pct": true,
+    "OOS_calmar_gt_1.0": false,
+    "shrinkage_lt_50pct": "True"
+  },
+  "all_hurdles_pass": false
+}
