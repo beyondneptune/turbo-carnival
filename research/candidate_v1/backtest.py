@@ -317,23 +317,40 @@ def all_variants() -> list[VariantParams]:
     return out
 
 
-def deflated_sharpe(observed_sharpe: float, n_trials: int, T: int,
-                    skew: float = 0.0, kurt: float = 3.0) -> float:
+def deflated_sharpe(observed_annualized_sharpe: float, n_trials: int, T: int,
+                    skew: float = 0.0, kurt: float = 3.0,
+                    periods_per_year: int = 252) -> float:
     """Bailey-Lopez de Prado (2014) Deflated Sharpe Ratio.
 
-    DSR(SR_observed) = Φ((SR_obs - E[max SR | H0]) / σ_SR)
-    where E[max SR | H0] uses extreme-value adjustment for n_trials.
+    DSR = Φ((SR_daily - E[max SR | H0]) / σ_SR)
+    where SR_daily is the daily Sharpe (annualized / sqrt(periods_per_year))
+    and E[max SR | H0] = z_n / sqrt(T-1) under the null of mean-zero returns.
+
+    Returns probability that the true underlying Sharpe > 0 after accounting
+    for multiple-testing inflation across `n_trials` candidate strategies.
+
+    Bug fixed 2026-05-13: prior version mixed annualized-Sharpe and standard-
+    normal extreme-value units, clamping to 1.0. Now everything is in DAILY
+    Sharpe units internally; observed annualized SR is converted on entry.
     """
-    # Expected max Sharpe under null (Bailey-Lopez de Prado 2014, eq. 7)
-    euler_mascheroni = 0.5772156649
-    z_n = (1 - euler_mascheroni) * (-_normal_inv_cdf(1.0 - 1.0 / n_trials)) + \
-          euler_mascheroni * (-_normal_inv_cdf(1.0 - 1.0 / (n_trials * math.e)))
-    # σ_SR per BLP eq. 9
-    sigma_sr = math.sqrt((1 - skew * observed_sharpe + (kurt - 1) / 4 * observed_sharpe ** 2) / (T - 1))
-    if sigma_sr <= 0:
+    if n_trials < 2 or T < 2:
+        return float("nan")
+    # 1. Convert observed annualized Sharpe to daily-Sharpe scale
+    daily_sr = observed_annualized_sharpe / math.sqrt(periods_per_year)
+    # 2. Expected max of n_trials draws from N(0,1) (Bailey-Lopez de Prado eq. 5)
+    em = 0.5772156649  # Euler-Mascheroni
+    z_n = (1 - em) * _normal_inv_cdf(1.0 - 1.0 / n_trials) + \
+          em       * _normal_inv_cdf(1.0 - 1.0 / (n_trials * math.e))
+    # 3. Expected max daily Sharpe under null
+    e_max_daily_sr = z_n / math.sqrt(T - 1)
+    # 4. Variance of the daily Sharpe estimator (BLP eq. 9 with normal-return defaults)
+    var_sr = (1 - skew * daily_sr + (kurt - 1) / 4.0 * daily_sr ** 2) / (T - 1)
+    if var_sr <= 0:
         return 0.0
-    psr = _normal_cdf((observed_sharpe - z_n) / sigma_sr)
-    return float(psr)
+    sigma_sr = math.sqrt(var_sr)
+    # 5. Probability that true Sharpe > 0 given multi-testing correction
+    z = (daily_sr - e_max_daily_sr) / sigma_sr
+    return float(_normal_cdf(z))
 
 
 def _normal_cdf(x: float) -> float:
