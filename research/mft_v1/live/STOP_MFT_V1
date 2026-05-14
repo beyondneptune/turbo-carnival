@@ -1,0 +1,5 @@
+{
+  "ts_utc": "2026-05-14T13:10:00Z",
+  "reason": "validation_failure",
+  "detail": "6 of 9 Phase 3 hurdles failed. Best train Sharpe -0.24 (negative even after picking best of 324 variants), White RC p=0.96 (no statistical edge), DSR=0.0005, OOS loses to SPY by Sharpe 0.90. ORB literature's published Sharpe 1.5-2.0 does not replicate on retail Alpaca infrastructure with realistic costs."
+}
